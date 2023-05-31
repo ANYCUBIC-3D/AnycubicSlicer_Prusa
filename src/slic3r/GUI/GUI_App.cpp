@@ -160,7 +160,7 @@ public:
             memDC.SelectObject(bitmap);
 
             memDC.SetFont(m_action_font);
-            memDC.SetTextForeground(wxColour(237, 107, 33));
+            memDC.SetTextForeground(AC_COLOR_WHITE);
             memDC.DrawText(text, int(m_scale * 60), m_action_line_y_position);
 
             memDC.SelectObject(wxNullBitmap);

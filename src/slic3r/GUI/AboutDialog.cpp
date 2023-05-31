@@ -123,6 +123,7 @@ void CopyrightsDialog::fill_entries()
         { "lib_fts"         , "Forrest Smith"                               , "https://www.forrestthewoods.com/" },
         { "fast_float"      , "Daniel Lemire, João Paulo Magalhaes and contributors", "https://github.com/fastfloat/fast_float" },
         { "CuraEngine (Arachne, etc.)", "Ultimaker", "https://github.com/Ultimaker/CuraEngine" },
+        { "ArcWelderLib", "FormerLurker,Harald Wagener,Gauthier Fleutot Östervall", "https://github.com/FormerLurker/ArcWelderLib" },
         { "Open CASCADE Technology", "Open Cascade SAS", "https://github.com/Open-Cascade-SAS/OCCT" }
     };
 }
