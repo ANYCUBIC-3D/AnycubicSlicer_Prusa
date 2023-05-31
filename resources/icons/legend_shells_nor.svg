@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="34" height="34" viewBox="0 0 34 34">
+  <defs>
+    <clipPath id="clip-legend__shells_nor">
+      <rect width="34" height="34"/>
+    </clipPath>
+  </defs>
+  <g id="legend__shells_nor" data-name="legend_ shells_nor" clip-path="url(#clip-legend__shells_nor)">
+    <g id="功能按钮">
+      <rect id="功能按钮-2" data-name="功能按钮" width="34" height="34" rx="8" fill="#f0f2f5"/>
+    </g>
+    <g id="组_2097" data-name="组 2097" transform="translate(116.405 -150)">
+      <g id="组_2092" data-name="组 2092" opacity="0.34">
+        <path id="路径_1729" data-name="路径 1729" d="M-106.7,172.245a1,1,0,0,1-.865-.5,1,1,0,0,1,.361-1.367l6.8-3.956v-7.95a1,1,0,0,1,1-1,1,1,0,0,1,1,1V167a1,1,0,0,1-.5.864l-7.294,4.245A1,1,0,0,1-106.7,172.245Z" fill="#444f61"/>
+      </g>
+      <g id="组_2093" data-name="组 2093" opacity="0.34">
+        <path id="路径_1730" data-name="路径 1730" d="M-91.736,172.245a1,1,0,0,1-.483-.125l-7.671-4.245a1,1,0,0,1-.39-1.359,1,1,0,0,1,1.359-.391l7.671,4.245a1,1,0,0,1,.39,1.359A1,1,0,0,1-91.736,172.245Z" fill="#444f61"/>
+      </g>
+      <g id="组_2094" data-name="组 2094">
+        <path id="路径_1731" data-name="路径 1731" d="M-99.4,157l-9,5v10l9,5,9-5V162Zm7,13.823-7,3.889-7-3.889v-7.646l7-3.889,7,3.889Z" fill="#444f61"/>
+      </g>
+      <g id="组_2095" data-name="组 2095">
+        <path id="路径_1732" data-name="路径 1732" d="M-99.39,167.965a1,1,0,0,1-.5-.134l-7.294-4.211a1,1,0,0,1-.366-1.366,1,1,0,0,1,1.366-.366l6.794,3.923,6.764-3.906a1,1,0,0,1,1.366.366,1,1,0,0,1-.366,1.367l-7.264,4.193A1,1,0,0,1-99.39,167.965Z" fill="#444f61"/>
+      </g>
+      <g id="组_2096" data-name="组 2096">
+        <rect id="矩形_610" data-name="矩形 610" width="2" height="9.254" transform="translate(-100.405 167)" fill="#444f61"/>
+      </g>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+  <g id="icon-cut" transform="translate(-20 -292)">
+    <g id="左侧边栏-icon-bg" transform="translate(20 292)">
+      <rect id="左侧边栏-icon-bg-2" data-name="左侧边栏-icon-bg" width="40" height="40" rx="8" fill="none"/>
+    </g>
+    <g id="组_2090" data-name="组 2090" transform="translate(20 292)">
+      <g id="组_2089" data-name="组 2089">
+        <rect id="矩形_603" data-name="矩形 603" width="2" height="3" rx="1" transform="translate(32 19) rotate(89.994)" fill="#3986ff"/>
+        <rect id="矩形_604" data-name="矩形 604" width="2" height="3" rx="1" transform="translate(25 19) rotate(89.994)" fill="#3986ff"/>
+        <rect id="矩形_605" data-name="矩形 605" width="2" height="3" rx="1" transform="matrix(0, 1, -1, 0, 18.001, 19)" fill="#3986ff"/>
+        <rect id="矩形_606" data-name="矩形 606" width="2" height="3" rx="1" transform="translate(11 19) rotate(89.994)" fill="#3986ff"/>
+      </g>
+      <rect id="矩形_607" data-name="矩形 607" width="20" height="7" rx="2.148" transform="translate(10 9)" fill="#3986ff"/>
+      <rect id="矩形_608" data-name="矩形 608" width="20" height="7" rx="2.148" transform="translate(10 24)" fill="#3986ff"/>
+    </g>
+  </g>
+</svg>

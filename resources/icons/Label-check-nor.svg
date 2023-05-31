@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="14" height="14" viewBox="0 0 14 14">
+  <defs>
+    <clipPath id="clip-Label-nor">
+      <rect width="14" height="14"/>
+    </clipPath>
+  </defs>
+  <g id="Label-nor" clip-path="url(#clip-Label-nor)">
+    <g id="icon-标签取消选中">
+      <path id="矩形_564" data-name="矩形 564" d="M0,0H4A10,10,0,0,1,14,10v4a0,0,0,0,1,0,0H10A10,10,0,0,1,0,4V0A0,0,0,0,1,0,0Z" fill="#3986ff"/>
+      <path id="路径_1683" data-name="路径 1683" d="M4.777,6.8,6.722,8.741,9.932,5.53" transform="translate(-0.355 -0.135)" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4"/>
+    </g>
+  </g>
+</svg>

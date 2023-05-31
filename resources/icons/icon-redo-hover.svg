@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="32" height="32" viewBox="0 0 32 32">
+  <defs>
+    <clipPath id="clip-icon-ahead-hover">
+      <rect width="32" height="32"/>
+    </clipPath>
+  </defs>
+  <g id="icon-ahead-hover" clip-path="url(#clip-icon-ahead-hover)">
+    <g id="矩形_368" data-name="矩形 368" fill="#f4f8fe" stroke="#5f9dff" stroke-width="1">
+      <rect width="32" height="32" rx="6" stroke="none"/>
+      <rect x="0.5" y="0.5" width="31" height="31" rx="5.5" fill="none"/>
+    </g>
+    <path id="icon-撤退" d="M81.823,60.147,73.9,53.179A.51.51,0,0,0,73.517,53a.524.524,0,0,0-.516.534v3.593c-4.652-.183-7.557.984-9.038,3.383-2.467,4,.57,9.957.7,10.209a.513.513,0,0,0,.454.281.5.5,0,0,0,.174-.032.534.534,0,0,0,.331-.607c-.6-3.08-.246-5.243,1.042-6.432,1.906-1.756,5.212-1.048,6.335-.744v4.288a.537.537,0,0,0,.3.486.5.5,0,0,0,.553-.083l7.968-6.922a.547.547,0,0,0,.03-.778l-.03-.03Z" transform="translate(-56 -46)" fill="#3c4f73"/>
+  </g>
+</svg>

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="36" height="36" viewBox="0 0 36 36">
+  <defs>
+    <clipPath id="clip-icon-Custom_G-code-hover">
+      <rect width="36" height="36"/>
+    </clipPath>
+  </defs>
+  <g id="icon-Custom_G-code-hover" data-name="icon-Custom G-code-hover" clip-path="url(#clip-icon-Custom_G-code-hover)">
+    <path id="路径_1659" data-name="路径 1659" d="M-189,29h-12a2,2,0,0,0-2,2V43a2,2,0,0,0,2,2h12a2,2,0,0,0,2-2V31A2,2,0,0,0-189,29Zm-7.642,6.4-2.572,1.491,2.572,1.4v1.742l-4.291-2.563V36.348l4.291-2.766Zm1.621,5.785h-1.251l1.293-8.36h1.25Zm5.954-3.71-4.292,2.562V38.291l2.572-1.406-2.572-1.49V33.582l4.292,2.766Z" transform="translate(213 -19)" fill="#3986ff"/>
+  </g>
+</svg>

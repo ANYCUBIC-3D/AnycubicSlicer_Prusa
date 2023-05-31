@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="34" height="34" viewBox="0 0 34 34">
+  <defs>
+    <clipPath id="clip-icon-reset-hover">
+      <rect width="34" height="34"/>
+    </clipPath>
+  </defs>
+  <g id="icon-reset-hover" clip-path="url(#clip-icon-reset-hover)">
+    <rect id="打印设置-icon-bg" width="34" height="34" rx="8" fill="#3986ff"/>
+    <g id="组_1967" data-name="组 1967" transform="translate(-80 1)">
+      <path id="路径_1629" data-name="路径 1629" d="M96.985,25a9,9,0,0,1-4.279-1.086,1.252,1.252,0,0,1-.259-2.012l2.638-2.479a1.253,1.253,0,0,1,1.768.054,1.254,1.254,0,0,1-.054,1.767l-1.176,1.107a10.114,10.114,0,0,0,1.149.131l.238.019A6.512,6.512,0,0,0,103.5,16a6.424,6.424,0,0,0-1.109-3.632,1.251,1.251,0,0,1,2.072-1.4A8.916,8.916,0,0,1,106,16a9.01,9.01,0,0,1-9,9Z" fill="#fff"/>
+      <path id="路径_1630" data-name="路径 1630" d="M103.426,11.666" fill="#fff" stroke="#444f61" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+      <path id="路径_1631" data-name="路径 1631" d="M103.426,11.667" fill="#fff" stroke="#444f61" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+      <path id="路径_1632" data-name="路径 1632" d="M103.426,11.666" fill="#fff" stroke="#444f61" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+      <path id="路径_1633" data-name="路径 1633" d="M103.426,11.667" fill="#fff" stroke="#444f61" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+      <path id="路径_1634" data-name="路径 1634" d="M90.575,21.585a1.247,1.247,0,0,1-1.038-.554A8.9,8.9,0,0,1,88,16a9.01,9.01,0,0,1,12.506-8.291,1.251,1.251,0,0,1,.427,2.007l-3.084,3.3a1.25,1.25,0,1,1-1.827-1.707l1.655-1.77a6.3,6.3,0,0,0-.666-.035A6.512,6.512,0,0,0,90.5,16a6.437,6.437,0,0,0,1.109,3.634,1.25,1.25,0,0,1-.336,1.735A1.251,1.251,0,0,1,90.575,21.585Z" fill="#fff"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24">
+  <defs>
+    <clipPath id="clip-machine_selection-nor">
+      <rect width="24" height="24"/>
+    </clipPath>
+  </defs>
+  <g id="machine_selection-nor" clip-path="url(#clip-machine_selection-nor)">
+    <path id="交叉_1" data-name="交叉 1" d="M-6405,552h16.155a8,8,0,0,1,7.844,8v16Z" transform="translate(6405 -552)" fill="#3986ff"/>
+    <path id="路径_159" data-name="路径 159" d="M8368.582,873.327l2.717,2.6,3.647-4" transform="translate(-8354.945 -866.43)" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+  </g>
+</svg>

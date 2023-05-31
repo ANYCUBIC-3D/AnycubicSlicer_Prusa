@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="20" height="20" viewBox="0 0 20 20">
+  <defs>
+    <clipPath id="clip-icon-list-model-sel">
+      <rect width="20" height="20"/>
+    </clipPath>
+  </defs>
+  <g id="icon-list-model-sel" clip-path="url(#clip-icon-list-model-sel)">
+    <g id="icon-list-model">
+      <rect id="占位" width="20" height="20" fill="none" opacity="0.4"/>
+      <g id="组_1952" data-name="组 1952" transform="translate(72 -82)">
+        <path id="路径_1618" data-name="路径 1618" d="M-62.146,90.542-55,87.218l-6.91-3.171a.529.529,0,0,0-.437,0L-69,87.1Z" fill="#fff"/>
+        <g id="组_1951" data-name="组 1951">
+          <path id="路径_1619" data-name="路径 1619" d="M-61.023,92.66V100l6.738-3.226A.5.5,0,0,0-54,96.325V89.257Z" fill="#fff"/>
+          <path id="路径_1620" data-name="路径 1620" d="M-63.023,92.649-70,89v7.325a.5.5,0,0,0,.283.449l6.694,3.2Z" fill="#fff"/>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="34" height="34" viewBox="0 0 34 34">
+  <defs>
+    <clipPath id="clip-icon-rename-hover">
+      <rect width="34" height="34"/>
+    </clipPath>
+  </defs>
+  <g id="icon-rename-hover" clip-path="url(#clip-icon-rename-hover)">
+    <rect id="打印设置-icon-bg" width="34" height="34" rx="8" fill="#3986ff"/>
+    <g id="组_1966" data-name="组 1966" transform="translate(-57 1)">
+      <path id="路径_1628" data-name="路径 1628" d="M72,11a1,1,0,0,0,1-1V9a1,1,0,0,0-1-1H65a1,1,0,0,0-1,1v1a1,1,0,0,0,1,1h1.511a.489.489,0,0,1,.489.489v9.022a.489.489,0,0,1-.489.489H65a1,1,0,0,0-1,1v1a1,1,0,0,0,1,1h7a1,1,0,0,0,1-1V22a1,1,0,0,0-1-1H70.489A.489.489,0,0,1,70,20.511V11.489A.489.489,0,0,1,70.489,11Z" fill="#fff"/>
+      <rect id="矩形_543" data-name="矩形 543" width="4" height="4" rx="1" transform="translate(75 20)" fill="#fff"/>
+      <rect id="矩形_544" data-name="矩形 544" width="4" height="4" rx="1" transform="translate(80 20)" fill="#fff"/>
+    </g>
+  </g>
+</svg>

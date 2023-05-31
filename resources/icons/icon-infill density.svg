@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="28" height="28" viewBox="0 0 28 28">
+  <defs>
+    <clipPath id="clip-icon-infill_density">
+      <rect width="28" height="28"/>
+    </clipPath>
+  </defs>
+  <g id="icon-infill_density" data-name="icon-infill density" clip-path="url(#clip-icon-infill_density)">
+    <g id="icon" transform="translate(-1628 -188)">
+      <rect id="矩形_381" data-name="矩形 381" width="28" height="28" transform="translate(1628 188)" fill="none" opacity="0.542"/>
+      <g id="组_1947" data-name="组 1947" transform="translate(1424 118)">
+        <path id="路径_1610" data-name="路径 1610" d="M214.511,89a1.5,1.5,0,1,1,1.049-.439,1.428,1.428,0,0,1-1.049.44Z" fill="#8e99ad"/>
+        <path id="路径_1611" data-name="路径 1611" d="M226,91H211.389a.389.389,0,0,1-.389-.388V76a1,1,0,0,0-2,0V92a1,1,0,0,0,1,1h16a1,1,0,0,0,0-2Z" fill="#8e99ad"/>
+        <circle id="椭圆_127" data-name="椭圆 127" cx="1" cy="1" r="1" transform="translate(217.408 86.5)" fill="#8e99ad"/>
+        <circle id="椭圆_128" data-name="椭圆 128" cx="0.75" cy="0.75" r="0.75" transform="translate(221.034 86.75)" fill="#8e99ad"/>
+        <circle id="椭圆_129" data-name="椭圆 129" cx="0.5" cy="0.5" r="0.5" transform="translate(223.938 87)" fill="#8e99ad"/>
+        <path id="路径_1612" data-name="路径 1612" d="M214.511,85a1.5,1.5,0,1,1,1.049-.439,1.428,1.428,0,0,1-1.049.44Z" fill="#8e99ad"/>
+        <circle id="椭圆_130" data-name="椭圆 130" cx="1" cy="1" r="1" transform="translate(217.408 82.5)" fill="#8e99ad"/>
+        <circle id="椭圆_131" data-name="椭圆 131" cx="0.75" cy="0.75" r="0.75" transform="translate(221.034 82.75)" fill="#8e99ad"/>
+        <circle id="椭圆_132" data-name="椭圆 132" cx="0.5" cy="0.5" r="0.5" transform="translate(223.938 83)" fill="#8e99ad"/>
+        <path id="路径_1613" data-name="路径 1613" d="M214.511,81a1.5,1.5,0,1,1,1.049-.439,1.428,1.428,0,0,1-1.049.44Z" fill="#8e99ad"/>
+        <circle id="椭圆_133" data-name="椭圆 133" cx="1" cy="1" r="1" transform="translate(217.408 78.5)" fill="#8e99ad"/>
+        <circle id="椭圆_134" data-name="椭圆 134" cx="0.75" cy="0.75" r="0.75" transform="translate(221.034 78.75)" fill="#8e99ad"/>
+        <circle id="椭圆_135" data-name="椭圆 135" cx="0.5" cy="0.5" r="0.5" transform="translate(223.938 79)" fill="#8e99ad"/>
+      </g>
+    </g>
+  </g>
+</svg>

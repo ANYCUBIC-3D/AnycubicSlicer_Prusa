@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="32" height="32" viewBox="0 0 32 32">
+  <defs>
+    <clipPath id="clip-Icon-save-click">
+      <rect width="32" height="32"/>
+    </clipPath>
+  </defs>
+  <g id="Icon-save-click" clip-path="url(#clip-Icon-save-click)">
+    <g id="保存" transform="translate(-132 -2)">
+      <g id="矩形_364" data-name="矩形 364" transform="translate(132 2)" fill="#ebeff5" stroke="#1d69e0" stroke-width="1">
+        <rect width="32" height="32" rx="6" stroke="none"/>
+        <rect x="0.5" y="0.5" width="31" height="31" rx="5.5" fill="none"/>
+      </g>
+      <g id="组_1924" data-name="组 1924" transform="translate(101 -45)">
+        <rect id="矩形_518" data-name="矩形 518" width="6" height="7" transform="translate(44 53)" fill="#3c4f73"/>
+        <path id="路径_1594" data-name="路径 1594" d="M52,53.141V60a2,2,0,0,1-2,2H44a2,2,0,0,1-2-2V53.141A3.992,3.992,0,0,0,39,57V69a4,4,0,0,0,4,4h8a4,4,0,0,0,4-4V57A3.991,3.991,0,0,0,52,53.141ZM51,69H43a1,1,0,0,1,0-2h8a1,1,0,0,1,0,2Z" fill="#3c4f73"/>
+      </g>
+    </g>
+  </g>
+</svg>

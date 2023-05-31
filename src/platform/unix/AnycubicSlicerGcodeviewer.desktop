@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=AnycubicSlicer GCode viewer
+Exec=AnycubicSlicer --gcodeviewer %F
+Icon=AnycubicSlicer-gcodeviewer
+Terminal=false
+Type=Application
+MimeType=text/x.gcode;
+Categories=Graphics;3DGraphics;
+Keywords=3D;Printing;Slicer;

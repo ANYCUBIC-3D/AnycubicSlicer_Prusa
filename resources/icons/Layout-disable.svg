@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="80" height="60" viewBox="0 0 80 60">
+  <defs>
+    <clipPath id="clip-Layout-disable">
+      <rect width="80" height="60"/>
+    </clipPath>
+  </defs>
+  <g id="Layout-disable" clip-path="url(#clip-Layout-disable)">
+    <rect id="占位" width="80" height="60" fill="none" opacity="0.272"/>
+    <g id="左侧边栏-icon-bg" transform="translate(20)">
+      <rect id="左侧边栏-icon-bg-2" data-name="左侧边栏-icon-bg" width="40" height="40" rx="8" fill="#f4f4f4"/>
+    </g>
+    <g id="组_1896" data-name="组 1896" transform="translate(20)">
+      <path id="路径_1567" data-name="路径 1567" d="M30,14v-.867A3.963,3.963,0,0,0,26.242,9H13.758A3.963,3.963,0,0,0,10,13.133V14Z" fill="#a8a8a8"/>
+      <path id="路径_1568" data-name="路径 1568" d="M16,16H10V26.867A3.963,3.963,0,0,0,13.758,31H16Z" fill="#a8a8a8"/>
+      <path id="路径_1569" data-name="路径 1569" d="M18,16V31h8.242A3.963,3.963,0,0,0,30,26.867V16Z" fill="#a8a8a8"/>
+    </g>
+  </g>
+</svg>

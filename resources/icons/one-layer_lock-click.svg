@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="40" height="40" viewBox="0 0 40 40">
+  <defs>
+    <clipPath id="clip-one-layer_lock-click">
+      <rect width="40" height="40"/>
+    </clipPath>
+  </defs>
+  <g id="one-layer_lock-click" clip-path="url(#clip-one-layer_lock-click)">
+    <g id="icon-层数锁定" transform="translate(3 3)">
+      <rect id="矩形_574" data-name="矩形 574" width="34" height="34" rx="8" fill="#1d69e0"/>
+      <path id="路径_1717" data-name="路径 1717" d="M-58,121l-12-5,12-5,12,5Z" transform="translate(76 -93)" fill="#9bc2ff"/>
+      <path id="路径_1716" data-name="路径 1716" d="M-59,115l-12-5,12-5,12,5Z" transform="translate(76 -93)" fill="#fff"/>
+      <path id="路径_1718" data-name="路径 1718" d="M-58,109l-12-5,12-5,12,5Z" transform="translate(76 -93)" fill="#9bc2ff"/>
+    </g>
+  </g>
+</svg>

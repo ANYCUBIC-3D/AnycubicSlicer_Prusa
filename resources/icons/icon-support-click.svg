@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="36" height="36" viewBox="0 0 36 36">
+  <defs>
+    <clipPath id="clip-icon-support-click">
+      <rect width="36" height="36"/>
+    </clipPath>
+  </defs>
+  <g id="icon-support-click" clip-path="url(#clip-icon-support-click)">
+    <g id="组_1986" data-name="组 1986" transform="translate(85 -40)">
+      <path id="路径_1660" data-name="路径 1660" d="M-70.466,65a1.089,1.089,0,0,1-.936-.537l-3.452-5.92a1.087,1.087,0,0,1,0-1.088l3.452-5.918A1.087,1.087,0,0,1-70.466,51h6.932a1.089,1.089,0,0,1,.936.537l3.452,5.92a1.087,1.087,0,0,1,0,1.088L-62.6,64.463a1.087,1.087,0,0,1-.936.537Z" fill="#1d69e0"/>
+      <path id="路径_1661" data-name="路径 1661" d="M-72,65h-3V60Z" fill="#1d69e0"/>
+      <path id="路径_1662" data-name="路径 1662" d="M-62,65h3V60Z" fill="#1d69e0"/>
+    </g>
+  </g>
+</svg>

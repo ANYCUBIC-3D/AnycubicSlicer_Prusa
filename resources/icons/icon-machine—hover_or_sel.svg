@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="28" height="28" viewBox="0 0 28 28">
+  <defs>
+    <clipPath id="clip-icon-machine_hover_or_sel">
+      <rect width="28" height="28"/>
+    </clipPath>
+  </defs>
+  <g id="icon-machine_hover_or_sel" data-name="icon-machine—hover_or_sel" clip-path="url(#clip-icon-machine_hover_or_sel)">
+    <g id="icon" transform="translate(-1628 -188)">
+      <rect id="矩形_381" data-name="矩形 381" width="28" height="28" transform="translate(1628 188)" fill="none" opacity="0.542"/>
+      <g id="组_1944" data-name="组 1944" transform="translate(1522 116.974)">
+        <rect id="矩形_531" data-name="矩形 531" width="2" height="12" transform="translate(114 78)" fill="#3986ff"/>
+        <rect id="矩形_532" data-name="矩形 532" width="2" height="12" transform="translate(124 79)" fill="#3986ff"/>
+        <path id="路径_1606" data-name="路径 1606" d="M127.419,90H112.581a.376.376,0,0,0-.335.2l-1.205,2.322a.366.366,0,0,0,.334.53h17.25a.366.366,0,0,0,.334-.53L127.754,90.2A.376.376,0,0,0,127.419,90Z" fill="#3986ff"/>
+        <rect id="矩形_533" data-name="矩形 533" width="9.479" height="0.887" transform="translate(115.257 82.566)" fill="#3986ff"/>
+        <rect id="矩形_534" data-name="矩形 534" width="4" height="4" rx="0.554" transform="translate(118 81)" fill="#3986ff"/>
+        <path id="路径_1607" data-name="路径 1607" d="M121,84l-1,1.1L119,84Z" transform="translate(0 0.899)" fill="#3986ff"/>
+        <rect id="矩形_535" data-name="矩形 535" width="16" height="2" rx="0.642" transform="translate(112 77)" fill="#3986ff"/>
+      </g>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="34" height="34" viewBox="0 0 34 34">
+  <defs>
+    <clipPath id="clip-Icon-import-disable">
+      <rect width="34" height="34"/>
+    </clipPath>
+  </defs>
+  <g id="Icon-import-disable" clip-path="url(#clip-Icon-import-disable)">
+    <rect id="打印设置-icon-bg" width="34" height="34" rx="8" fill="#f4f4f4"/>
+    <g id="组_1968" data-name="组 1968" transform="translate(-103 1)">
+      <path id="路径_1635" data-name="路径 1635" d="M112.173,22h15.654Q129,22,129,23.095v.81Q129,25,127.827,25H112.173Q111,25,111,23.905v-.81Q111,22,112.173,22Z" fill="#a8a8a8"/>
+      <path id="路径_1636" data-name="路径 1636" d="M121.053,18.78l3.872-4.676a.32.32,0,0,0-.044-.455.327.327,0,0,0-.212-.075h-1.7c0-5.458-4.911-6.433-7.56-6.562a.323.323,0,0,0-.4.223.319.319,0,0,0,.226.393c1.968,1.046,2.836,2.822,2.939,5.607a.327.327,0,0,1-.325.327h-1.363a.325.325,0,0,0-.339.312.321.321,0,0,0,.086.23l3.872,4.688a.629.629,0,0,0,.881.053.655.655,0,0,0,.064-.065Z" fill="#a8a8a8"/>
+    </g>
+  </g>
+</svg>

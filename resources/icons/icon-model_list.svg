@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="28" height="28" viewBox="0 0 28 28">
+  <defs>
+    <clipPath id="clip-Icon-model_list">
+      <rect width="28" height="28"/>
+    </clipPath>
+  </defs>
+  <g id="Icon-model_list" clip-path="url(#clip-Icon-model_list)">
+    <g id="icon" transform="translate(-1628 -188)">
+      <rect id="矩形_381" data-name="矩形 381" width="28" height="28" transform="translate(1628 188)" fill="none" opacity="0.542"/>
+      <g id="组_1946" data-name="组 1946" transform="translate(1447 118)">
+        <path id="路径_1609" data-name="路径 1609" d="M200.622,75H189.378A3.378,3.378,0,0,0,186,78.379V89.621A3.378,3.378,0,0,0,189.378,93h11.244A3.378,3.378,0,0,0,204,89.625V78.379A3.378,3.378,0,0,0,200.622,75ZM202,89.625A1.38,1.38,0,0,1,200.622,91H189.378A1.38,1.38,0,0,1,188,89.621V78.379A1.38,1.38,0,0,1,189.378,77h11.244A1.38,1.38,0,0,1,202,78.379Z" fill="#8e99ad"/>
+        <rect id="矩形_536" data-name="矩形 536" width="5" height="2" transform="translate(195 80)" fill="#8e99ad"/>
+        <rect id="矩形_537" data-name="矩形 537" width="4" height="4" transform="translate(190 79)" fill="#8e99ad"/>
+        <rect id="矩形_538" data-name="矩形 538" width="5" height="2" transform="translate(195 86)" fill="#8e99ad"/>
+        <rect id="矩形_539" data-name="矩形 539" width="4" height="4" transform="translate(190 85)" fill="#8e99ad"/>
+      </g>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="26" height="26" viewBox="0 0 26 26">
+  <defs>
+    <clipPath id="clip-software_maximization2-nor">
+      <rect width="26" height="26"/>
+    </clipPath>
+  </defs>
+  <g id="software_maximization2-nor" clip-path="url(#clip-software_maximization2-nor)">
+    <g id="最大化" transform="translate(-2 -8)">
+      <rect id="矩形_257" data-name="矩形 257" width="26" height="26" rx="4" transform="translate(2 8)" fill="#f1f4f9"/>
+      <g id="组_2047" data-name="组 2047" transform="translate(85 -59)">
+        <path id="路径_1719" data-name="路径 1719" d="M-77,73V87h14V73Zm13,13H-76V74h12Z" fill="#141c29"/>
+        <rect id="矩形_577" data-name="矩形 577" width="14" height="1" transform="translate(-77 77)" fill="#141c29"/>
+      </g>
+    </g>
+  </g>
+</svg>

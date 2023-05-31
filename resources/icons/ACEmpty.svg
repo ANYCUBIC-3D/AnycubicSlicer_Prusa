@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24">
+  <defs>
+    <style>
+      .cls-1 {
+        clip-path: url(#clip-empty);
+      }
+    </style>
+    <clipPath id="clip-empty">
+      <rect width="24" height="24"/>
+    </clipPath>
+  </defs>
+  <g id="empty" class="cls-1"/>
+</svg>

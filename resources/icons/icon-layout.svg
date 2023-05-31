@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+  <g id="icon-layout" transform="translate(-20 -292)">
+    <g id="左侧边栏-icon-bg" transform="translate(20 292)">
+      <rect id="左侧边栏-icon-bg-2" data-name="左侧边栏-icon-bg" width="40" height="40" rx="8" fill="none"/>
+    </g>
+    <g id="组_1896" data-name="组 1896" transform="translate(20 292)">
+      <path id="路径_1567" data-name="路径 1567" d="M30,14v-.867A3.963,3.963,0,0,0,26.242,9H13.758A3.963,3.963,0,0,0,10,13.133V14Z" fill="#3986ff"/>
+      <path id="路径_1568" data-name="路径 1568" d="M16,16H10V26.867A3.963,3.963,0,0,0,13.758,31H16Z" fill="#3986ff"/>
+      <path id="路径_1569" data-name="路径 1569" d="M18,16V31h8.242A3.963,3.963,0,0,0,30,26.867V16Z" fill="#3986ff"/>
+    </g>
+  </g>
+</svg>

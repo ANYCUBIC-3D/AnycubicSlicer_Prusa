@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="36" height="36" viewBox="0 0 36 36">
+  <defs>
+    <clipPath id="clip-icon-Retraction-nor">
+      <rect width="36" height="36"/>
+    </clipPath>
+  </defs>
+  <g id="icon-Retraction-nor" clip-path="url(#clip-icon-Retraction-nor)">
+    <g id="组_1988" data-name="组 1988" transform="translate(61 -40)">
+      <path id="路径_1663" data-name="路径 1663" d="M-43,67l3-3.219h-6Z" fill="#3c4f73"/>
+      <g id="组_1987" data-name="组 1987">
+        <path id="路径_1664" data-name="路径 1664" d="M-50,55h-2a1,1,0,0,0-1,1,1,1,0,0,0,1,1h2Z" fill="#3c4f73"/>
+        <path id="路径_1665" data-name="路径 1665" d="M-34,55h-2v2h2a1,1,0,0,0,1-1A1,1,0,0,0-34,55Z" fill="#3c4f73"/>
+      </g>
+      <path id="路径_1666" data-name="路径 1666" d="M-38,50H-48a2,2,0,0,0-2,2V62a2,2,0,0,0,2,2h10a2,2,0,0,0,2-2V52A2,2,0,0,0-38,50Zm-2.275,6.72a.929.929,0,0,1-1.329,0l-.4-.4V60a1,1,0,0,1-1,1,1,1,0,0,1-1-1V56.319l-.4.4a.928.928,0,0,1-.664.28.929.929,0,0,1-.665-.28.964.964,0,0,1,0-1.349l2.061-2.092a.931.931,0,0,1,1.329,0l2.06,2.092A.964.964,0,0,1-40.275,56.72Z" fill="#3c4f73"/>
+    </g>
+  </g>
+</svg>

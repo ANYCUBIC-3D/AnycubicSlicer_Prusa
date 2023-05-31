@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+  <g id="icon-move" transform="translate(-20 -292)">
+    <g id="左侧边栏-icon-bg" transform="translate(20 292)">
+      <rect id="左侧边栏-icon-bg-2" data-name="左侧边栏-icon-bg" width="40" height="40" rx="8" fill="none"/>
+    </g>
+    <g id="组_1930" data-name="组 1930" transform="translate(20 292)">
+      <path id="路径_1595" data-name="路径 1595" d="M16,27l4,5,4-5Z" fill="#3986ff"/>
+      <path id="路径_1596" data-name="路径 1596" d="M16,13l4-5,4,5Z" fill="#3986ff"/>
+      <path id="路径_1597" data-name="路径 1597" d="M27,16l5,4-5,4Z" fill="#3986ff"/>
+      <path id="路径_1598" data-name="路径 1598" d="M13,16,8,20l5,4Z" fill="#3986ff"/>
+      <rect id="矩形_523" data-name="矩形 523" width="2" height="18" transform="translate(19 11)" fill="#3986ff"/>
+      <rect id="矩形_524" data-name="矩形 524" width="2" height="18.001" transform="translate(11 21) rotate(-90)" fill="#3986ff"/>
+    </g>
+  </g>
+</svg>

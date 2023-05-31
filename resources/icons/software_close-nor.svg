@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="26" height="26" viewBox="0 0 26 26">
+  <defs>
+    <clipPath id="clip-software_close-nor">
+      <rect width="26" height="26"/>
+    </clipPath>
+  </defs>
+  <g id="software_close-nor" clip-path="url(#clip-software_close-nor)">
+    <g id="关闭">
+      <rect id="矩形_257" data-name="矩形 257" width="26" height="26" rx="4" fill="#CCE1FF"/>
+      <g id="组_1619" data-name="组 1619" transform="translate(-6 1)">
+        <g id="组_1617" data-name="组 1617">
+          <rect id="矩形_255" data-name="矩形 255" width="1" height="14.166" transform="matrix(0.706, -0.708, 0.708, 0.706, 13.63, 7.354)" fill="#141c29"/>
+        </g>
+        <g id="组_1618" data-name="组 1618">
+          <rect id="矩形_256" data-name="矩形 256" width="14.166" height="1" transform="translate(13.632 16.648) rotate(-44.921)" fill="#141c29"/>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

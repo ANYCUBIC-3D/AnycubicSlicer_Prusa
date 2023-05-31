@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24">
+  <defs>
+    <clipPath id="clip-edit-nor">
+      <rect width="24" height="24"/>
+    </clipPath>
+  </defs>
+  <g id="edit-nor" clip-path="url(#clip-edit-nor)">
+    <g id="组_2114" data-name="组 2114" transform="translate(-259 -434)">
+      <path id="路径_1725" data-name="路径 1725" d="M-215,89.467V92h2.66l7.7-7.4-2.661-2.533Zm12.39-6.8a.621.621,0,0,0,0-.932l-1.609-1.534a.7.7,0,0,0-.981,0l-1.26,1.2,2.661,2.534Zm-6.09,8L-210.1,92h9.1V90.667Z" transform="translate(479 359)" fill="#3c4f73"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+  <g id="icon-paint_on_support" data-name="icon-paint on support" transform="translate(-20 -292)">
+    <g id="左侧边栏-icon-bg" transform="translate(20 292)">
+      <rect id="左侧边栏-icon-bg-2" data-name="左侧边栏-icon-bg" width="40" height="40" rx="8" fill="none"/>
+    </g>
+    <g id="组_2065" data-name="组 2065" transform="translate(20 291)">
+      <path id="路径_1719" data-name="路径 1719" d="M11,25V16.748a.92.92,0,0,1,1-.8.943.943,0,0,1,1,.734v4.127a.92.92,0,0,0,1,.8.919.919,0,0,0,1-.8V18.644a.92.92,0,0,1,1-.8.919.919,0,0,1,1,.8v.626a1.027,1.027,0,0,0,2.005,0V16.758A.962.962,0,0,1,20,16.085a.92.92,0,0,1,1,.8v3.095a1.026,1.026,0,0,0,2,0V17.23a1.026,1.026,0,0,1,2,0v2.261a1.026,1.026,0,0,0,2,0V15.635a1.023,1.023,0,0,1,1.19-.617.869.869,0,0,1,.792.787V25Z" fill="#3986ff"/>
+      <path id="矩形_590" data-name="矩形 590" d="M0,0H18a0,0,0,0,1,0,0V1.606A1.394,1.394,0,0,1,16.606,3H1.394A1.394,1.394,0,0,1,0,1.606V0A0,0,0,0,1,0,0Z" transform="translate(11 27)" fill="#3986ff"/>
+      <path id="矩形_591" data-name="矩形 591" d="M0,0H4A0,0,0,0,1,4,0V3A2,2,0,0,1,2,5H2A2,2,0,0,1,0,3V0A0,0,0,0,1,0,0Z" transform="translate(18 28)" fill="#3986ff"/>
+      <rect id="矩形_592" data-name="矩形 592" width="22" height="4" rx="2" transform="translate(9 9)" fill="#3986ff"/>
+    </g>
+  </g>
+</svg>

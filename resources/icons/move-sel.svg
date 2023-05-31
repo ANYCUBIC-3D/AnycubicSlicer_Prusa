@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="80" height="60" viewBox="0 0 80 60">
+  <defs>
+    <filter id="左侧边栏-icon-bg" x="-10" y="-22" width="100" height="100" filterUnits="userSpaceOnUse">
+      <feOffset dy="8" input="SourceAlpha"/>
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feFlood flood-color="#8bb8ff"/>
+      <feComposite operator="in" in2="blur"/>
+      <feComposite in="SourceGraphic"/>
+    </filter>
+    <clipPath id="clip-move-sel">
+      <rect width="80" height="60"/>
+    </clipPath>
+  </defs>
+  <g id="move-sel" clip-path="url(#clip-move-sel)">
+    <rect id="占位" width="80" height="60" fill="none" opacity="0.272"/>
+    <g id="左侧边栏-icon-bg-2" data-name="左侧边栏-icon-bg" transform="translate(20)">
+      <g transform="matrix(1, 0, 0, 1, -20, 0)" filter="url(#左侧边栏-icon-bg)">
+        <rect id="左侧边栏-icon-bg-3" data-name="左侧边栏-icon-bg" width="40" height="40" rx="8" transform="translate(20)" fill="#3986ff"/>
+      </g>
+    </g>
+    <g id="组_1931" data-name="组 1931" transform="translate(20)">
+      <path id="路径_1595" data-name="路径 1595" d="M16,27l4,5,4-5Z" fill="#fff"/>
+      <path id="路径_1596" data-name="路径 1596" d="M16,13l4-5,4,5Z" fill="#fff"/>
+      <path id="路径_1597" data-name="路径 1597" d="M27,16l5,4-5,4Z" fill="#fff"/>
+      <path id="路径_1598" data-name="路径 1598" d="M13,16,8,20l5,4Z" fill="#fff"/>
+      <rect id="矩形_523" data-name="矩形 523" width="2" height="18" transform="translate(19 11)" fill="#fff"/>
+      <rect id="矩形_524" data-name="矩形 524" width="2" height="18.001" transform="translate(11 21) rotate(-90)" fill="#fff"/>
+    </g>
+  </g>
+</svg>

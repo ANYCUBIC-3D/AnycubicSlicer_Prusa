@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="28" height="28" viewBox="0 0 28 28">
+  <defs>
+    <clipPath id="clip-icon-Slice_imformation">
+      <rect width="28" height="28"/>
+    </clipPath>
+  </defs>
+  <g id="icon-Slice_imformation" data-name="icon-Slice imformation" clip-path="url(#clip-icon-Slice_imformation)">
+    <path id="路径_1667" data-name="路径 1667" d="M182-53a9,9,0,0,0-9,9,9,9,0,0,0,9,9,9,9,0,0,0,9-9A9,9,0,0,0,182-53Zm0,4a1,1,0,0,1,1,1,1,1,0,0,1-1,1,1,1,0,0,1-1-1A1,1,0,0,1,182-49Zm2,10h-4v-1h1v-5h-1v-1h3v6h1Z" transform="translate(-168 58)" fill="#8e99ad"/>
+  </g>
+</svg>

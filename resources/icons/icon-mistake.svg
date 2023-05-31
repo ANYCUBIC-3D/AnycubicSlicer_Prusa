@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="15" height="15" viewBox="0 0 15 15">
+  <defs>
+    <clipPath id="clip-icon-mistake">
+      <rect width="15" height="15"/>
+    </clipPath>
+  </defs>
+  <g id="icon-mistake" clip-path="url(#clip-icon-mistake)">
+    <path id="路径_705" data-name="路径 705" d="M14.5,7A7.5,7.5,0,1,0,22,14.5,7.508,7.508,0,0,0,14.5,7Zm0,14A6.5,6.5,0,1,1,21,14.5,6.508,6.508,0,0,1,14.5,21Z" transform="translate(-7 -7)" fill="#e52e2e"/>
+    <path id="路径_706" data-name="路径 706" d="M17,12.625,16.375,12,14.5,13.875,12.625,12,12,12.625,13.875,14.5,12,16.375l.625.625L14.5,15.125,16.375,17,17,16.375,15.125,14.5Z" transform="translate(-7 -7)" fill="#e52e2e"/>
+  </g>
+</svg>

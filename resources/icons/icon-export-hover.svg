@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="34" height="34" viewBox="0 0 34 34">
+  <defs>
+    <clipPath id="clip-icon-export-hover">
+      <rect width="34" height="34"/>
+    </clipPath>
+  </defs>
+  <g id="icon-export-hover" clip-path="url(#clip-icon-export-hover)">
+    <rect id="打印设置-icon-bg" width="34" height="34" rx="8" fill="#3986ff"/>
+    <g id="组_1969" data-name="组 1969" transform="translate(-124 1)">
+      <path id="路径_1637" data-name="路径 1637" d="M133.173,22h15.654Q150,22,150,23.095v.81Q150,25,148.827,25H133.173Q132,25,132,23.905v-.81Q132,22,133.173,22Z" fill="#fff"/>
+      <path id="路径_1638" data-name="路径 1638" d="M146.914,11.83l-4.572-3.773a.25.25,0,0,0-.408.194V9.657a.256.256,0,0,1-.228.25c-5.92.59-6.67,5.51-6.706,7.838a.249.249,0,0,0,.475.112,6.843,6.843,0,0,1,6.2-3.654.253.253,0,0,1,.261.247v1.363a.251.251,0,0,0,.249.254.244.244,0,0,0,.159-.057l4.572-3.8a.258.258,0,0,0,.023-.361A.262.262,0,0,0,146.914,11.83Z" transform="translate(0 -1)" fill="#fff"/>
+    </g>
+  </g>
+</svg>

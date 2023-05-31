@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="80" height="60" viewBox="0 0 80 60">
+  <defs>
+    <clipPath id="clip-mirror-nor">
+      <rect width="80" height="60"/>
+    </clipPath>
+  </defs>
+  <g id="mirror-nor" clip-path="url(#clip-mirror-nor)">
+    <rect id="占位" width="80" height="60" fill="none" opacity="0.272"/>
+    <g id="icon-mirror" transform="translate(0 -292)">
+      <g id="左侧边栏-icon-bg" transform="translate(20 292)">
+        <rect id="左侧边栏-icon-bg-2" data-name="左侧边栏-icon-bg" width="40" height="40" rx="8" fill="#f0f3fa"/>
+      </g>
+      <g id="组_1939" data-name="组 1939" transform="translate(-89 292)">
+        <rect id="矩形_527" data-name="矩形 527" width="2" height="3" rx="1" transform="translate(128 11)" fill="#6b7280"/>
+        <rect id="矩形_528" data-name="矩形 528" width="2" height="3" rx="1" transform="translate(128 16)" fill="#6b7280"/>
+        <rect id="矩形_529" data-name="矩形 529" width="2" height="3" rx="1" transform="translate(128 21)" fill="#6b7280"/>
+        <rect id="矩形_530" data-name="矩形 530" width="2" height="3" rx="1" transform="translate(128 26)" fill="#6b7280"/>
+        <path id="路径_1604" data-name="路径 1604" d="M119.351,9.065l6,2.25a1,1,0,0,1,.649.936v15.5a1,1,0,0,1-.649.936l-6,2.25A1,1,0,0,1,118,30V10A1,1,0,0,1,119.351,9.065Z" fill="#6b7280"/>
+        <path id="路径_1605" data-name="路径 1605" d="M138.649,9.065l-6,2.25a1,1,0,0,0-.649.936v15.5a1,1,0,0,0,.649.936l6,2.25A1,1,0,0,0,140,30V10A1,1,0,0,0,138.649,9.065Z" fill="#6b7280"/>
+      </g>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="34" height="34" viewBox="0 0 34 34">
+  <defs>
+    <clipPath id="clip-icon-CopyToPrinter-hover">
+      <rect width="34" height="34"/>
+    </clipPath>
+  </defs>
+  <g id="icon-CopyToPrinter-hover" clip-path="url(#clip-icon-CopyToPrinter-hover)">
+    <g id="打印设置-icon-bg">
+      <rect id="打印设置-icon-bg-2" data-name="打印设置-icon-bg" width="34" height="34" rx="8" fill="#3986ff"/>
+    </g>
+    <g id="组_1971" data-name="组 1971" transform="translate(-31 1)">
+      <path id="路径_1640" data-name="路径 1640" d="M50.793,11H41.209A2.209,2.209,0,0,0,39,13.207v9.584A2.209,2.209,0,0,0,41.207,25h9.584A2.209,2.209,0,0,0,53,22.793V13.209A2.209,2.209,0,0,0,50.793,11ZM49,19H47v2a1,1,0,0,1-2,0V19H43a1,1,0,0,1,0-2h2V15a1,1,0,0,1,2,0v2h2a1,1,0,0,1,0,2Z" fill="#fff"/>
+      <path id="路径_1641" data-name="路径 1641" d="M54.793,7H45.209A2.209,2.209,0,0,0,43,9.207V10h7.793A3.213,3.213,0,0,1,54,13.209V21h.791A2.209,2.209,0,0,0,57,18.793V9.209A2.209,2.209,0,0,0,54.793,7Z" fill="#fff"/>
+    </g>
+  </g>
+</svg>

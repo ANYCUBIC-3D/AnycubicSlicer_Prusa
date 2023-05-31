@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="10" height="10" viewBox="0 0 10 10">
+  <defs>
+    <clipPath id="clip-title-circle">
+      <rect width="10" height="10"/>
+    </clipPath>
+  </defs>
+  <g id="title-circle" clip-path="url(#clip-title-circle)">
+    <circle id="椭圆_140" data-name="椭圆 140" cx="5" cy="5" r="5" fill="#3986ff"/>
+    <circle id="椭圆_141" data-name="椭圆 141" cx="2" cy="2" r="2" transform="translate(3 3)" fill="#8bb8ff"/>
+  </g>
+</svg>
