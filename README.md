@@ -1,5 +1,7 @@
 ## AnycubicSlicer
 
+AnycubicSlicer is an open-source, easy-to-use slicing software for FDM 3D printing. It makes 3D printing easier with reliable slicing algorithms and simplified workflow. 
+
 AnycubicSlicer is based on [PrusaSlicer](https://github.com/prusa3d/PrusaSlicer) by Prusa Research, which is from [Slic3r](https://github.com/Slic3r/Slic3r) by Alessandro Ranellucci and the RepRap community.
 
 ### What are AnycubicSlicer's new features?
