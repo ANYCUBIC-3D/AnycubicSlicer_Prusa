@@ -94,15 +94,15 @@ void ACButton::setupCheckImg()
 {
     m_ckBoxIconSize = wxSize(16,16);
 
-    m_checkOnImg        = ScalableBitmap(this, m_ckBoxIconSize, "checkbox-on-nor" );
-    m_checkOnImgHover   = ScalableBitmap(this, m_ckBoxIconSize, "checkbox-on-focused" );
-    m_checkOnImgDis     = ScalableBitmap(this, m_ckBoxIconSize, "checkbox-on-disable" );
-    m_checkOffImg       = ScalableBitmap(this, m_ckBoxIconSize, "checkbox-off-nor" );
-    m_checkOffImgHover  = ScalableBitmap(this, m_ckBoxIconSize, "checkbox-off-focused" );
-    m_checkOffImgDis    = ScalableBitmap(this, m_ckBoxIconSize, "checkbox-off-disable" );
-    m_checkHalfImg      = ScalableBitmap(this, m_ckBoxIconSize, "checkbox-half_on-nor" );
-    m_checkHalfImgHover = ScalableBitmap(this, m_ckBoxIconSize, "checkbox-half_on-focused" );
-    m_checkHalfImgDis   = ScalableBitmap(this, m_ckBoxIconSize, "checkbox-half_on-disable" );
+    m_checkOnImg        = ScalableBitmap(this, m_ckBoxIconSize.x, "checkbox-on-nor" );
+    m_checkOnImgHover   = ScalableBitmap(this, m_ckBoxIconSize.x, "checkbox-on-focused" );
+    m_checkOnImgDis     = ScalableBitmap(this, m_ckBoxIconSize.x, "checkbox-on-disable" );
+    m_checkOffImg       = ScalableBitmap(this, m_ckBoxIconSize.x, "checkbox-off-nor" );
+    m_checkOffImgHover  = ScalableBitmap(this, m_ckBoxIconSize.x, "checkbox-off-focused" );
+    m_checkOffImgDis    = ScalableBitmap(this, m_ckBoxIconSize.x, "checkbox-off-disable" );
+    m_checkHalfImg      = ScalableBitmap(this, m_ckBoxIconSize.x, "checkbox-half_on-nor" );
+    m_checkHalfImgHover = ScalableBitmap(this, m_ckBoxIconSize.x, "checkbox-half_on-focused" );
+    m_checkHalfImgDis   = ScalableBitmap(this, m_ckBoxIconSize.x, "checkbox-half_on-disable" );
 }
 
 void ACButton::SetLabel(const wxString& label)
@@ -435,6 +435,13 @@ void ACButton::SetHalfChecked(bool sendEvents)
     SetChecked(CHECKSTATE_ON_HALF, sendEvents);
 }
 
+void ACButton::SetTextAtLeft(bool atLeft)
+{
+    m_textAtLeft = atLeft;
+    Refresh();
+}
+
+
 bool ACButton::Enable(bool enable)
 {
     bool result = wxWindow::Enable(enable);
@@ -542,6 +549,7 @@ void ACButton::render(wxDC& dc)
     auto text = GetLabel();
     wxSize dipIconSize = FromDIP(m_iconSize);
     wxSize dipPadding = FromDIP(m_paddingSize);
+    wxSize dipCkBoxSize = FromDIP(m_ckBoxIconSize);
     float dipSpacing = FromDIP(m_spacing);
 
     const ScalableBitmap* icon = &active_icon;
@@ -551,6 +559,9 @@ void ACButton::render(wxDC& dc)
         icon = &hover_icon;
     }
 
+    bool hasIcon = icon->get_bitmap().IsOk();
+    bool hasCkBox = checkable() && m_isHorizontal && (m_checkStyle == CHECKSTYLE_ON_BOX || m_checkStyle == CHECKSTYLE_ON_HALF);
+
     wxRect rcContent = { {0, 0}, size };
     
     if (m_alignCenter) {
@@ -559,9 +570,12 @@ void ACButton::render(wxDC& dc)
         rcContent.Deflate(dipPadding);
     }
     // start draw
+    if (hasCkBox && !m_textAtLeft) {
+        rcContent.x += dipCkBoxSize.GetX() + dipSpacing;
+    }
     // icon
     wxPoint pt = rcContent.GetLeftTop();
-    if (icon->get_bitmap().IsOk()) {
+    if (hasIcon) {
         wxBitmap bmp = icon->bmp().GetBitmap(dipIconSize);
 
         if (m_isHorizontal) {
@@ -587,13 +601,23 @@ void ACButton::render(wxDC& dc)
             pt.x += (rcContent.width - m_szText.x) / 2;
         }
 
-        int textValidSpace = rcContent.GetWidth();
+        int textValidSpace = rcContent.GetWidth() - ((hasIcon&&m_isHorizontal) ? (dipIconSize.GetX()+dipSpacing) : 0) - (hasCkBox ? (dipCkBoxSize.GetX() + dipSpacing) : 0);
         if (m_szText.x > textValidSpace)
             text = wxControl::Ellipsize(text, dc, wxELLIPSIZE_END, textValidSpace);
 
         dc.SetFont(GetFont());
         dc.SetTextForeground(text_color.colorForStates(states));
-        dc.DrawText(text, pt);
+        if (!firstPart.empty() && !secondPart.empty()) {
+            dc.DrawText(firstPart, pt);
+            pt.y +=  m_szText.y;
+            int secondWidth = dc.GetTextExtent(secondPart).x;
+            pt.x            += (dc.GetTextExtent(firstPart).x  - secondWidth) / 2;
+            dc.DrawText(secondPart, pt);
+        } else {
+            dc.DrawText(text, pt);
+        }
+
+        
     }
     if (m_draw_circle && m_circle_visiable) {
         int dipCircleSize = FromDIP(m_circleSize);
@@ -601,6 +625,7 @@ void ACButton::render(wxDC& dc)
         dc.SetBrush(text_color.colorForStates(states));
         dc.DrawCircle(circle_pos, dipCircleSize / 2);
     }
+
     if (checkable()) {
         if (m_checkStyle == CHECKSTYLE_ON_MARK) {
             if (GetChecked()) // show mark on selected
@@ -608,7 +633,8 @@ void ACButton::render(wxDC& dc)
                 // mark
                 ScalableBitmap* sbmp = (states & (int)ACStateColor::State::Hovered) ? &m_checkedMarkImgHover : &m_checkedMarkImg; 
                 if (sbmp->bmp().IsOk()) {
-                    wxPoint pt(size.x-m_ckMarkIconSize.x-1, 1);
+                    wxSize  chMarkSize = sbmp->GetSize();
+                    wxPoint pt(size.x - chMarkSize.x - 1, 1);
                     dc.DrawBitmap(sbmp->bmp().GetBitmap(m_ckMarkIconSize), pt);
                 }
             }
@@ -631,11 +657,15 @@ void ACButton::render(wxDC& dc)
                 }
 
                 if (sbmp->bmp().IsOk()) {
-                    wxSize dipSize = FromDIP(m_ckBoxIconSize);
-                    pt.x = size.x - dipPadding.x - dipSize.x;
-                    pt.y = (size.y- dipSize.y)/2;
 
-                    dc.DrawBitmap(sbmp->bmp().GetBitmap(dipSize), pt);
+                    if (m_textAtLeft) {
+                        pt.x = size.x - dipPadding.x - dipCkBoxSize.x;
+                    } else {
+                        pt.x = dipPadding.x;
+                    }
+                    pt.y = (size.y- dipCkBoxSize.y)/2;
+
+                    dc.DrawBitmap(sbmp->bmp().GetBitmap(dipCkBoxSize), pt);
                 }         
             }
         }
@@ -662,7 +692,18 @@ void ACButton::messureSize()
 
     wxString text = GetLabel();
     if (!text.IsEmpty()) {
-        wxSize textSize = dc.GetTextExtent(text);
+        wxSize textSize; 
+        if (m_fixedWidth > 0 && text.find("\n") != wxString::npos) {
+            size_t secondSpacePos = text.find('\n');
+            firstPart  = text.substr(0, secondSpacePos);
+            if (dc.GetTextExtent(firstPart).x > textSize.x)
+                textSize = dc.GetTextExtent(firstPart);
+            secondPart = text.substr(secondSpacePos + 1);
+            if (dc.GetTextExtent(secondPart).x > textSize.x)
+                textSize = dc.GetTextExtent(secondPart);
+        } else {
+            textSize = dc.GetTextExtent(text);
+        }
         m_szText = textSize;
     } else {
         m_szText = wxSize(0,0);
@@ -701,7 +742,9 @@ void ACButton::messureSize()
     if (m_draw_circle) {
         m_szContent.x += dipSpacing + FromDIP(m_circleSize);
     }
-
+    if (m_fixedWidth > 0 && m_szContent.x > 0) {
+        m_szContent.x = m_fixedWidth;
+    }
     wxSize minSize = m_szContent + dipPadding * 2;
 
     minSize.x = std::max(minSize.x, FromDIP(m_minSize.x));
@@ -710,8 +753,9 @@ void ACButton::messureSize()
     wxSize curSize = wxWindow::GetSize();
     wxWindow::SetMinSize(minSize);
 
-    if (curSize.x < minSize.x || curSize.y < minSize.y)
+    if (curSize.x < minSize.x || curSize.y < minSize.y) {
         wxWindow::SetSize(std::max(curSize.x, minSize.x), std::max(curSize.y, minSize.y));
+    }
 
     m_sizeValid = true;
 }

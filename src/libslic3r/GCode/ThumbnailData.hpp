@@ -10,6 +10,7 @@ struct ThumbnailData
 {
     unsigned int width;
     unsigned int height;
+    unsigned int precoding;
     std::vector<unsigned char> pixels;
 
     ThumbnailData() { reset(); }

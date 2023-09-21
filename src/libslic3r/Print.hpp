@@ -1,6 +1,8 @@
 #ifndef slic3r_Print_hpp_
 #define slic3r_Print_hpp_
 
+#include "Fill/FillAdaptive.hpp"
+#include "Fill/FillLightning.hpp"
 #include "PrintBase.hpp"
 
 #include "BoundingBox.hpp"
@@ -24,6 +26,8 @@
 #include <optional>
 #include <set>
 #include <tcbspan/span.hpp>
+
+#include "calib.hpp"
 
 namespace Slic3r {
 
@@ -385,7 +389,8 @@ private:
     void discover_horizontal_shells();
     void combine_infill();
     void _generate_support_material();
-    std::pair<FillAdaptive::OctreePtr, FillAdaptive::OctreePtr> prepare_adaptive_infill_data();
+    std::pair<FillAdaptive::OctreePtr, FillAdaptive::OctreePtr> prepare_adaptive_infill_data(
+        const std::vector<std::pair<const Surface*, float>>& surfaces_w_bottom_z) const;
     FillLightning::GeneratorPtr prepare_lightning_infill_data();
 
     // XYZ in scaled coordinates
@@ -410,6 +415,42 @@ private:
     // this is set to true when LayerRegion->slices is split in top/internal/bottom
     // so that next call to make_perimeters() performs a union() before computing loops
     bool                    				m_typed_slices = false;
+
+    std::pair<FillAdaptive::OctreePtr, FillAdaptive::OctreePtr> m_adaptive_fill_octrees;
+    FillLightning::GeneratorPtr m_lightning_generator;
+};
+
+struct FakeWipeTower
+{
+    // generate fake extrusion
+    Vec2f pos;
+    float width;
+    float height;
+    float layer_height;
+    float depth;
+    std::vector<std::pair<float, float>> z_and_depth_pairs;
+    float brim_width;
+    float rotation_angle;
+    float cone_angle;
+    Vec2d plate_origin;
+
+    void set_fake_extrusion_data(const Vec2f& p, float w, float h, float lh, float d, const std::vector<std::pair<float, float>>& zad, float bd, float ra, float ca, const Vec2d& o)
+    {
+        pos = p;
+        width = w;
+        height = h;
+        layer_height = lh;
+        depth = d;
+        z_and_depth_pairs = zad;
+        brim_width = bd;
+        rotation_angle = ra;
+        cone_angle = ca;
+        plate_origin = o;
+    }
+
+    void set_pos_and_rotation(const Vec2f& p, float rotation) { pos = p; rotation_angle = rotation; }
+
+    std::vector<ExtrusionPaths> getFakeExtrusionPathsFromWipeTower() const;
 };
 
 struct WipeTowerData
@@ -427,7 +468,9 @@ struct WipeTowerData
 
     // Depth of the wipe tower to pass to GLCanvas3D for exact bounding box:
     float                                                 depth;
+    std::vector<std::pair<float, float>>                  z_and_depth_pairs;
     float                                                 brim_width;
+    float                                                 height;
 
     void clear() {
         priming.reset(nullptr);
@@ -527,6 +570,7 @@ public:
     // Exports G-code into a file name based on the path_template, returns the file path of the generated G-code file.
     // If preview_data is not null, the preview_data is filled in for the G-code visualization (not used by the command line Slic3r).
     std::string         export_gcode(const std::string& path_template, GCodeProcessorResult* result, ThumbnailsGeneratorCallback thumbnail_cb = nullptr);
+    void                export_gcode(std::ostream &stream, GCodeProcessorResult *result, ThumbnailsGeneratorCallback thumbnail_cb = nullptr);
 
     // methods for handling state
     bool                is_step_done(PrintStep step) const { return Inherited::is_step_done(step); }
@@ -540,7 +584,7 @@ public:
     bool                has_brim() const;
 
     // Returns an empty string if valid, otherwise returns an error message.
-    std::string         validate(std::string* warning = nullptr) const override;
+    std::string         validate(std::vector<std::string>* warnings = nullptr) const override;
     double              skirt_first_layer_height() const;
     Flow                brim_flow() const;
     Flow                skirt_flow() const;
@@ -559,6 +603,11 @@ public:
     SpanOfConstPtrs<PrintObject> objects() const { return SpanOfConstPtrs<PrintObject>(const_cast<const PrintObject* const* const>(m_objects.data()), m_objects.size()); }
     PrintObject*                get_object(size_t idx) { return const_cast<PrintObject*>(m_objects[idx]); }
     const PrintObject*          get_object(size_t idx) const { return m_objects[idx]; }
+    const PrintObject* get_print_object_by_model_object_id(ObjectID object_id) const {
+        auto it = std::find_if(m_objects.begin(), m_objects.end(),
+                               [object_id](const PrintObject* obj) { return obj->model_object()->id() == object_id; });
+        return (it == m_objects.end()) ? nullptr : *it;
+    }
     // PrintObject by its ObjectID, to be used to uniquely bind slicing warnings to their source PrintObjects
     // in the notification center.
     const PrintObject*          get_object(ObjectID object_id) const { 
@@ -597,8 +646,13 @@ public:
     const PrintRegion&          get_print_region(size_t idx) const  { return *m_print_regions[idx]; }
     const ToolOrdering&         get_tool_ordering() const { return m_wipe_tower_data.tool_ordering; }
 
+    const Polygons& get_sequential_print_clearance_contours() const { return m_sequential_print_clearance_contours; }
     static bool sequential_print_horizontal_clearance_valid(const Print& print, Polygons* polygons = nullptr);
 
+    CalibMode& calib_mode() { return m_calib_params.mode; }
+    const CalibMode calib_mode() const { return m_calib_params.mode; }
+    void set_calib_params(const Calib_Params& params);
+    const Calib_Params& calib_params() const { return m_calib_params; }
 protected:
     // Invalidates the step, and its depending steps in Print.
     bool                invalidate_step(PrintStep step);
@@ -614,7 +668,7 @@ private:
     // Islands of objects and their supports extruded at the 1st layer.
     Polygons            first_layer_islands() const;
     // Return 4 wipe tower corners in the world coordinates (shifted and rotated), including the wipe tower brim.
-    std::vector<Point>  first_layer_wipe_tower_corners() const;
+    Points              first_layer_wipe_tower_corners() const;
 
     // Returns true if any of the print_objects has print_object_step valid.
     // That means data shared by all print objects of the print_objects span may still use the shared data.
@@ -646,10 +700,20 @@ private:
     // Estimated print time, filament consumed.
     PrintStatistics                         m_print_statistics;
 
+    // Cache to store sequential print clearance contours
+    Polygons m_sequential_print_clearance_contours;
+
+    Calib_Params m_calib_params;
+
     // To allow GCode to set the Print's GCodeExport step status.
     friend class GCode;
+    // To allow GCodeProcessor to emit warnings.
+    friend class GCodeProcessor;
     // Allow PrintObject to access m_mutex and m_cancel_callback.
     friend class PrintObject;
+
+    ConflictResultOpt m_conflict_result;
+    FakeWipeTower     m_fake_wipe_tower;
 };
 
 } /* slic3r_Print_hpp_ */

@@ -13,6 +13,7 @@
 #include <wx/statline.h>
 #include "ACButton.hpp"
 #include "ACDialogTopbar.hpp"
+#include "I18N.hpp"
 class wxBoxSizer;
 class wxCheckBox;
 class wxStaticBitmap;
@@ -315,8 +316,22 @@ public:
 		const wxString& message,
 		const wxString& caption = wxEmptyString,
 		long style = wxOK)
-    : wxMessageDialog(parent, get_wraped_wxString(message), caption, style) {}
+    : wxMessageDialog(parent, get_wraped_wxString(message), caption, style) 
+	{
+		apply_style(style);
+	}
 	~MessageDialog() {}
+	void apply_style(long style)
+	{
+		if (style & wxOK)
+			SetOKLabel(_L("OK"));
+		if ((style & wxYES) && (style & wxNO) && (style & wxCANCEL))
+			SetYesNoCancelLabels(_L("YES"), _L("NO"), _L("Cancel"));
+		if ((style & wxYES) && (style & wxNO))
+			SetYesNoLabels(_L("YES"), _L("NO"));
+		if ((style & wxOK) && (style & wxCANCEL))
+			SetOKCancelLabels(_L("OK"), _L("Cancel"));
+	}
 };
 
 // just a wrapper to wxRichMessageBox to use the same code on all platforms

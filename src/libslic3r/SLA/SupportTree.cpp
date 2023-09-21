@@ -16,13 +16,9 @@
 #include <libslic3r/TriangleMeshSlicer.hpp>
 
 #include <boost/log/trivial.hpp>
-#include <libslic3r/I18N.hpp>
 
 #include <libnest2d/tools/benchmark.h>
 
-//! macro used to mark string used at localization,
-//! return same string
-#define L(s) Slic3r::I18N::translate(s)
 
 namespace Slic3r { namespace sla {
 

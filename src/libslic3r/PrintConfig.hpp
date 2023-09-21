@@ -1,4 +1,4 @@
-// Configuration store of Slic3r.
+﻿// Configuration store of Slic3r.
 //
 // The configuration store is either static or dynamic.
 // DynamicPrintConfig is used mainly at the user interface. while the StaticPrintConfig is used
@@ -32,7 +32,7 @@
 namespace Slic3r {
 
 enum GCodeFlavor : unsigned char {
-    gcfRepRapSprinter, gcfRepRapFirmware, gcfRepetier, gcfTeacup, gcfMakerWare, gcfMarlinLegacy, gcfMarlinFirmware, gcfSailfish, gcfMach3, gcfMachinekit,
+    gcfRepRapSprinter, gcfRepRapFirmware, gcfRepetier, gcfTeacup, gcfMakerWare, gcfMarlinLegacy, gcfMarlinFirmware, gcfKlipper, gcfSailfish, gcfMach3, gcfMachinekit,
     gcfSmoothie, gcfNoExtrusion,
 };
 
@@ -44,7 +44,7 @@ enum class MachineLimitsUsage {
 };
 
 enum PrintHostType {
-    htPrusaLink, htPrusaConnect, htOctoPrint, htDuet, htFlashAir, htAstroBox, htRepetier, htMKS
+    htPrusaLink, htPrusaConnect, htOctoPrint, htMoonraker, htDuet, htFlashAir, htAstroBox, htRepetier, htMKS
 };
 
 enum AuthorizationType {
@@ -135,7 +135,7 @@ enum class PerimeterGeneratorType
 };
 
 enum class GCodeThumbnailsFormat {
-    PNG, JPG, QOI
+    PNG, JPG, QOI,PREPNG
 };
 
 #define CONFIG_OPTION_ENUM_DECLARE_STATIC_MAPS(NAME) \
@@ -489,13 +489,13 @@ PRINT_CONFIG_CLASS_DEFINE(
 
     ((ConfigOptionFloat,               brim_separation))
     ((ConfigOptionEnum<BrimType>,      brim_type))
-    ((ConfigOptionFloat,               brim_width)) 
+    ((ConfigOptionFloat,               brim_width))
     ((ConfigOptionBool,                dont_support_bridges))
     ((ConfigOptionFloat,               elefant_foot_compensation))
     ((ConfigOptionFloatOrPercent,      extrusion_width))
     ((ConfigOptionFloat,               first_layer_acceleration_over_raft))
     ((ConfigOptionFloatOrPercent,      first_layer_speed_over_raft))
-    ((ConfigOptionBool,                infill_only_where_needed))
+    // ((ConfigOptionBool,                infill_only_where_needed))
     // Force the generation of solid shells between adjacent materials/volumes.
     ((ConfigOptionBool,                interface_shells))
     ((ConfigOptionFloat,               layer_height))
@@ -554,7 +554,9 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloat,               support_tree_angle_slow))
     ((ConfigOptionFloat,               support_tree_branch_diameter))
     ((ConfigOptionFloat,               support_tree_branch_diameter_angle))
+    ((ConfigOptionFloat,               support_tree_branch_diameter_double_wall))
     ((ConfigOptionPercent,             support_tree_top_rate))
+    ((ConfigOptionFloat,               support_tree_branch_distance))
     ((ConfigOptionFloat,               support_tree_tip_diameter))
     // The rest
     ((ConfigOptionBool,                thick_bridges))
@@ -660,6 +662,9 @@ PRINT_CONFIG_CLASS_DEFINE(
 PRINT_CONFIG_CLASS_DEFINE(
     GCodeConfig,
 
+    ((ConfigOptionBool,                autoemit_temperature_commands))
+    ((ConfigOptionBools,               enable_pressure_advance))
+    ((ConfigOptionFloats,              pressure_advance))
     ((ConfigOptionString,              before_layer_gcode))
     ((ConfigOptionString,              between_objects_gcode))
     ((ConfigOptionFloats,              deretract_speed))
@@ -785,8 +790,8 @@ PRINT_CONFIG_CLASS_DERIVED_DEFINE(
     ((ConfigOptionInts,               max_fan_speed))
     ((ConfigOptionFloats,             max_layer_height))
     ((ConfigOptionInts,               min_fan_speed))
-    ((ConfigOptionFloats,             min_layer_height)) 
-    ((ConfigOptionFloat,              rect_size_x)) 
+    ((ConfigOptionFloats,             min_layer_height))
+    ((ConfigOptionFloat,              rect_size_x))
     ((ConfigOptionFloat,              rect_size_y))
     ((ConfigOptionFloat,              max_print_height))
     ((ConfigOptionFloats,             min_print_speed))
@@ -817,6 +822,7 @@ PRINT_CONFIG_CLASS_DERIVED_DEFINE(
     ((ConfigOptionPoints,             thumbnails))
     ((ConfigOptionEnum<GCodeThumbnailsFormat>,  thumbnails_format))
     ((ConfigOptionFloat,              top_solid_infill_acceleration))
+    ((ConfigOptionFloat,              travel_acceleration))
     ((ConfigOptionBools,              wipe))
     ((ConfigOptionBool,               wipe_tower))
     ((ConfigOptionFloat,              wipe_tower_x))
@@ -825,7 +831,10 @@ PRINT_CONFIG_CLASS_DERIVED_DEFINE(
     ((ConfigOptionFloat,              wipe_tower_per_color_wipe))
     ((ConfigOptionFloat,              wipe_tower_rotation_angle))
     ((ConfigOptionFloat,              wipe_tower_brim_width))
+    ((ConfigOptionFloat,              wipe_tower_cone_angle))
+    ((ConfigOptionPercent,            wipe_tower_extra_spacing))
     ((ConfigOptionFloat,              wipe_tower_bridging))
+    ((ConfigOptionInt,                wipe_tower_extruder))
     ((ConfigOptionFloats,             wiping_volumes_matrix))
     ((ConfigOptionFloats,             wiping_volumes_extruders))
     ((ConfigOptionFloat,              z_offset))
@@ -1073,8 +1082,8 @@ PRINT_CONFIG_CLASS_DEFINE(
     SLAPrinterConfig,
 
     ((ConfigOptionEnum<PrinterTechnology>,    printer_technology))
-    ((ConfigOptionPoints,                     bed_shape)) 
-    ((ConfigOptionFloat,                      rect_size_x)) 
+    ((ConfigOptionPoints,                     bed_shape))
+    ((ConfigOptionFloat,                      rect_size_x))
     ((ConfigOptionFloat,                      rect_size_y))
     ((ConfigOptionFloat,                      max_print_height))
     ((ConfigOptionFloat,                      display_width))
@@ -1192,6 +1201,7 @@ private:
 };
 
 bool is_XL_printer(const DynamicPrintConfig &cfg);
+bool is_XL_printer(const PrintConfig &cfg);
 
 Points get_bed_shape(const DynamicPrintConfig &cfg);
 Points get_bed_shape(const PrintConfig &cfg);

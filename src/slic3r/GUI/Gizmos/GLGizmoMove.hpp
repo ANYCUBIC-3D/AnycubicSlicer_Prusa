@@ -7,19 +7,15 @@
 namespace Slic3r {
 namespace GUI {
 
-#if ENABLE_WORLD_COORDINATE
 class Selection;
-#endif // ENABLE_WORLD_COORDINATE
 class GizmoObjectManipulation;
 class GLGizmoMove3D : public GLGizmoBase
 {
     static const double Offset;
 
     Vec3d m_displacement{ Vec3d::Zero() };
-#if ENABLE_WORLD_COORDINATE
     Vec3d m_center{ Vec3d::Zero() };
     BoundingBoxf3 m_bounding_box;
-#endif // ENABLE_WORLD_COORDINATE
     double m_snap_step{ 1.0 };
     Vec3d m_starting_drag_position{ Vec3d::Zero() };
     Vec3d m_starting_box_center{ Vec3d::Zero() };
@@ -53,7 +49,7 @@ public:
     /// <summary>
     /// Detect reduction of move for wipetover on selection change
     /// </summary>
-    void data_changed() override;
+    void data_changed(bool is_serializing) override;
 protected:
     bool on_init() override;
     std::string on_get_name() const override;
@@ -68,9 +64,7 @@ protected:
     virtual void on_render_input_window(float x, float y, float bottom_limit) override;
 private:
     double calc_projection(const UpdateData& data) const;
-#if ENABLE_WORLD_COORDINATE
     Transform3d local_transform(const Selection& selection) const;
-#endif // ENABLE_WORLD_COORDINATE
 };
 
 

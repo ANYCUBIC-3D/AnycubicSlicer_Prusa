@@ -6,6 +6,7 @@
 #include "MainFrame.hpp"
 #include "ExtraRenderers.hpp"
 #include "format.hpp"
+#include "ACButton.hpp"
 #include <regex>
 #include <boost/log/trivial.hpp>
 #include <boost/nowide/convert.hpp>
@@ -166,11 +167,11 @@ ArchiveViewCtrl::~ArchiveViewCtrl()
     }
 }
 
-FileArchiveDialog::FileArchiveDialog(wxWindow* parent_window, mz_zip_archive* archive, std::vector<boost::filesystem::path>& selected_paths)
+FileArchiveDialog::FileArchiveDialog(wxWindow* parent_window, mz_zip_archive* archive, std::vector<std::pair<boost::filesystem::path, size_t>>& selected_paths_w_size)
     : DPIDialog(parent_window, wxID_ANY, _(L("Archive preview")), wxDefaultPosition,
         wxSize(45 * wxGetApp().em_unit(), 40 * wxGetApp().em_unit()),
         wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER | wxMAXIMIZE_BOX)
-    , m_selected_paths (selected_paths)
+    , m_selected_paths_w_size (selected_paths_w_size)
 {
 #ifdef _WIN32
     wxGetApp().UpdateDarkUI(this);
@@ -206,14 +207,14 @@ FileArchiveDialog::FileArchiveDialog(wxWindow* parent_window, mz_zip_archive* ar
             reduce_stack(stack, struct_size);
         }
         if (!file.has_extension() && stack.size() == struct_size)
-            stack.push_back(avc->get_model()->AddFile((stack.empty() ? std::shared_ptr<ArchiveViewNode>(nullptr) : stack.back()), GUI::format_wxstr(file.filename().string()), true)); // filename string to wstring?
+            stack.push_back(avc->get_model()->AddFile((stack.empty() ? std::shared_ptr<ArchiveViewNode>(nullptr) : stack.back()), boost::nowide::widen(file.filename().string()), true)); // filename string to wstring?
         return struct_size + 1;
     };
 
     const std::regex pattern_drop(".*[.](stl|obj|amf|3mf|prusa|step|stp)", std::regex::icase);
     mz_uint num_entries = mz_zip_reader_get_num_files(archive);
     mz_zip_archive_file_stat stat;
-    std::vector<boost::filesystem::path> filtered_entries;
+    std::vector<std::pair<boost::filesystem::path, size_t>> filtered_entries; // second is unzipped size
     for (mz_uint i = 0; i < num_entries; ++i) {
         if (mz_zip_reader_file_stat(archive, i, &stat)) {
             std::string extra(1024, 0);
@@ -223,7 +224,7 @@ FileArchiveDialog::FileArchiveDialog(wxWindow* parent_window, mz_zip_archive* ar
                 path = boost::filesystem::path(extra.substr(0, extra_size));
             } else {
                 wxString wname = boost::nowide::widen(stat.m_filename);
-                std::string name = GUI::format(wname);
+                std::string name = boost::nowide::narrow(wname);
                 path = boost::filesystem::path(name);
             }
             assert(!path.empty());
@@ -232,22 +233,25 @@ FileArchiveDialog::FileArchiveDialog(wxWindow* parent_window, mz_zip_archive* ar
             // filter out MACOS specific hidden files
             if (boost::algorithm::starts_with(path.string(), "__MACOSX"))
                 continue;
-            filtered_entries.emplace_back(std::move(path));
+            filtered_entries.emplace_back(std::move(path), stat.m_uncomp_size);
         }
     }
     // sorting files will help adjust_stack function to not create multiple same folders
-    std::sort(filtered_entries.begin(), filtered_entries.end(), [](const boost::filesystem::path& p1, const boost::filesystem::path& p2){ return p1.string() > p2.string(); });
+    std::sort(filtered_entries.begin(), filtered_entries.end(), [](const std::pair<boost::filesystem::path, size_t>& p1, const std::pair<boost::filesystem::path, size_t>& p2){ return p1.first.string() < p2.first.string(); });
     size_t entry_count = 0;
     size_t depth = 1;
-    for (const boost::filesystem::path& path : filtered_entries)
+    for (const auto& entry : filtered_entries)
     {
+        const boost::filesystem::path& path = entry.first;
         std::shared_ptr<ArchiveViewNode> parent(nullptr);
 
         depth = std::max(depth, adjust_stack(path, stack));
         if (!stack.empty())
             parent = stack.back();
         if (std::regex_match(path.extension().string(), pattern_drop)) { // this leaves out non-compatible files 
-            m_avc->get_model()->AddFile(parent, GUI::format_wxstr(path.filename().string()), false)->set_fullpath(/*std::move(path)*/path); // filename string to wstring?
+            std::shared_ptr<ArchiveViewNode> new_node = m_avc->get_model()->AddFile(parent, boost::nowide::widen(path.filename().string()), false);
+            new_node->set_fullpath(/*std::move(path)*/path); // filename string to wstring?
+            new_node->set_size(entry.second);
             entry_count++;
         }
     }
@@ -258,7 +262,43 @@ FileArchiveDialog::FileArchiveDialog(wxWindow* parent_window, mz_zip_archive* ar
 
     wxBoxSizer* btn_sizer = new wxBoxSizer(wxHORIZONTAL);
 
-    wxButton* btn_all = new wxButton(this, wxID_ANY, _L("All"));
+	ACButton* btn_all = new ACButton(this, _L("All"));
+	init_button(btn_all);
+	btn_all->SetButtonType(ACButton::AC_BUTTON_LV1);
+	btn_all->Bind(wxEVT_BUTTON, [this](wxCommandEvent& evt) { on_all_button(); });
+	btn_sizer->Add(btn_all, 0);
+
+	ACButton* btn_none = new ACButton(this, _L("None"));
+	init_button(btn_none);
+	btn_none->SetButtonType(ACButton::AC_BUTTON_LV1);
+	btn_none->Bind(wxEVT_BUTTON, [this](wxCommandEvent& evt) { on_none_button(); });
+	btn_sizer->Add(btn_none, 0, wxLEFT, em);
+
+	btn_sizer->AddStretchSpacer();
+	ACButton* btn_run = new ACButton(this, _L("Open"));
+	init_button(btn_run);
+	btn_run->SetButtonType(ACButton::AC_BUTTON_LV1);
+	btn_run->Bind(wxEVT_BUTTON, [this](wxCommandEvent& evt) { on_open_button(); });
+	btn_sizer->Add(btn_run, 0, wxRIGHT, em);
+
+	ACButton* cancel_btn = new ACButton(this, _L("Cancel"));
+	init_button(cancel_btn);
+	cancel_btn->SetButtonType(ACButton::AC_BUTTON_LV0);
+	cancel_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent& evt) { this->EndModal(wxID_CANCEL); });
+	btn_sizer->Add(cancel_btn, 0, wxRIGHT, em);
+
+	wxCursor cursor(wxCURSOR_HAND);
+	btn_all   ->SetCursor(cursor);
+	btn_none  ->SetCursor(cursor);
+	btn_run   ->SetCursor(cursor);
+	cancel_btn->SetCursor(cursor);
+
+	topSizer->Add(m_avc,     1, wxEXPAND | wxALL, 10);
+	topSizer->Add(btn_sizer, 0, wxEXPAND | wxALL, 10);
+	this->SetSizer(topSizer);
+	SetMinSize(wxSize(40 * em, 30 * em));
+
+    /*wxButton* btn_all = new wxButton(this, wxID_ANY, _L("All"));
     btn_all->Bind(wxEVT_BUTTON, [this](wxCommandEvent& evt) { on_all_button(); });
     btn_sizer->Add(btn_all, 0);
 
@@ -281,7 +321,7 @@ FileArchiveDialog::FileArchiveDialog(wxWindow* parent_window, mz_zip_archive* ar
     SetMinSize(wxSize(40 * em, 30 * em));
 
     for (const wxString& id : {_L("All"), _L("None"), _L("Open"), _L("Cancel") })
-        wxGetApp().UpdateDarkUI(static_cast<wxButton*>(FindWindowByLabel(id, this)));
+        wxGetApp().UpdateDarkUI(static_cast<wxButton*>(FindWindowByLabel(id, this)));*/
 }  
 
 void FileArchiveDialog::on_dpi_changed(const wxRect& suggested_rect)
@@ -305,12 +345,12 @@ void FileArchiveDialog::on_open_button()
     wxDataViewItemArray top_items;
     m_avc->get_model()->GetChildren(wxDataViewItem(nullptr), top_items);
     
-    std::function<void(ArchiveViewNode*)> deep_fill = [&paths = m_selected_paths, &deep_fill](ArchiveViewNode* node){
+    std::function<void(ArchiveViewNode*)> deep_fill = [&paths = m_selected_paths_w_size, &deep_fill](ArchiveViewNode* node){
         if (node == nullptr)
             return;
         if (node->get_children().empty()) {
             if (node->get_toggle()) 
-                paths.emplace_back(node->get_fullpath());
+                paths.emplace_back(node->get_fullpath(), node->get_size());
         } else { 
             for (std::shared_ptr<ArchiveViewNode> child : node->get_children())
                 deep_fill(child.get());
@@ -378,6 +418,15 @@ void FileArchiveDialog::on_none_button()
     }
 
     this->Refresh();
+}
+
+void FileArchiveDialog::init_button(ACButton* button)
+{
+	button->SetPaddingSize(wxSize(0, 0));
+	button->SetMinSize(wxSize(80, 30));
+	button->SetSize(wxSize(80, 30));
+	button->SetSpacing(0);
+	button->SetCornerRadius(4);
 }
 
 } // namespace GUI

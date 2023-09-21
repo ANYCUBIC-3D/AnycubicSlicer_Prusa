@@ -411,7 +411,7 @@ static void create_freq_settings_popupmenu(wxMenu* menu, const bool is_object_se
         if (is_improper_category(category.first, extruders_cnt))
             continue;
 
-        append_menu_item(menu, wxID_ANY, from_u8((boost::format(_utf8(L("Quick Add Settings (%s)"))) % _(it.first)).str()), "",
+        append_menu_item(menu, wxID_ANY, format_wxstr(_L("Quick Add Settings (%s)"), _(it.first)), "",
             [menu, item, is_object_settings, bundle](wxCommandEvent& event) {
                 wxString category_name = menu->GetLabel(event.GetId());
                 std::vector<std::string> options;
@@ -622,13 +622,13 @@ wxMenuItem* MenuFactory::append_menu_item_settings(wxMenu* menu_)
 #if 0
     for (auto& it : m_freq_settings_fff)
     {
-        settings_id = menu->FindItem(from_u8((boost::format(_utf8(L("Quick Add Settings (%s)"))) % _(it.first)).str()));
+        settings_id = menu->FindItem(format_wxstr(_L("Quick Add Settings (%s)"), _(it.first)));
         if (settings_id != wxNOT_FOUND)
             menu->Destroy(settings_id);
     }
     for (auto& it : m_freq_settings_sla)
     {
-        settings_id = menu->FindItem(from_u8((boost::format(_utf8(L("Quick Add Settings (%s)"))) % _(it.first)).str()));
+        settings_id = menu->FindItem(format_wxstr(_L("Quick Add Settings (%s)"), _(it.first)));
         if (settings_id != wxNOT_FOUND)
             menu->Destroy(settings_id);
     }
@@ -743,6 +743,14 @@ wxMenuItem* MenuFactory::append_menu_item_printable(wxMenu* menu)
         }
             
         evt.Check(check);
+
+        // disable the menu item if SLA supports or Hollow gizmos are active
+        if (printer_technology() == ptSLA) {
+            const auto gizmo_type = plater()->canvas3D()->get_gizmos_manager().get_current_type();
+            const bool enable = gizmo_type != GLGizmosManager::SlaSupports && gizmo_type != GLGizmosManager::Hollow;
+            evt.Enable(enable);
+        }
+
         plater()->set_current_canvas_as_dirty();
 
     }, menu_item_printable->GetId());
@@ -998,12 +1006,13 @@ void MenuFactory::append_menu_item_edit_text(wxMenu *menu)
 
     wxString description = _L("Ability to change text, font, size, ...");
     std::string icon = "";
-    append_menu_item(
-        menu, wxID_ANY, name, description,
-        [can_edit_text](wxCommandEvent &) {
-            plater()->canvas3D()->get_gizmos_manager().open_gizmo(GLGizmosManager::Emboss);
-        },
-        icon, nullptr, can_edit_text, m_parent);
+    auto open_emboss = [](const wxCommandEvent &) {
+        GLGizmosManager &mng = plater()->canvas3D()->get_gizmos_manager();
+        if (mng.get_current_type() == GLGizmosManager::Emboss)
+            mng.open_gizmo(GLGizmosManager::Emboss); // close() and reopen - move to be visible
+        mng.open_gizmo(GLGizmosManager::Emboss);
+    };
+    append_menu_item(menu, wxID_ANY, name, description, open_emboss, icon, nullptr, can_edit_text, m_parent);
 }
 
 MenuFactory::MenuFactory()

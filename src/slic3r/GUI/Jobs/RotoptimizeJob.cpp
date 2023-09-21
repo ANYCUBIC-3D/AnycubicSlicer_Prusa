@@ -124,4 +124,14 @@ void RotoptimizeJob::finalize(bool canceled, std::exception_ptr &eptr)
         m_plater->update();
 }
 
+std::string RotoptimizeJob::get_method_name(size_t i)
+{
+    return into_u8(_(Methods[i].name));
+}
+
+std::string RotoptimizeJob::get_method_description(size_t i)
+{
+    return into_u8(_(Methods[i].descr));
+}
+
 }}

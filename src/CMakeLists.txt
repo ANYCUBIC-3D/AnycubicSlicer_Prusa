@@ -1,11 +1,10 @@
 cmake_minimum_required(VERSION 3.13)
 project(AnycubicSlicer-native)
 
-include(PrecompiledHeader)
-
 add_subdirectory(build-utils)
 add_subdirectory(admesh)
 add_subdirectory(avrdude)
+add_subdirectory(eigen/Eigen)
 # boost/nowide
 add_subdirectory(boost)
 add_subdirectory(clipper)
@@ -51,23 +50,17 @@ if (SLIC3R_GUI)
 
     if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
         set (wxWidgets_CONFIG_OPTIONS "--toolkit=gtk${SLIC3R_GTK}")
-        if (SLIC3R_WX_STABLE)
-            find_package(wxWidgets 3.0 REQUIRED COMPONENTS base core adv html gl aui)
-        else ()
-            find_package(wxWidgets 3.1 QUIET COMPONENTS base core adv html gl aui)
-
-            if (NOT wxWidgets_FOUND)
-                message(FATAL_ERROR "\nCould not find wxWidgets 3.1.\n"
-                    "Hint: On Linux you can set -DSLIC3R_WX_STABLE=1 to use wxWidgets 3.0\n")
-            endif ()
+        find_package(wxWidgets 3.1.6 QUIET COMPONENTS base core adv html gl aui webview)
+        if (NOT wxWidgets_FOUND)
+            message(FATAL_ERROR "Could not find wxWidgets >= 3.1.6")
         endif ()
 
         include(${wxWidgets_USE_FILE})
     else ()
-        find_package(wxWidgets 3.1 COMPONENTS html adv gl core base)
+        find_package(wxWidgets 3.1.6 COMPONENTS html adv gl core base webview)
         if (NOT wxWidgets_FOUND)
             message(STATUS "Trying to find wxWidgets in CONFIG mode...")
-            find_package(wxWidgets 3.2 CONFIG REQUIRED COMPONENTS html adv gl core base)
+            find_package(wxWidgets 3.1.6 CONFIG REQUIRED COMPONENTS html adv gl core base webview)
             slic3r_remap_configs(wx::wxhtml wx::wxadv wx::wxgl wx::wxcore wx::wxbase RelWithDebInfo Release)
         else ()
             include(${wxWidgets_USE_FILE})
@@ -124,7 +117,7 @@ if (SLIC3R_GUI)
     message(STATUS "wx libs: ${wxWidgets_LIBRARIES}")
 
     add_subdirectory(slic3r)
-endif()
+
 
 
 # Create a slic3r executable
@@ -165,8 +158,8 @@ else ()
 endif ()
 
 # Add the Slic3r GUI library, libcurl, OpenGL and GLU libraries.
-if (SLIC3R_GUI)
-#    target_link_libraries(Anycubic Slicer ws2_32 uxtheme setupapi libslic3r_gui ${wxWidgets_LIBRARIES})
+
+#    target_link_libraries(AnycubicSlicer ws2_32 uxtheme setupapi libslic3r_gui ${wxWidgets_LIBRARIES})
 target_link_libraries(AnycubicSlicer libslic3r_gui)
     if (MSVC)
         # Generate debug symbols even in release mode.
@@ -183,7 +176,7 @@ target_link_libraries(AnycubicSlicer libslic3r_gui)
         find_library(PSAPI_LIB NAMES Psapi)
         target_link_libraries(AnycubicSlicer ${PSAPI_LIB})
     endif ()
-endif ()
+
 
 # On Windows, a shim application is required to produce a console / non console version of the Slic3r application.
 # Also the shim may load the Mesa software OpenGL renderer if the default renderer does not support OpenGL 2.0 and higher.
@@ -294,3 +287,5 @@ else ()
     # Install the symlink for gcodeviewer
     install(CODE "execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink Anycubic-Slicer AnycubicSlicer-gcodeviewer WORKING_DIRECTORY \$ENV{DESTDIR}/${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR})")
 endif ()
+endif()
+INSTALL(FILES ${CMAKE_CURRENT_SOURCE_DIR}/tcbspan/span.hpp DESTINATION include/tcbspan)

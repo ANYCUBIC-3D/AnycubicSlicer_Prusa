@@ -68,6 +68,7 @@ public:
 
     int GetItemsWidth();
 
+	void SetCornerRadius(int value);
 protected:
     virtual int  DoInsertItems(const wxArrayStringsAdapter &items,
                                unsigned int                 pos,

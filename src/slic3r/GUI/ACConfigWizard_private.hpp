@@ -1,4 +1,4 @@
-#ifndef slic3r_ACConfigWizard_private_hpp_
+﻿#ifndef slic3r_ACConfigWizard_private_hpp_
 #define slic3r_ACConfigWizard_private_hpp_
 
 #include "ACConfigWizard.hpp"
@@ -113,7 +113,7 @@ struct PrinterPicker: wxPanel
         {
             SetPaddingSize(wxSize(10,10));
             SetSpacing(10);
-            SetMinSize(wxSize(120, 140));
+            SetMinSize(wxSize(110, 160));
             SetButtonType(ACButton::AC_BUTTON_CHECK_IMG);
             SetCheckStyle(ACButton::CHECKSTYLE_ON_MARK);
             SetCanFocus(false);
@@ -177,16 +177,30 @@ struct ConfigWizardPage: wxPanel
 
 struct PageWelcome: ConfigWizardPage
 {
-    //wxStaticText *welcome_text;
-    //wxCheckBox *cbox_reset;
-    //wxCheckBox *cbox_integrate;
-
     PageWelcome(ACConfigWizard *parent);
+	//~PageWelcome(); 不进手动行析构，会蹦
 
     bool reset_user_profile() const { return /*cbox_reset != nullptr ? cbox_reset->GetValue() :*/ false; }
     //bool integrate_desktop() const { return cbox_integrate != nullptr ? cbox_integrate->GetValue() : false; }
 
     virtual void set_run_reason(ACConfigWizard::RunReason run_reason) override;
+
+private:
+	ACButton* logo;
+	wxStaticText* title;
+	wxStaticText* info_0;
+	wxStaticText* info_1;
+};
+
+struct PageDataReq : ConfigWizardPage
+{
+    PageDataReq(ACConfigWizard *parent);
+
+    bool canSendAnonymous() const { return m_canSendAnonymous; }
+
+    virtual void set_run_reason(ACConfigWizard::RunReason run_reason) override;
+private:
+    bool m_canSendAnonymous;
 };
 
 struct PagePrinters: ConfigWizardPage
@@ -610,6 +624,7 @@ struct ACConfigWizard::priv
     ACButton *btn_cancel = nullptr;
 
     PageWelcome      *page_welcome = nullptr;
+    PageDataReq      *page_dataReq = nullptr;
     PagePrinters     *page_fff = nullptr;
     PagePrinters     *page_msla = nullptr;
     PageMaterials    *page_filaments = nullptr;
@@ -645,6 +660,8 @@ struct ACConfigWizard::priv
     void load_pages();
     void init_dialog_size();
 
+    bool canSendAnonymous();
+
     void load_vendors();
     void add_page(ConfigWizardPage *page);
     void enable_next(bool enable);
@@ -669,6 +686,7 @@ struct ACConfigWizard::priv
 //#endif
     bool check_fff_selected();        // Used to decide whether to display Filaments page
     bool check_sla_selected();        // Used to decide whether to display SLA Materials page
+	void init_button(ACButton* button);
 
     //int em() const { return index->em(); }
 };

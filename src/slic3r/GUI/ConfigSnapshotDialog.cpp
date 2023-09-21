@@ -9,6 +9,7 @@
 #include "GUI_App.hpp"
 #include "MainFrame.hpp"
 #include "wxExtensions.hpp"
+#include "format.hpp"
 
 namespace Slic3r { 
 namespace GUI {
@@ -89,10 +90,10 @@ static wxString generate_html_row(const Config::Snapshot &snapshot, bool row_eve
     }
 
     if (! compatible) {
-        text += "<p align=\"right\">" + from_u8((boost::format(_utf8(L("Incompatible with this %s"))) % SLIC3R_APP_NAME).str()) + "</p>";
+        text += "<p align=\"right\">" + format_wxstr(_L("Incompatible with this %s"), SLIC3R_APP_NAME) + "</p>";
     }
     else if (! snapshot_active)
-        text += "<p align=\"right\"><a href=\"" + snapshot.id + "\">" + _(L("Activate")) + "</a></p>";
+        text += "<p align=\"right\"><a href=\"" + snapshot.id + "\">" + _L("Activate") + "</a></p>";
     text += "</td>";
 	text += "</tr>";
     return text;

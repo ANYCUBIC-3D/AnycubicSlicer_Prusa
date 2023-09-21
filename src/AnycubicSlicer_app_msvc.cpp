@@ -230,13 +230,13 @@ int wmain(int argc, wchar_t **argv)
 {
 #endif
 
-#ifndef NDEBUG
-    if (argc > 1) {
-        auto p = wcstoul(argv[argc-1], nullptr, 10);
-        _CrtSetBreakAlloc(p);
-        argc -= 1;
-    }
-#endif // NDEBUG
+//#ifndef NDEBUG
+//    if (argc > 1) {
+//        auto p = wcstoul(argv[argc-1], nullptr, 10);
+//        _CrtSetBreakAlloc(p);
+//        argc -= 1;
+//    }
+//#endif // NDEBUG
     // Allow the asserts to open message box, such message box allows to ignore the assert and continue with the application.
     // Without this call, the seemingly same message box is being opened by the abort() function, but that is too late and
     // the application will be killed even if "Ignore" button is pressed.
@@ -310,10 +310,12 @@ int wmain(int argc, wchar_t **argv)
         }
     }
 #endif /* SLIC3R_GUI */
-    //AllocConsole();
-    //freopen("conin$","r",stdin);
-    //freopen("conout$","w",stdout);
-    //freopen("conout$","w",stderr);
+#if defined(_DEBUG)
+    AllocConsole();
+    freopen("conin$","r",stdin);
+    freopen("conout$","w",stdout);
+    freopen("conout$","w",stderr);
+#endif
 
     printf("Try load AnycubicSlicer.dll\n");
 

@@ -59,6 +59,7 @@ void ACSpinInput::Create(
     text_ctrl->SetInitialSize(text_ctrl->GetBestSize());
     state_handler.attach_child(text_ctrl);
     text_ctrl->Bind(wxEVT_KILL_FOCUS, &ACSpinInput::onTextLostFocus, this);
+    text_ctrl->Bind(wxEVT_SET_FOCUS, &ACSpinInput::onTextGetFocus, this);
     text_ctrl->Bind(wxEVT_TEXT_ENTER, &ACSpinInput::onTextEnter, this);
     text_ctrl->Bind(wxEVT_KEY_DOWN, &ACSpinInput::keyPressed, this);
     text_ctrl->Bind(wxEVT_RIGHT_DOWN, [this](auto &e) {}); // disable context menu
@@ -274,6 +275,7 @@ void ACSpinInput::onTimer(wxTimerEvent &evnet)
 void ACSpinInput::onTextLostFocus(wxEvent &event)
 {
     timer.Stop();
+    SetActivateState(false);
     for (auto *child : GetChildren())
         if (auto btn = dynamic_cast<ACButton *>(child))
             if (btn->HasCapture())
@@ -284,6 +286,11 @@ void ACSpinInput::onTextLostFocus(wxEvent &event)
     event.SetId(GetId());
     ProcessEventLocally(event);
     e.Skip();
+}
+void ACSpinInput::onTextGetFocus(wxFocusEvent &event)
+{
+    SetActivateState(true);
+    event.Skip();
 }
 
 void ACSpinInput::onTextEnter(wxCommandEvent &event)
@@ -308,10 +315,12 @@ void ACSpinInput::onTextEnter(wxCommandEvent &event)
 
 void ACSpinInput::mouseWheelMoved(wxMouseEvent &event)
 {
-    auto delta = (event.GetWheelRotation() < 0 == event.IsWheelInverted()) ? 1 : -1;
-    SetValue(val + delta);
-    sendSpinEvent();
-    text_ctrl->SetFocus();
+    if (activate) {
+        auto delta = (event.GetWheelRotation() < 0 == event.IsWheelInverted()) ? 1 : -1;
+        SetValue(val + delta);
+        sendSpinEvent();
+        text_ctrl->SetFocus();
+    }
 }
 
 void ACSpinInput::keyPressed(wxKeyEvent &event)

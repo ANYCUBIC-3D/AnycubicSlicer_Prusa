@@ -145,7 +145,7 @@ public:
     static void update_volume(ModelVolume             *volume,
                               TriangleMesh           &&mesh,
                               const TextConfiguration &text_configuration,
-                              const std::string       &volume_name);
+                              std::string_view        volume_name);
 };
 
 struct SurfaceVolumeData

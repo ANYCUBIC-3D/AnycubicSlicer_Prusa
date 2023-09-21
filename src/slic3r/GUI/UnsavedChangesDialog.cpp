@@ -795,6 +795,12 @@ UnsavedChangesDialog::UnsavedChangesDialog(const wxString& caption, const wxStri
     m_app_config_key(app_config_key),
     m_buttons(act_buttons)
 {
+    /*if (wxGetApp().mainframe->m_settings_dialog.IsShown()) {
+        setMarkWindow(static_cast<wxWindow *>(&wxGetApp().mainframe->m_settings_dialog), this);
+    } else {
+        setMarkWindow(static_cast<wxWindow *>(wxGetApp().mainframe), this);
+    }*/
+    AddWindowDrakEdg(this);
     build(Preset::TYPE_INVALID, nullptr, "", header);
 
     const std::string& def_action = m_app_config_key.empty() ? none : wxGetApp().app_config->get(m_app_config_key);
@@ -812,6 +818,12 @@ UnsavedChangesDialog::UnsavedChangesDialog(Preset::Type type, PresetCollection* 
     //: DPIDialog(static_cast<wxWindow*>(wxGetApp().mainframe), wxID_ANY, _L("Switching Presets: Unsaved Changes"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
     : DPIDialog(parent == NULL ? static_cast<wxWindow*>(wxGetApp().mainframe) : parent, wxID_ANY, _L("Switching Presets: Unsaved Changes"), wxDefaultPosition, wxSize(84 * em_unit(), 45 * em_unit()),wxSTAY_ON_TOP| wxNO_BORDER)
 {
+    /*if (wxGetApp().mainframe->m_settings_dialog.IsShown()) {
+        setMarkWindow(static_cast<wxWindow *>(&wxGetApp().mainframe->m_settings_dialog), this);
+    } else {
+        setMarkWindow(static_cast<wxWindow *>(wxGetApp().mainframe), this);
+    }*/
+    AddWindowDrakEdg(this);
     m_app_config_key = "default_action_on_select_preset";
 
     build(type, dependent_presets, new_selected_preset);
@@ -840,7 +852,8 @@ void UnsavedChangesDialog::build(Preset::Type type, PresetCollection* dependent_
     // ys_FIXME! temporary workaround for correct font scaling
     // Because of from wxWidgets 3.1.3 auto rescaling is implemented for the Fonts,
     // From the very beginning set dialog font to the wxSYS_DEFAULT_GUI_FONT
-    this->SetFont(wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT));
+//    this->SetFont(wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT));
+    this->SetFont(wxGetApp().normal_font());
 #endif // __WXMSW__
 
     int border = 10;
@@ -853,15 +866,16 @@ void UnsavedChangesDialog::build(Preset::Type type, PresetCollection* dependent_
         add_new_value_column = false;
 
     m_action_line = new wxStaticText(this, wxID_ANY, "");
-    m_action_line->SetFont(wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT).Bold());
+//    m_action_line->SetFont(wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT).Bold());
+    m_action_line->SetFont(wxGetApp().bold_font());
 
     m_tree = new DiffViewCtrl(this, wxSize(em * (add_new_value_column ? 80 : 60), em * 30));
     m_tree->AppendToggleColumn_(L"\u2714"      , DiffModel::colToggle, wxLinux ? 9 : 6);
     m_tree->AppendBmpTextColumn(""             , DiffModel::colIconText, 28);
-    m_tree->AppendBmpTextColumn(_L("Original Value"), DiffModel::colOldValue, 12);
-    m_tree->AppendBmpTextColumn(_L("Modified Value"), DiffModel::colModValue, 12);
+    m_tree->AppendBmpTextColumn(_L("Original value"), DiffModel::colOldValue, 12);
+    m_tree->AppendBmpTextColumn(_L("Modified value"), DiffModel::colModValue, 12);
     if (add_new_value_column)
-        m_tree->AppendBmpTextColumn(_L("New Value"), DiffModel::colNewValue, 12);
+        m_tree->AppendBmpTextColumn(_L("New value"), DiffModel::colNewValue, 12);
 
     // Add Buttons 
     wxFont      btn_font = this->GetFont().Scaled(1.4f);
@@ -924,7 +938,8 @@ void UnsavedChangesDialog::build(Preset::Type type, PresetCollection* dependent_
     cancel_btn->Bind(wxEVT_BUTTON, [this](wxEvent&) { this->EndModal(wxID_CANCEL); });
 
     m_info_line = new wxStaticText(this, wxID_ANY, "");
-    m_info_line->SetFont(wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT).Bold());
+//    m_info_line->SetFont(wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT).Bold());
+    m_info_line->SetFont(wxGetApp().bold_font());
     m_info_line->Hide();
 
     //if (!m_app_config_key.empty()) {
@@ -954,7 +969,7 @@ void UnsavedChangesDialog::build(Preset::Type type, PresetCollection* dependent_
     wxBoxSizer* topSizer = new wxBoxSizer(wxVERTICAL);
 
     ACDialogTopbar* m_dialogChanges = new ACDialogTopbar(this, this->GetTitle(), 84);
-    topSizer->Add(m_dialogChanges);
+    topSizer->Add(m_dialogChanges, 0, wxTOP | wxRIGHT|wxLEFT,1);
     topSizer->Add(m_action_line,0, wxEXPAND | wxLEFT | wxTOP | wxRIGHT, border);
     topSizer->Add(m_tree,       1, wxEXPAND | wxLEFT | wxTOP | wxRIGHT, border);
     topSizer->Add(m_info_line,  0, wxEXPAND | wxLEFT | wxTOP | wxRIGHT, 2*border);
@@ -963,6 +978,7 @@ void UnsavedChangesDialog::build(Preset::Type type, PresetCollection* dependent_
         topSizer->Add(m_remember_choice, 0, wxEXPAND | wxLEFT | wxBOTTOM | wxRIGHT, border);
 
     update(type, dependent_presets, new_selected_preset, header);
+    Bind(wxEVT_CLOSE_WINDOW, [&](wxCloseEvent &event) { this->EndModal(wxID_CANCEL); });
 
     SetSizer(topSizer);
     topSizer->SetSizeHints(this);
@@ -1028,7 +1044,7 @@ bool UnsavedChangesDialog::save(PresetCollection* dependent_presets, bool show_s
 
         // for system/default/external presets we should take an edited name
         if (preset.is_system || preset.is_default || preset.is_external) {
-            SavePresetDialog save_dlg(this, preset.type);
+            SavePresetDialog save_dlg(this, { preset.type });
             if (save_dlg.ShowModal() != wxID_OK) {
                 m_exit_action = Action::Discard;
                 return false;
@@ -1273,8 +1289,8 @@ void UnsavedChangesDialog::update(Preset::Type type, PresetCollection* dependent
 void UnsavedChangesDialog::update_tree(Preset::Type type, PresetCollection* presets_, const std::string& new_selected_preset)
 {
     // update searcher befofre update of tree
-    wxGetApp().sidebar().check_and_update_searcher();
-    Search::OptionsSearcher& searcher = wxGetApp().sidebar().get_searcher();
+    wxGetApp().plater()->check_and_update_searcher();
+    Search::OptionsSearcher& searcher = wxGetApp().plater()->get_searcher();
     searcher.sort_options_by_key();
 
     // list of the presets with unsaved changes
@@ -1375,9 +1391,11 @@ void UnsavedChangesDialog::on_sys_color_changed()
 
 FullCompareDialog::FullCompareDialog(const wxString& option_name, const wxString& old_value, const wxString& mod_value, const wxString& new_value,
                                      const wxString& old_value_header, const wxString& mod_value_header, const wxString& new_value_header)
-    : wxDialog(nullptr, wxID_ANY, option_name, wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
+    : wxDialog(nullptr, wxID_ANY, option_name, wxDefaultPosition, wxDefaultSize, wxSTAY_ON_TOP | wxNO_BORDER)
 {
+    AddWindowDrakEdg(this);
     wxGetApp().UpdateDarkUI(this);
+    this->SetFont(wxGetApp().normal_font());
 
     int border = 10;
     bool has_new_value_column = !new_value_header.IsEmpty();
@@ -1428,6 +1446,7 @@ FullCompareDialog::FullCompareDialog(const wxString& option_name, const wxString
     auto add_value = [grid_sizer, border, this](wxString label, const std::set<wxString>& diff_set, bool is_colored = false) {
         wxTextCtrl* text = new wxTextCtrl(this, wxID_ANY, label, wxDefaultPosition, wxSize(400, 400), wxTE_MULTILINE | wxTE_READONLY | wxBORDER_DEFAULT | wxTE_RICH);
         wxGetApp().UpdateDarkUI(text);
+        text->SetForegroundColour(AC_COLOR_BLACK);
         text->SetStyle(0, label.Len(), wxTextAttr(is_colored ? wxColour(orange) : wxNullColour, wxNullColour, this->GetFont()));
 
         for (const wxString& str : diff_set) {
@@ -1446,16 +1465,31 @@ FullCompareDialog::FullCompareDialog(const wxString& option_name, const wxString
 
     sizer->Add(grid_sizer, 1, wxEXPAND);
 
-    wxStdDialogButtonSizer* buttons = this->CreateStdDialogButtonSizer(wxOK);
-    wxGetApp().UpdateDarkUI(static_cast<wxButton*>(this->FindWindowById(wxID_OK, this)), true);
+    //wxStdDialogButtonSizer* buttons = this->CreateStdDialogButtonSizer(wxOK);
+    wxBoxSizer *            buttons    = new wxBoxSizer(wxHORIZONTAL);
+    ACButton *cancel_btn = new ACButton(this, _L("OK"));
+    cancel_btn->SetMinSize(wxSize(CHANGES_BTN_WIDTH, CHANGES_BTN_HEIGHT));
+    cancel_btn->SetPaddingSize(wxSize(5, 5));
+    cancel_btn->SetCornerRadius(4);
+    cancel_btn->SetButtonType(ACButton::AC_BUTTON_LV1);
+    wxFont btn_font = this->GetFont().Scaled(1.4f);
+    cancel_btn->SetFont(btn_font);
+    cancel_btn->Bind(wxEVT_BUTTON, [this](wxEvent &) { this->EndModal(wxID_OK); });
+    buttons->Add(0, 0, 1, wxEXPAND, 5);
+    buttons->Add(cancel_btn, 0, wxALL, 5);
+    Bind(wxEVT_CLOSE_WINDOW, [&](wxCloseEvent &event) { this->EndModal(wxID_OK); });
+    //wxGetApp().UpdateDarkUI(static_cast<wxButton*>(this->FindWindowById(wxID_OK, this)), true);
 
     wxBoxSizer* topSizer = new wxBoxSizer(wxVERTICAL);
-
+    ACDialogTopbar *m_dialogChanges = new ACDialogTopbar(this, this->GetTitle(), 84);
+    topSizer->Add(m_dialogChanges, 0, wxTOP | wxRIGHT | wxLEFT, 1);
     topSizer->Add(sizer,   1, wxEXPAND | wxLEFT | wxTOP | wxRIGHT, border);
     topSizer->Add(buttons, 0, wxEXPAND | wxALL, border);
 
     SetSizer(topSizer);
     topSizer->SetSizeHints(this);
+    SetSize( wxSize(84 * em_unit(this), 55 * em_unit(this)));
+    Layout();
 }
 
 
@@ -1545,7 +1579,8 @@ void DiffPresetDialog::create_show_all_presets_chb()
 
 void DiffPresetDialog::create_info_lines()
 {
-    const wxFont font = wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT).Bold();
+//    const wxFont font = wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT).Bold();
+    const wxFont font = GetFont().Bold();
 
     m_top_info_line = new wxStaticText(this, wxID_ANY, _L("Select presets to compare"));
     m_top_info_line->SetFont(font);
@@ -1613,7 +1648,7 @@ void DiffPresetDialog::create_buttons()
         }
         evt.Enable(enable);
     });
-    m_transfer_btn->Bind(wxEVT_ENTER_WINDOW, [this, show_in_bottom_info](wxMouseEvent& e) {
+    m_transfer_btn->Bind(wxEVT_ENTER_WINDOW, [show_in_bottom_info](wxMouseEvent& e) {
         show_in_bottom_info(_L("Transfer the selected options from left preset to the right.\n"
                             "Note: New modified presets will be selected in settings tabs after close this dialog."), e); });
 
@@ -1627,7 +1662,7 @@ void DiffPresetDialog::create_buttons()
 
     m_save_btn->Bind(wxEVT_BUTTON, [this](wxEvent&) { button_event(Action::Save); });
     m_save_btn->Bind(wxEVT_UPDATE_UI, [this](wxUpdateUIEvent& evt) { evt.Enable(m_tree->has_selection()); });
-    m_save_btn->Bind(wxEVT_ENTER_WINDOW, [this, show_in_bottom_info](wxMouseEvent& e) {
+    m_save_btn->Bind(wxEVT_ENTER_WINDOW, [show_in_bottom_info](wxMouseEvent& e) {
         show_in_bottom_info(_L("Save the selected options from left preset to the right."), e); });
 
     // Cancel
@@ -1702,11 +1737,13 @@ DiffPresetDialog::DiffPresetDialog(MainFrame* mainframe)
     // ys_FIXME! temporary workaround for correct font scaling
     // Because of from wxWidgets 3.1.3 auto rescaling is implemented for the Fonts,
     // From the very beginning set dialog font to the wxSYS_DEFAULT_GUI_FONT
-    this->SetFont(wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT));
+//    this->SetFont(wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT));
+    this->SetFont(mainframe->normal_font());
 #endif // __WXMSW__
 
     // Init bundles
-
+    /*setMarkWindow(mainframe, this);*/
+    AddWindowDrakEdg(this);
     assert(wxGetApp().preset_bundle);
 
     m_preset_bundle_left  = std::make_unique<PresetBundle>(*wxGetApp().preset_bundle);
@@ -1814,8 +1851,8 @@ void DiffPresetDialog::update_bottom_info(wxString bottom_info)
 void DiffPresetDialog::update_tree()
 {
     // update searcher before update of tree
-    wxGetApp().sidebar().check_and_update_searcher(); 
-    Search::OptionsSearcher& searcher = wxGetApp().sidebar().get_searcher();
+    wxGetApp().plater()->check_and_update_searcher(); 
+    Search::OptionsSearcher& searcher = wxGetApp().plater()->get_searcher();
     searcher.sort_options_by_key();
 
     m_tree->Clear();

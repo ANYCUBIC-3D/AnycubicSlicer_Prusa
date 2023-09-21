@@ -101,10 +101,12 @@ protected:
     void layout();
 	void clear_cache();
 	void refresh_og(std::shared_ptr<ConfigOptionsGroup> og);
+	void refresh_og(ConfigOptionsGroup* og);
     void create_icon_size_slider();
     void create_settings_mode_widget();
     void create_settings_text_color_widget();
     void create_settings_mode_color_widget();
+    void create_settings_font_widget();
     void create_downloader_path_sizer();
 	void init_highlighter(const t_config_option_key& opt_key);
 	std::vector<ConfigOptionsGroup*> optgroups();

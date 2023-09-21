@@ -1,7 +1,7 @@
 #include "GLGizmoSimplify.hpp"
 #include "slic3r/GUI/GLCanvas3D.hpp"
 #include "slic3r/GUI/GUI_App.hpp"
-#include "slic3r/GUI/GUI_ObjectManipulation.hpp"
+//#include "slic3r/GUI/GUI_ObjectManipulation.hpp"
 #include "slic3r/GUI/GUI_ObjectList.hpp"
 #include "slic3r/GUI/MsgDialog.hpp"
 #include "slic3r/GUI/NotificationManager.hpp"
@@ -104,7 +104,7 @@ GLGizmoSimplify::GLGizmoSimplify(GLCanvas3D &parent)
     // translation for GUI size
     , tr_mesh_name(_u8L("Mesh name"))
     , tr_triangles(_u8L("Triangles"))
-    , tr_detail_level(_u8L("Detail level"))
+    , tr_detail_level(_u8L("Level of detail"))
     , tr_decimate_ratio(_u8L("Decimate ratio"))
 {}
 
@@ -144,7 +144,7 @@ void GLGizmoSimplify::add_simplify_suggestion_notification(
 
     for (size_t object_id : big_ids) {
         std::string t = GUI::format(_L(
-            "Processing model '%1%' with more than 1M triangles "
+            "Processing model \"%1%\" with more than 1M triangles "
             "could be slow. It is highly recommended to reduce "
             "amount of triangles."), objects[object_id]->name);
         std::string hypertext = _u8L("Simplify model");
@@ -256,7 +256,7 @@ void GLGizmoSimplify::on_render_input_window(float x, float y, float bottom_limi
                 pos.y -= m_gui_cfg->window_offset_y;
                 // minimal top left value
                 ImVec2 tl(m_gui_cfg->window_padding,
-                          m_gui_cfg->window_padding + m_parent.get_main_toolbar_height());
+                          m_gui_cfg->window_padding /*+ m_parent.get_main_toolbar_height()*/);
                 if (pos.x < tl.x) pos.x = tl.x;
                 if (pos.y < tl.y) pos.y = tl.y;
                 // maximal bottom right value
@@ -318,10 +318,8 @@ void GLGizmoSimplify::on_render_input_window(float x, float y, float bottom_limi
         m_configuration.use_count = !m_configuration.use_count;
         start_process = true;
     } else if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled) && is_multipart)
-        ImGui::SetTooltip("%s", GUI::format(_L(
-             "Multipart object can be simplified only by %1%. "
-             "If you want specify %2% process it separately."),
-            tr_detail_level, tr_decimate_ratio).c_str());
+        ImGui::SetTooltip("%s", _u8L("A multipart object can be simplified using only a Level of detail. "
+                                     "If you want to enter a Decimate ratio, do the simplification separately.").c_str());
     ImGui::SameLine();
 
     // show preview result triangle count (percent)
@@ -539,7 +537,8 @@ void GLGizmoSimplify::apply_simplify() {
 
     const Selection& selection = m_parent.get_selection();
     auto plater = wxGetApp().plater();
-    plater->take_snapshot(_u8L("Simplify ") + create_volumes_name(m_volume_ids, selection));
+    // TRN %1% = volumes name
+    plater->take_snapshot(Slic3r::format(_u8L("Simplify %1%"), create_volumes_name(m_volume_ids, selection)));
     plater->clear_before_change_mesh(selection.get_object_idx(), _u8L("Custom supports, seams and multimaterial painting were "
                                                                       "removed after simplifying the mesh."));
     // After removing custom supports, seams, and multimaterial painting, we have to update info about the object to remove information about

@@ -49,7 +49,7 @@ using Slic3r::GUI::Config::SnapshotDB;
 namespace Slic3r {
 
 
-static const char *INDEX_FILENAME = "index.idx";
+//static const char *INDEX_FILENAME = "index.idx";
 static const char *TMP_EXTENSION = ".download";
 
 namespace {
@@ -399,7 +399,7 @@ void PresetUpdater::priv::sync_config(const VendorMap vendors, const std::string
 				std::string name(stat.m_filename);
 				if (stat.m_uncomp_size > 0) {
 					std::string buffer((size_t)stat.m_uncomp_size, 0);
-					mz_bool res = mz_zip_reader_extract_file_to_mem(&archive, stat.m_filename, (void*)buffer.data(), (size_t)stat.m_uncomp_size, 0);
+					mz_bool res = mz_zip_reader_extract_to_mem(&archive, stat.m_file_index, (void*)buffer.data(), (size_t)stat.m_uncomp_size, 0);
 					if (res == 0) {
 						BOOST_LOG_TRIVIAL(error) << "Failed to unzip " << stat.m_filename;
 						continue;
@@ -961,7 +961,7 @@ Updates PresetUpdater::priv::get_config_updates(const Semver &old_slic3r_version
 					BOOST_LOG_TRIVIAL(error) << format("Cannot load the installed index at `%1%`: %2%", bundle_path_idx, err.what());
 				}
 			}
-
+#if 0
 			// Check if the update is already present in a snapshot
 			if(!current_not_supported)
 			{
@@ -974,7 +974,7 @@ Updates PresetUpdater::priv::get_config_updates(const Semver &old_slic3r_version
 					continue;
 				}
 			}
-
+#endif // 0
 			updates.updates.emplace_back(std::move(new_update));
 			// 'Install' the index in the vendor directory. This is used to memoize
 			// offered updates and to not offer the same update again if it was cancelled by the user.
@@ -1320,7 +1320,35 @@ bool PresetUpdater::install_bundles_rsrc_or_cache_vendor(std::vector<std::string
 		bool is_in_rsrc = fs::exists(path_in_rsrc);
 		bool is_in_cache_vendor = fs::exists(path_in_cache_vendor) && !fs::is_empty(path_in_cache_vendor);
 
-		// find if in cache vendor is newer version than in resources
+		// Find if in cache vendor is newer version than in resources.
+		// But we also need to mind too new versions - have to read index.
+
+		// Fresh index should be in archive_dir, otherwise look for it in cache 
+		fs::path idx_path (path_in_cache_vendor);
+		idx_path.replace_extension(".idx");
+		if (!boost::filesystem::exists(idx_path)) {
+			BOOST_LOG_TRIVIAL(error) << GUI::format("Couldn't locate idx file %1% when performing updates.", idx_path.string());
+			idx_path = fs::path(p->cache_path / idx_path.filename());
+		}
+		if (!boost::filesystem::exists(idx_path)) {
+			std::string msg = GUI::format(_L("Couldn't locate index file for vendor %1% when performing updates. The profile will not be installed."), bundle);
+			BOOST_LOG_TRIVIAL(error) << msg;
+			GUI::show_error(nullptr, msg);
+			continue;
+		}
+		Slic3r::GUI::Config::Index index;
+		try {
+			index.load(idx_path);
+		}
+		catch (const std::exception& /* err */) {
+			std::string msg = GUI::format(_L("Couldn't load index file for vendor %1% when performing updates. The profile will not be installed. Reason: Corrupted index file %2%."), bundle, idx_path.string());
+			BOOST_LOG_TRIVIAL(error) << msg;
+			GUI::show_error(nullptr, msg);
+			continue;
+		}
+		const auto recommended_it = index.recommended();
+		const auto recommended = recommended_it->config_version;
+
 		if (is_in_cache_vendor) {
 			Semver version_cache = Semver::zero();
 			try {
@@ -1329,13 +1357,11 @@ bool PresetUpdater::install_bundles_rsrc_or_cache_vendor(std::vector<std::string
 			}
 			catch (const std::exception& e) {
 				BOOST_LOG_TRIVIAL(error) << format("Corrupted profile file for vendor %1%, message: %2%", path_in_cache_vendor, e.what());
-				// lets use file in resources
-				if (is_in_rsrc) {
-					updates.updates.emplace_back(std::move(path_in_rsrc), std::move(path_in_vendors), Version(), "", "");
-				}
-				continue;
+				version_cache = Semver::zero();
 			}
-			
+			if (version_cache > recommended)
+				version_cache = Semver::zero();
+
 			Semver version_rsrc = Semver::zero();
 			try {
 				if (is_in_rsrc) {
@@ -1345,26 +1371,33 @@ bool PresetUpdater::install_bundles_rsrc_or_cache_vendor(std::vector<std::string
 			}
 			catch (const std::exception& e) {
 				BOOST_LOG_TRIVIAL(error) << format("Corrupted profile file for vendor %1%, message: %2%", path_in_rsrc, e.what());
-				continue;
+				//continue;
+				version_rsrc = Semver::zero();
 			}
+			// Should not happen!
+			if (version_rsrc > recommended)
+				version_rsrc = Semver::zero();
 
-			if (!is_in_rsrc || version_cache > version_rsrc) {
-				// in case we are installing from cache / vendor. we should also copy index to cache
-				// This needs to be done now bcs the current one would be missing this version on next start 
-				// dk: Should we copy it to vendor dir too?
-				auto path_idx_cache_vendor(path_in_cache_vendor);
-				path_idx_cache_vendor.replace_extension(".idx");
-				auto  path_idx_cache = (p->cache_path / bundle).replace_extension(".idx");
-				// DK: do this during perform_updates() too?
-				if (fs::exists(path_idx_cache_vendor))
-					copy_file_fix(path_idx_cache_vendor, path_idx_cache);
-				else // Should we dialog this?
-					BOOST_LOG_TRIVIAL(error) << GUI::format(_L("Couldn't locate idx file %1% when performing updates."), path_idx_cache_vendor.string());
+			if (version_cache == Semver::zero() && version_rsrc == Semver::zero()) {
+				std::string msg = GUI::format(_L("Couldn't open profile file for vendor %1% when performing updates. The profile will not be installed. This installation might be corrupted."), bundle);
+				BOOST_LOG_TRIVIAL(error) << msg;
+				GUI::show_error(nullptr, msg);
+				continue;
+			} else if (version_cache == Semver::zero()) {
+				// cache vendor cannot be used, use resources
+				updates.updates.emplace_back(std::move(path_in_rsrc), std::move(path_in_vendors), Version(), "", "");
+			} else if (version_rsrc == Semver::zero()) {
+				// resources cannto be used, use cache vendor
 				updates.updates.emplace_back(std::move(path_in_cache_vendor), std::move(path_in_vendors), Version(), "", "");
-			
+			} else if (version_cache > version_rsrc) {
+				// in case we are installing from cache / vendor. we should also copy index to cache
+				// This needs to be done now bcs the current one would be missing this version on the next start 
+				auto  path_idx_cache = (p->cache_path / bundle).replace_extension(".idx");
+				if (idx_path != path_idx_cache)
+					copy_file_fix(idx_path, path_idx_cache);
+				updates.updates.emplace_back(std::move(path_in_cache_vendor), std::move(path_in_vendors), Version(), "", "");
 			} else {
-				if (is_in_rsrc)
-					updates.updates.emplace_back(std::move(path_in_rsrc), std::move(path_in_vendors), Version(), "", "");
+				updates.updates.emplace_back(std::move(path_in_rsrc), std::move(path_in_vendors), Version(), "", "");
 			}
 		} else {
 			if (! is_in_rsrc) {
@@ -1409,6 +1442,44 @@ void PresetUpdater::on_update_notification_confirm()
 bool PresetUpdater::version_check_enabled() const
 {
 	return p->enabled_version_check;
+}
+
+void PresetUpdater::internal_bundle_version_check()
+{
+	// versioncheck
+	auto path_in_rsrc         = p->rsrc_path         / "anycubic.ini";
+	auto path_in_vendor       = p->vendor_path       / "anycubic.ini";
+
+	bool is_in_rsrc = fs::exists(path_in_rsrc);
+	bool is_in_vendor = fs::exists(path_in_vendor);
+
+	if (is_in_vendor == false || is_in_rsrc == false)
+		return;
+
+	Semver version_vender = Semver::zero();
+	try {
+		auto vp_vender = VendorProfile::from_ini(path_in_vendor, false);
+		version_vender = vp_vender.config_version;
+	}
+	catch (const std::exception& e) {
+		BOOST_LOG_TRIVIAL(error) << format("Corrupted profile file for vendor %1%, message: %2%", path_in_vendor, e.what());
+	}
+			
+	Semver version_rsrc = Semver::zero();
+	try {
+		if (is_in_rsrc) {
+			auto vp = VendorProfile::from_ini(path_in_rsrc, false);
+			version_rsrc = vp.config_version;
+		}
+	}
+	catch (const std::exception& e) {
+		BOOST_LOG_TRIVIAL(error) << format("Corrupted profile file for vendor %1%, message: %2%", path_in_rsrc, e.what());
+		return;
+	}
+	// remove older anycubic.ini in AppData\Roaming\AnycubicSlicer\vendor
+	if (version_vender < version_rsrc) {
+		fs::remove(path_in_vendor);
+	}
 }
 
 void PresetUpdater::update_index_db()

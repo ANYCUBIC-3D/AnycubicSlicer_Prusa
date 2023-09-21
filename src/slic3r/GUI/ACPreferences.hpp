@@ -10,6 +10,7 @@
 #include <vector>
 #include <map>
 
+
 namespace Slic3r {
 
 namespace GUI {
@@ -26,12 +27,18 @@ public:
 	bool recreate_GUI() const { return m_recreate_GUI; }
 	bool seq_top_layer_only_changed() const { return m_seq_top_layer_only_changed; }
 	bool settings_layout_changed() const { return m_settings_layout_changed; }
+    /*wxDialog *getDialogObj() { return markDialog; }
+    void      setDialogObj(wxDialog *indexObj) { markDialog = indexObj; }*/
+	std::shared_ptr<ConfigOptionsGroup>	optgroup_language() { return m_optgroup_language; }
 private:
 	void create();
 	void build();
 	void msw_rescale();
 	void on_dpi_changed(const wxRect& suggested_rect) override { msw_rescale(); }
 	std::vector<ConfigOptionsGroup*> optgroups();
+	wxMenuBar*  m_menubar{ nullptr };
+    /*wxDialog *                       markDialog = nullptr;*/
+
 private:
 	wxBoxSizer* m_mainSizer = nullptr;
 	wxBoxSizer* m_pageSizer = nullptr;
@@ -43,6 +50,13 @@ private:
 	bool								m_seq_top_layer_only_changed{ false };
 	bool								m_settings_layout_changed {false};
 };
+
+struct ChangeLanguageInfo {
+	std::string currentLanguage;
+	const wxLanguageInfo* targetLanguage;
+};
+
+wxDECLARE_EVENT(EVT_ACSLICER_APP_CHANGE_LANGUAGE, wxCommandEvent);
 
 } // GUI
 } // Slic3r

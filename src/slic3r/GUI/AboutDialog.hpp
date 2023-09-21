@@ -26,7 +26,7 @@ private:
 class CopyrightsDialog : public DPIDialog
 {
 public:
-    CopyrightsDialog();
+    CopyrightsDialog(wxWindow *parent);
     ~CopyrightsDialog() {}
 
     struct Entry {
@@ -62,7 +62,8 @@ class AboutDialog : public DPIDialog
     int             m_copy_rights_btn_id { wxID_ANY };
     int             m_copy_version_btn_id { wxID_ANY };
 public:
-    AboutDialog();
+    AboutDialog(wxWindow *parent);
+    ~AboutDialog() {}
 
 protected:
     void on_dpi_changed(const wxRect &suggested_rect) override;

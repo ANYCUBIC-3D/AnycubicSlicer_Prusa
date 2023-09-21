@@ -22,8 +22,7 @@
 cmake_minimum_required(VERSION 3.2)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum OS X deployment version")
 project(PrusaSlicer-deps)
-
-
+option(SLIC3R_GUI    			"Compile AnycubicSlicer with GUI components (OpenGL, wxWidgets)" 1)
 include(ExternalProject)
 include(ProcessorCount)
 
@@ -86,7 +85,6 @@ function(prusaslicer_add_cmake_project projectname)
             set(_build_j "/m:1")
         endif ()
     endif ()
-
     ExternalProject_Add(
         dep_${projectname}
         EXCLUDE_FROM_ALL    ON
@@ -102,6 +100,7 @@ function(prusaslicer_add_cmake_project projectname)
             -DCMAKE_CXX_COMPILER:STRING=${CMAKE_CXX_COMPILER}
             -DCMAKE_TOOLCHAIN_FILE:STRING=${CMAKE_TOOLCHAIN_FILE}
             -DBUILD_SHARED_LIBS:BOOL=OFF
+            -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
             "${_configs_line}"
             ${DEP_CMAKE_OPTS}
             ${P_ARGS_CMAKE_ARGS}
@@ -175,52 +174,64 @@ include(Boost/Boost.cmake)
 # The order of includes respects the dependencies between libraries
 include(Cereal/Cereal.cmake)
 include(Qhull/Qhull.cmake)
-include(GLEW/GLEW.cmake)
-include(OpenCSG/OpenCSG.cmake)
-
+if(SLIC3R_GUI)
+    include(GLEW/GLEW.cmake)
+    include(OpenCSG/OpenCSG.cmake)
+    set(OpenCSG dep_OpenCSG)
+endif()
 include(TBB/TBB.cmake)
 
 include(Blosc/Blosc.cmake)
 include(OpenEXR/OpenEXR.cmake)
 include(OpenVDB/OpenVDB.cmake)
-
-include(GMP/GMP.cmake)
-include(MPFR/MPFR.cmake)
-include(CGAL/CGAL.cmake)
-
+if(SLIC3R_GUI)
+    include(GMP/GMP.cmake)
+    include(MPFR/MPFR.cmake)
+    include(CGAL/CGAL.cmake)
+    set(CGAL dep_CGAL)
+endif ()
 include(NLopt/NLopt.cmake)
 
-include(OpenSSL/OpenSSL.cmake)
 
-set(CURL_PKG "")
-if (NOT CURL_FOUND) 
-    include(CURL/CURL.cmake)
-    set(CURL_PKG dep_CURL)
+
+if(SLIC3R_GUI)
+    include(OpenSSL/OpenSSL.cmake)
+    set(CURL_PKG "")
+    if (NOT CURL_FOUND) 
+        include(CURL/CURL.cmake)
+        set(CURL_PKG dep_CURL)
+    endif ()
 endif ()
 
 include(JPEG/JPEG.cmake)
 include(TIFF/TIFF.cmake)
 include(NanoSVG/NanoSVG.cmake)
-include(wxWidgets/wxWidgets.cmake)
-include(OCCT/OCCT.cmake)
-
+if(SLIC3R_GUI)
+    include(wxWidgets/wxWidgets.cmake)
+    include(OCCT/OCCT.cmake)
+    set(wxWidgets dep_wxWidgets)
+    set(OCCT dep_OCCT)
+endif(SLIC3R_GUI)
 set(_dep_list
     dep_Boost
     dep_TBB
     ${CURL_PKG}
-    dep_wxWidgets
+    ${wxWidgets}
     dep_Cereal
     dep_NLopt
     dep_OpenVDB
-    dep_OpenCSG
-    dep_CGAL
+    ${OpenCSG}
+    ${CGAL}
     dep_Qhull
-    dep_OCCT
+    ${OCCT}
     ${PNG_PKG}
     ${ZLIB_PKG}
     ${EXPAT_PKG}
     )
-
+if(NOT SLIC3R_GUI)
+    list(APPEND _dep_list dep_NanoSVG dep_JPEG)
+    message(${_dep_list})
+endif()
 # if (NOT MSVC)
     # Not working, static build has different Eigen
     #list(APPEND _dep_list "dep_libigl")

@@ -132,7 +132,7 @@ public:
 	bool 		empty() const;
 	// Validate the print. Returns an empty string if valid, returns an error message if invalid.
 	// Call validate before calling start().
-    std::string validate(std::string* warning = nullptr);
+    std::string validate(std::vector<std::string>* warnings = nullptr);
 
 	// Set the export path of the G-code.
 	// Once the path is set, the G-code 
@@ -170,6 +170,8 @@ public:
     // This "finished" flag does not account for the final export of the output file (.gcode or zipped PNGs),
     // and it does not account for the OctoPrint scheduling.
     bool    finished() const { return m_print->finished(); }
+    wxString	ac_upload_Gcode_file(std::string uploadFileName = "");
+    void	ac_copy_Gcode(std::string output_path, std::string export_path);
     
 private:
 	void 	thread_proc();

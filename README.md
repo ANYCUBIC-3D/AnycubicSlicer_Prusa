@@ -1,13 +1,22 @@
 ## AnycubicSlicer
 
-AnycubicSlicer is an open-source, easy-to-use slicing software for FDM 3D printing. It makes 3D printing easier with reliable slicing algorithms and simplified workflow. 
-
-AnycubicSlicer is based on [PrusaSlicer](https://github.com/prusa3d/PrusaSlicer) by Prusa Research, which is from [Slic3r](https://github.com/Slic3r/Slic3r) by Alessandro Ranellucci and the RepRap community.
+AnycubicSlicer is an open-source, easy-to-use slicing software for FDM 3D printing. It makes 3D printing easier with reliable slicing algorithms and simplified workflow.AnycubicSlicer is based on [PrusaSlicer](https://github.com/prusa3d/PrusaSlicer) by Prusa Research, which is from [Slic3r](https://github.com/Slic3r/Slic3r) by Alessandro Ranellucci and the RepRap community.
 
 ### What are AnycubicSlicer's new features?
 * New UI interface
 * Simplified slice parameters
 
+# linux compile 
+## deps
+```shell
+cmake -S $(pwd)/deps -B  $(pwd)/deps/buildd
+cmake --build $(pwd)/deps/buildd -j10
+```
+## build engine only
+``` shell
+cmake -S $(pwd) -B buildd -DCMAKE_PREFIX_PATH:PATH=$(pwd)/deps/buildd/destdir/usr/local -DSLIC3R_STATIC:BOOL=ON -DSLIC3R_GUI:BOOL=OFF -DENABLE_CGAL:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH=$(pwd)/buildd/install
+cmake --build $(pwd)/buildd -j10
+```
 
 # windows compile
 ## build

@@ -94,10 +94,10 @@ Control::Control( wxWindow *parent,
     m_bmp_del_tick_off = ScalableBitmap(this, "ACEmpty");
     m_tick_icon_dim = m_bmp_add_tick_on.GetWidth();
 
-    m_bmp_one_layer_lock_on    = ScalableBitmap(this);
-    m_bmp_one_layer_lock_off   = ScalableBitmap(this);
-    m_bmp_one_layer_unlock_on  = ScalableBitmap(this);
-    m_bmp_one_layer_unlock_off = ScalableBitmap(this);
+    m_bmp_one_layer_lock_on    = ScalableBitmap(this, "ACEmpty");
+    m_bmp_one_layer_lock_off   = ScalableBitmap(this, "ACEmpty");
+    m_bmp_one_layer_unlock_on  = ScalableBitmap(this, "ACEmpty");
+    m_bmp_one_layer_unlock_off = ScalableBitmap(this, "ACEmpty");
     m_lock_icon_dim   = m_bmp_one_layer_lock_on.GetWidth();
 
     m_bmp_revert               = ScalableBitmap(this, "reset-click");
@@ -106,7 +106,7 @@ Control::Control( wxWindow *parent,
     m_cog_icon_dim    = m_bmp_cog.GetWidth();
 
     m_selection = ssUndef;
-    m_ticks.set_pause_print_msg(_utf8(L("Place bearings in slots and resume printing")));
+    m_ticks.set_pause_print_msg(_u8L("Place bearings in slots and resume printing"));
     m_ticks.set_extruder_colors(&m_extruder_colors);
 
     // slider events
@@ -708,28 +708,28 @@ static wxString short_and_splitted_time(const std::string& time)
         ::sscanf(time.c_str(), "%ds", &seconds);
 
     // Format the dhm time.
-    char buffer[64];
+    auto get_d = [days]()   { return format(_u8L("%1%d"), days); };
+    auto get_h = [hours]()  { return format(_u8L("%1%h"), hours); };
+    auto get_m = [minutes](){ return format(_u8L("%1%m"), minutes); };
+    auto get_s = [seconds](){ return format(_u8L("%1%s"), seconds); };
+
     if (days > 0)
-        ::sprintf(buffer, "%dd%dh\n%dm", days, hours, minutes);
-    else if (hours > 0) {
+        return format_wxstr("%1%%2%\n%3%", get_d(), get_h(), get_m());
+    if (hours > 0) {
         if (hours < 10 && minutes < 10 && seconds < 10)
-            ::sprintf(buffer, "%dh%dm%ds", hours, minutes, seconds);
-        else if (hours > 10 && minutes > 10 && seconds > 10)
-            ::sprintf(buffer, "%dh\n%dm\n%ds", hours, minutes, seconds);
-        else if ((minutes < 10 && seconds > 10) || (minutes > 10 && seconds < 10))
-            ::sprintf(buffer, "%dh\n%dm%ds", hours, minutes, seconds);
-        else
-            ::sprintf(buffer, "%dh%dm\n%ds", hours, minutes, seconds);
+            return format_wxstr("%1%%2%%3%", get_h(), get_m(), get_s());
+        if (hours > 10 && minutes > 10 && seconds > 10)
+            return format_wxstr("%1%\n%2%\n%3%", get_h(), get_m(), get_s());
+        if ((minutes < 10 && seconds > 10) || (minutes > 10 && seconds < 10))
+            return format_wxstr("%1%\n%2%%3%", get_h(), get_m(), get_s());
+        return format_wxstr("%1%%2%\n%3%", get_h(), get_m(), get_s());
     }
-    else if (minutes > 0) {
+    if (minutes > 0) {
         if (minutes > 10 && seconds > 10)
-            ::sprintf(buffer, "%dm\n%ds", minutes, seconds);
-        else
-            ::sprintf(buffer, "%dm%ds", minutes, seconds);
+            return format_wxstr("%1%\n%2%", get_m(), get_s());
+        return format_wxstr("%1%%2%", get_m(), get_s());
     }
-    else
-        ::sprintf(buffer, "%ds", seconds);
-    return wxString::FromUTF8(buffer);
+    return from_u8(get_s());
 }
 
 wxString Control::get_label(int tick, LabelType label_type/* = ltHeightWithLayer*/) const

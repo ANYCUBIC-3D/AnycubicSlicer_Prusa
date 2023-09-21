@@ -8,6 +8,8 @@
 #include <igl/copyleft/cgal/mesh_boolean.h>
 #undef L
 
+#if USE_CGAL
+
 // CGAL headers
 #include <CGAL/Polygon_mesh_processing/corefinement.h>
 #include <CGAL/Exact_integer.h>
@@ -324,3 +326,4 @@ CGALMeshPtr clone(const CGALMesh &m)
 
 } // namespace MeshBoolean
 } // namespace Slic3r
+#endif // USE_CGAL

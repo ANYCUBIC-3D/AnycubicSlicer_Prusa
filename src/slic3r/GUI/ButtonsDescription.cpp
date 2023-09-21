@@ -160,7 +160,7 @@ void FillSizerWithModeColorDescriptions(
 	wxFlexGridSizer* grid_sizer = new wxFlexGridSizer(9, 5, 5);
 	sizer->Add(grid_sizer, 0, wxEXPAND);
 
-	const std::vector<wxString> names = { _L("Simple"), _CTX(L_CONTEXT("Advanced", "Mode"), "Mode"), _L("Expert") };
+	const std::vector<wxString> names = { _L("Simple"), _CTX("Advanced", "Mode"), _L("Expert") };
 
 	for (size_t mode = 0; mode < names.size(); ++mode) {
 		wxColour& color = mode_palette[mode];

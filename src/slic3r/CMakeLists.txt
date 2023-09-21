@@ -101,10 +101,14 @@ set(SLIC3R_GUI_SOURCES
     GUI/GUI_Geometry.hpp
     GUI/I18N.cpp
     GUI/I18N.hpp
+    GUI/IconManager.cpp
+    GUI/IconManager.hpp
     GUI/MainFrame.cpp
     GUI/MainFrame.hpp
     GUI/Plater.cpp
     GUI/Plater.hpp
+    GUI/Universal.cpp
+    GUI/Universal.hpp
     GUI/PresetComboBoxes.hpp
     GUI/PresetComboBoxes.cpp
     GUI/BitmapComboBox.hpp
@@ -115,16 +119,16 @@ set(SLIC3R_GUI_SOURCES
     GUI/PhysicalPrinterDialog.cpp
     GUI/GUI_Factories.cpp
     GUI/GUI_Factories.hpp
-    GUI/GUI_ObjectList.cpp
-    GUI/GUI_ObjectList.hpp
     GUI/GalleryDialog.cpp
     GUI/GalleryDialog.hpp
-    GUI/GUI_ObjectManipulation.cpp
-    GUI/GUI_ObjectManipulation.hpp
+    #GUI/GUI_ObjectManipulation.cpp
+    #GUI/GUI_ObjectManipulation.hpp
     GUI/GUI_ObjectSettings.cpp
     GUI/GUI_ObjectSettings.hpp
-    GUI/GUI_ObjectLayers.cpp
-    GUI/GUI_ObjectLayers.hpp
+    #GUI/GUI_ObjectLayers.cpp
+    #GUI/GUI_ObjectLayers.hpp
+    GUI/GUI_ObjectList.cpp
+    GUI/GUI_ObjectList.hpp
     GUI/MeshUtils.cpp
     GUI/MeshUtils.hpp
     GUI/Tab.cpp
@@ -152,12 +156,20 @@ set(SLIC3R_GUI_SOURCES
     GUI/wxExtensions.cpp
     GUI/wxExtensions.hpp
     GUI/ACDefines.h
+    GUI/ACGauge.hpp
+    GUI/ACGauge.cpp
+    GUI/ACCheckUpdate.hpp
+    GUI/ACCheckUpdate.cpp
     GUI/ACPreferences.hpp
     GUI/ACPreferences.cpp
     GUI/ACButton.hpp
     GUI/ACButton.cpp
+    GUI/ACScaleBitmapHighQuality.hpp
+    GUI/ACScaleBitmapHighQuality.cpp
     GUI/ACStaticBox.hpp
     GUI/ACStaticBox.cpp
+    GUI/ACStaticBoxBuffered.hpp
+    GUI/ACStaticBoxBuffered.cpp
     GUI/ACSwitchButton.hpp
     GUI/ACSwitchButton.cpp
     GUI/ACSplitLine.hpp
@@ -183,7 +195,9 @@ set(SLIC3R_GUI_SOURCES
     GUI/ACTopbar.hpp
     GUI/ACTopbar.cpp
     GUI/ACDialogTopbar.hpp
-    GUI/ACDialogTopbar.cpp    
+    GUI/ACDialogTopbar.cpp
+    GUI/ACDialogTopbar1.hpp
+    GUI/ACDialogTopbar1.cpp
     GUI/ACToolbar.hpp
     GUI/ACToolbar.cpp
     GUI/ACGroupbox.hpp
@@ -198,6 +212,10 @@ set(SLIC3R_GUI_SOURCES
     GUI/ACConfigWizard.cpp
     GUI/ACConfigWizard.hpp
     GUI/ACConfigWizard_private.hpp
+    GUI/ACGcode.hpp
+    GUI/ACGcode.cpp
+    GUI/ACWebDialog.hpp
+    GUI/ACWebDialog.cpp
     GUI/ExtruderSequenceDialog.cpp
     GUI/ExtruderSequenceDialog.hpp
     GUI/WipeTowerDialog.cpp
@@ -206,8 +224,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/RammingChart.hpp
     GUI/RemovableDriveManager.cpp
     GUI/RemovableDriveManager.hpp
-    GUI/SendSystemInfoDialog.cpp
-    GUI/SendSystemInfoDialog.hpp
+    GUI/SurfaceDrag.cpp
+    GUI/SurfaceDrag.hpp
     GUI/BonjourDialog.cpp
     GUI/BonjourDialog.hpp
     GUI/ButtonsDescription.cpp
@@ -236,6 +254,7 @@ set(SLIC3R_GUI_SOURCES
     GUI/Jobs/BoostThreadWorker.cpp
     GUI/Jobs/UIThreadWorker.hpp
     GUI/Jobs/BusyCursorJob.hpp
+    GUI/Jobs/CancellableJob.hpp
     GUI/Jobs/PlaterWorker.hpp
     GUI/Jobs/ArrangeJob.hpp
     GUI/Jobs/ArrangeJob.cpp
@@ -274,6 +293,10 @@ set(SLIC3R_GUI_SOURCES
     GUI/NotificationManager.hpp
     GUI/UnsavedChangesDialog.cpp
     GUI/UnsavedChangesDialog.hpp
+    GUI/ACUpdateOnlineDialog.cpp
+    GUI/ACUpdateOnlineDialog.hpp
+    GUI/ACPressureAdvance.cpp
+    GUI/ACPressureAdvance.hpp
     GUI/ExtraRenderers.cpp
     GUI/ExtraRenderers.hpp
     GUI/ProjectDirtyStateManager.hpp
@@ -288,12 +311,35 @@ set(SLIC3R_GUI_SOURCES
     GUI/Downloader.hpp
     GUI/DownloaderFileGet.cpp
     GUI/DownloaderFileGet.hpp
+    GUI/Cloud/ACCloudLogin.hpp
+    GUI/Cloud/ACCloudLogin.cpp
+    GUI/Cloud/ACCloudLoginPrivate.hpp
+    GUI/Cloud/ACCloudLoginPrivate.cpp
+    GUI/Cloud/ACCloudMachine.hpp
+    GUI/Cloud/ACCloudMachine.cpp
+    GUI/Cloud/ACCloudMachinePrivate.hpp
+    GUI/Cloud/ACCloudMachinePrivate.cpp
+    GUI/Cloud/ACPrinterContainer.hpp
+    GUI/Cloud/ACPrinterContainer.cpp
+    GUI/Cloud/ACDrawBackgroundPrivate.hpp
+    GUI/Cloud/ACDrawBackgroundPrivate.cpp
+    GUI/Cloud/ACCloudManger.hpp
+    GUI/Cloud/ACCloudManger.cpp
+    GUI/Cloud/ACTableDriver.hpp
+    GUI/Cloud/ACTextInputPrivate.hpp
+    GUI/Cloud/ACTextInputPrivate.cpp
+    GUI/Cloud/ACCloudSelectMachine.hpp
+    GUI/Cloud/ACCloudSelectMachine.cpp
+    GUI/Cloud/ACCloudAddMachine.hpp
+    GUI/Cloud/ACCloudAddMachine.cpp
     Utils/AppUpdater.cpp
     Utils/AppUpdater.hpp
     Utils/Http.cpp
     Utils/Http.hpp
     Utils/FixModelByWin10.cpp
     Utils/FixModelByWin10.hpp
+    Utils/Moonraker.cpp
+    Utils/Moonraker.hpp
     Utils/OctoPrint.cpp
     Utils/OctoPrint.hpp
     Utils/Duet.cpp
@@ -332,6 +378,10 @@ set(SLIC3R_GUI_SOURCES
     Utils/WinRegistry.hpp
     Utils/WxFontUtils.cpp
     Utils/WxFontUtils.hpp
+    Utils/ACNetwork.hpp
+    Utils/ACNetwork.cpp
+    Utils/ACCloudWork.hpp
+    Utils/ACCloudWork.cpp
 )
 
 find_package(NanoSVG REQUIRED)
@@ -349,6 +399,12 @@ if (APPLE)
         )
     FIND_LIBRARY(DISKARBITRATION_LIBRARY DiskArbitration)
 endif ()
+
+#foreach(dir ${CMAKE_PREFIX_PATH})
+#    message(XXXXXXXXXXXXXXXXXXXX${dir})
+#    include_directories(${dir}/include)
+#    link_directories(${dir}/lib)
+#endforeach()
 
 add_library(libslic3r_gui STATIC ${SLIC3R_GUI_SOURCES})
 
@@ -380,6 +436,8 @@ if (SLIC3R_PCH AND NOT SLIC3R_SYNTAXONLY)
     add_precompiled_header(libslic3r_gui pchheader.hpp FORCEINCLUDE)
 endif ()
 
+
+
 # We need to implement some hacks for wxWidgets and touch the underlying GTK
 # layer and sub-libraries. This forces us to use the include locations and
 # link these libraries.
@@ -388,3 +446,23 @@ if (UNIX AND NOT APPLE)
     target_include_directories(libslic3r_gui PRIVATE ${GTK${SLIC3R_GTK}_INCLUDE_DIRS})
     target_link_libraries(libslic3r_gui ${GTK${SLIC3R_GTK}_LIBRARIES} fontconfig)
 endif ()
+
+# Add a definition so that we can tell we are compiling slic3r.
+target_compile_definitions(libslic3r_gui PRIVATE SLIC3R_CURRENTLY_COMPILING_GUI_MODULE)
+
+#include windows cloudsdk headers
+if (WIN32)
+target_include_directories(libslic3r_gui PRIVATE ${CMAKE_SOURCE_DIR}/deps/CloudSDK/win/include/cloud_sdk_cpp
+    ${CMAKE_SOURCE_DIR}/deps/CloudSDK/win/include/common
+    ${CMAKE_SOURCE_DIR}/deps/CloudSDK/win/include
+)
+endif()
+
+#include macos cloudsdk headers
+if (APPLE)
+target_include_directories(libslic3r_gui PRIVATE ${CMAKE_SOURCE_DIR}/deps/CloudSDK/mac/include/cloud_sdk_cpp
+    ${CMAKE_SOURCE_DIR}/deps/CloudSDK/mac/include/common
+    ${CMAKE_SOURCE_DIR}/deps/CloudSDK/mac/include
+)
+endif()
+

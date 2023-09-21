@@ -37,8 +37,8 @@ private:
 
     std::vector<PlaneData> m_planes;
     std::vector<std::shared_ptr<SceneRaycasterItem>> m_planes_casters;
-    bool m_mouse_left_down = false; // for detection left_up of this gizmo
     const ModelObject* m_old_model_object = nullptr;
+    int                m_old_instance_id{ -1 };
 
     void update_planes();
     bool is_plane_update_necessary() const;
@@ -46,7 +46,7 @@ private:
 public:
     GLGizmoFlatten(GLCanvas3D& parent, const std::string& icon_filename, unsigned int sprite_id);
 
-    void set_flattening_data(const ModelObject* model_object);
+    void set_flattening_data(const ModelObject* model_object, int instance_id);
         
     /// <summary>
     /// Apply rotation on select plane
@@ -55,7 +55,7 @@ public:
     /// <returns>Return True when use the information otherwise False.</returns>
     bool on_mouse(const wxMouseEvent &mouse_event) override;
 
-    void data_changed() override;
+    void data_changed(bool is_serializing) override;
 protected:
     bool on_init() override;
     std::string on_get_name() const override;

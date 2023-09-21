@@ -6,13 +6,19 @@
 
 namespace Slic3r {
 
-class FillEnsuring : public FillRectilinear
+ThickPolylines make_fill_polylines(
+    const Fill *fill, const Surface *surface, const FillParams &params, bool stop_vibrations, bool fill_gaps, bool connect_extrusions);
+
+class FillEnsuring : public Fill
 {
 public:
     Fill *clone() const override { return new FillEnsuring(*this); }
     ~FillEnsuring() override = default;
     Polylines      fill_surface(const Surface *surface, const FillParams &params) override { return {}; };
-    ThickPolylines fill_surface_arachne(const Surface *surface, const FillParams &params) override;
+    ThickPolylines fill_surface_arachne(const Surface *surface, const FillParams &params) override
+    {
+        return make_fill_polylines(this, surface, params, true, true, true);
+    };
 
 protected:
     void fill_surface_single_arachne(const Surface &surface, const FillParams &params, ThickPolylines &thick_polylines_out);

@@ -38,6 +38,7 @@ const t_field& OptionsGroup::build_field(const t_config_option_key& id) {
 const t_field& OptionsGroup::build_field(const t_config_option_key& id, const ConfigOptionDef& opt) {
     // Check the gui_type field first, fall through
     // is the normal type.
+    this->ctrl_parent()->SetBackgroundColour(AC_COLOR_WHITE);
     switch (opt.gui_type) {
     case ConfigOptionDef::GUIType::select_close:
     case ConfigOptionDef::GUIType::select_open:
@@ -394,8 +395,8 @@ void OptionsGroup::activate_line(Line& line)
             ConfigOptionDef option = opt.opt;
             // add label if any
             if ((option_set.size() > 1 || line.label.IsEmpty()) && !option.label.empty()) {
-                // To correct translation by context have to use wxGETTEXT_IN_CONTEXT macro from wxWidget 3.1.1
-                wxString str_label = (option.label == L_CONTEXT("Top", "Layers") || option.label == L_CONTEXT("Bottom", "Layers")) ?
+                // those two parameter names require localization with context
+                wxString str_label = (option.label == "Top" || option.label == "Bottom") ?
                     _CTX(option.label, "Layers") :
                     _(option.label);
                 label = new wxStaticText(this->ctrl_parent(), wxID_ANY, str_label + ": ", wxDefaultPosition, //wxDefaultSize);
@@ -464,7 +465,16 @@ bool OptionsGroup::activate(std::function<void()> throw_if_canceled/* = [](){}*/
 
 	try {
 		if (staticbox) {
-			stb = new ACGroupBox(m_parent, _(title), wxID_ANY, wxDefaultPosition, wxDefaultSize);
+            bool setTitleCircleIndex = getTittleCircleRest();
+            if (setTitleCircleIndex) {
+                stb = new ACGroupBox(m_parent, _(title), setTitleCircleIndex, wxID_ANY,wxDefaultPosition,wxDefaultSize);
+                stb->getCircleBackButton()->Bind(wxEVT_BUTTON,[this](wxCommandEvent &event) { 
+                    for (auto opt_key : this->circleBackList)
+                        this->back_to_sys_value(opt_key); 
+                    });
+            } else {
+                stb = new ACGroupBox(m_parent, _(title), wxID_ANY, wxDefaultPosition, wxDefaultSize);
+            }
             stb->SetBackgroundColour(AC_COLOR_WHITE);
             stb->SetForegroundColour(AC_COLOR_BLACK);
             
@@ -492,7 +502,7 @@ bool OptionsGroup::activate(std::function<void()> throw_if_canceled/* = [](){}*/
 		static_cast<wxFlexGridSizer*>(m_grid_sizer)->AddGrowableCol(grow_col);
 
 		sizer->Add(m_grid_sizer, 0, wxEXPAND | wxALL, wxOSX || !staticbox ? 0 : 5);
-
+        m_grid_sizer->Layout();
 		// activate lines
 		for (Line& line: m_lines) {
 			throw_if_canceled();
@@ -576,7 +586,7 @@ Option ConfigOptionsGroup::get_option(const std::string& opt_key, int opt_index 
 	m_opt_map.emplace(opt_id, pair);
 
 	if (m_use_custom_ctrl) // fill group and category values just for options from Settings Tab
-	    wxGetApp().sidebar().get_searcher().add_key(opt_id, static_cast<Preset::Type>(this->config_type()), title, this->config_category());
+	    wxGetApp().plater()->get_searcher().add_key(opt_id, static_cast<Preset::Type>(this->config_type()), title, this->config_category());
 
 	return Option(*m_config->def()->get(opt_key), opt_id);
 }
@@ -1056,6 +1066,7 @@ ogStaticText::ogStaticText(wxWindow* parent, const wxString& text) :
 void ogStaticText::SetText(const wxString& value, bool wrap/* = true*/)
 {
 	SetLabel(value);
+    SetForegroundColour(AC_COLOR_BLACK_GRAY);
     if (wrap) Wrap(60 * wxGetApp().em_unit());
 	GetParent()->Layout();
 }

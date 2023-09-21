@@ -65,6 +65,7 @@ bool View3D::init(wxWindow* parent, Bed3D& bed, Model* model, DynamicPrintConfig
     m_canvas->allow_multisample(OpenGLManager::can_multisample());
 
     m_canvas->enable_picking(true);
+    m_canvas->get_selection().set_mode(Selection::Instance);
     m_canvas->enable_moving(true);
     // XXX: more config from 3D.pm
     m_canvas->set_model(model);
@@ -72,8 +73,8 @@ bool View3D::init(wxWindow* parent, Bed3D& bed, Model* model, DynamicPrintConfig
     m_canvas->set_config(config);
     m_canvas->enable_gizmos(true);
     m_canvas->enable_selection(true);
-    m_canvas->enable_main_toolbar(false);
-    m_canvas->enable_undoredo_toolbar(false);
+    //m_canvas->enable_main_toolbar(false);
+    //m_canvas->enable_undoredo_toolbar(false);
     m_canvas->enable_labels(true);
     m_canvas->enable_slope(true);
 
@@ -178,6 +179,12 @@ Preview::Preview(
 {
     if (init(parent, bed, model))
         load_print();
+}
+
+void Preview::set_layers_slider_values_range(int bottom, int top)
+{
+    //m_layers_slider->SetHigherValue(std::min(top, m_layers_slider->GetMaxValue()));
+    //m_layers_slider->SetLowerValue(std::max(bottom, m_layers_slider->GetMinValue()));
 }
 
 bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
@@ -594,7 +601,9 @@ void Preview::check_layers_slider_values(std::vector<CustomGCode::Item>& ticks_f
 void Preview::update_layers_slider(const std::vector<double>& layers_z, bool keep_z_range)
 {
     ACIMSlider *m_layers_slider = m_canvas->get_gcode_viewer().get_layers_slider();
-
+    if (wxGetApp().is_editor()) {
+        m_layers_slider->SetSpacH(300.0f);
+    }
     // Save the initial slider span.
     double z_low = m_layers_slider->GetLowerValueD();
     double z_high = m_layers_slider->GetHigherValueD();
@@ -907,11 +916,11 @@ void Preview::load_print_as_fff(bool keep_z_range)
             }
     }
 
-    if (wxGetApp().is_editor() && !has_layers) {
+    /*if (wxGetApp().is_editor() && !has_layers) {
         show_sliders(false);
         m_canvas_widget->Refresh();
         return;
-    }
+    }*/
 
     GCodeViewer::EViewType gcode_view_type = m_canvas->get_gcode_view_preview_type();
     bool gcode_preview_data_valid = !m_gcode_result->moves.empty();
@@ -951,7 +960,7 @@ void Preview::load_print_as_fff(bool keep_z_range)
             //    m_left_sizer->Show(m_bottom_toolbar_panel);
             m_loaded = true;
         }
-        else if (wxGetApp().is_editor()) {
+        else if (wxGetApp().is_editor() && wxGetApp().plater()->acgcode_mode() == ACGcodeMode::ACGcode_None) {
             // Load the initial preview based on slices, not the final G-code.
             m_canvas->load_preview(colors, color_print_values);
             // AC TODO
@@ -981,7 +990,7 @@ void Preview::load_print_as_fff(bool keep_z_range)
                 (number_extruders > 1) ? GCodeViewer::EViewType::Tool : GCodeViewer::EViewType::FeatureType;
             if (choice != gcode_view_type) {
                 m_canvas->set_gcode_view_preview_type(choice);
-                if (wxGetApp().is_gcode_viewer())
+                if (wxGetApp().is_gcode_viewer() || wxGetApp().plater()->acgcode_mode() == ACGcodeMode::ACGcode_Show)
                     m_keep_current_preview_type = true;
                 refresh_print();
             }

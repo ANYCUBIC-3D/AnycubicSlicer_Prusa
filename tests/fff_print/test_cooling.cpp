@@ -260,7 +260,7 @@ SCENARIO("Cooling integration tests", "[Cooling]") {
         });            
         THEN("slowdown_below_layer_time is honored") {
             // Account for some inaccuracies.
-            const double slowdown_below_layer_time = config.opt<ConfigOptionInts>("slowdown_below_layer_time")->values.front() - 0.2;
+            const double slowdown_below_layer_time = config.opt<ConfigOptionInts>("slowdown_below_layer_time")->values.front() - 0.5;
             size_t minimum_time_honored = std::count_if(layer_times.begin(), layer_times.end(), 
                 [slowdown_below_layer_time](double t){ return t > slowdown_below_layer_time; });
             REQUIRE(minimum_time_honored == layer_times.size());

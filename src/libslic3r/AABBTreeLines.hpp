@@ -165,9 +165,9 @@ inline std::vector<std::pair<VectorType, size_t>> get_intersections_with_line(si
 // Epsilon is applied to the bounding boxes of the AABB Tree to cope with numeric inaccuracies
 // during tree traversal.
 template<typename LineType>
-inline AABBTreeIndirect::Tree<2, typename LineType::Scalar> build_aabb_tree_over_indexed_lines(const std::vector<LineType> &lines)
+inline AABBTreeIndirect::Tree<LineType::Dim, typename LineType::Scalar> build_aabb_tree_over_indexed_lines(const std::vector<LineType> &lines)
 {
-    using TreeType = AABBTreeIndirect::Tree<2, typename LineType::Scalar>;
+    using TreeType = AABBTreeIndirect::Tree<LineType::Dim, typename LineType::Scalar>;
     //    using              CoordType      = typename TreeType::CoordType;
     using VectorType  = typename TreeType::VectorType;
     using BoundingBox = typename TreeType::BoundingBox;
@@ -339,15 +339,15 @@ public:
         return {distance, nearest_line_index_out, nearest_point_out};
     }
 
-    template<bool SIGNED_DISTANCE> Floating distance_from_lines(const Vec<2, typename LineType::Scalar> &point) const
+    template<bool SIGNED_DISTANCE> Floating distance_from_lines(const Vec<2, Scalar> &point) const
     {
         auto [dist, idx, np] = distance_from_lines_extra<SIGNED_DISTANCE>(point);
         return dist;
     }
 
-    std::vector<size_t> all_lines_in_radius(const Vec<2, typename LineType::Scalar> &point, Floating radius)
+    std::vector<size_t> all_lines_in_radius(const Vec<2, Scalar> &point, Floating radius)
     {
-        return all_lines_in_radius(this->lines, this->tree, point, radius * radius);
+        return AABBTreeLines::all_lines_in_radius(this->lines, this->tree, point.template cast<Floating>(), radius * radius);
     }
 
     template<bool sorted> std::vector<std::pair<Vec<2, Scalar>, size_t>> intersections_with_line(const LineType &line) const

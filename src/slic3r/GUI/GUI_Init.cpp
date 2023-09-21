@@ -18,6 +18,12 @@
 #include <boost/nowide/iostream.hpp>
 #include <boost/nowide/convert.hpp>
 
+#include <iostream>
+#include <boost/filesystem.hpp> 
+#include <boost/dll/runtime_symbol_info.hpp>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/ini_parser.hpp>
+
 #if __APPLE__
 #include <signal.h>
 #endif // __APPLE__
@@ -29,6 +35,8 @@ const std::vector<std::string> OpenGLVersions::precore_str = {"2.0", "2.1", "3.0
 
 const std::vector<std::pair<int, int>> OpenGLVersions::core    = {{3, 2}, {3, 3}, {4, 0}, {4, 1}, {4, 2}, {4, 3}, {4, 4}, {4, 5}, {4, 6}};
 const std::vector<std::pair<int, int>> OpenGLVersions::precore = {{2, 0}, {2, 1}, {3, 0}, {3, 1}};
+
+
 
 int GUI_Run(GUI_InitParams &params)
 {
@@ -42,7 +50,6 @@ int GUI_Run(GUI_InitParams &params)
     // See GH issue #5507
     signal(SIGCHLD, SIG_DFL);
 #endif // __APPLE__
-
     try {
         GUI::GUI_App *gui = new GUI::GUI_App(params.start_as_gcodeviewer ? GUI::GUI_App::EAppMode::GCodeViewer :
                                                                            GUI::GUI_App::EAppMode::Editor);

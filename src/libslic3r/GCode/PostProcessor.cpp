@@ -1,4 +1,4 @@
-#include "PostProcessor.hpp"
+﻿#include "PostProcessor.hpp"
 
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/format.hpp"
@@ -11,6 +11,14 @@
 #include <boost/nowide/convert.hpp>
 #include <boost/nowide/cenv.hpp>
 #include <boost/nowide/fstream.hpp>
+#include <boost/dll.hpp>
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
+
+#include <string.h>
+
+#include <vector>
 
 #ifdef WIN32
 
@@ -187,11 +195,6 @@ static int run_script(const std::string &script, const std::string &gcode, std::
 
 namespace Slic3r {
 
-//! macro used to mark string used at localization,
-//! return same string
-#define L(s) (s)
-#define _(s) Slic3r::I18N::translate(s)
-
 // Run post processing script / scripts if defined.
 // Returns true if a post-processing script was executed.
 // Returns false if no post-processing script was defined.
@@ -204,12 +207,60 @@ namespace Slic3r {
 // The post-processing script may change the output_name.
 bool run_post_process_scripts(std::string &src_path, bool make_copy, const std::string &host, std::string &output_name, const DynamicPrintConfig &config)
 {
-    const auto *post_process = config.opt<ConfigOptionStrings>("post_process");
-    if (// likely running in SLA mode
-        post_process == nullptr || 
-        // no post-processing script
-        post_process->values.empty())
+    const bool post_process_enable = config.opt<ConfigOptionBool>("post_process_enable")->getBool();
+    //const auto *post_process = config.opt<ConfigOptionStrings>("post_process");
+
+    std::vector<std::string> post_porcess;
+
+#if defined(_WIN32)
+    // 获取当前可执行文件的路径
+    boost::filesystem::path executablePath = boost::dll::program_location();
+    
+    // 获取父目录路径
+    boost::filesystem::path parentPath = executablePath.parent_path();
+
+    boost::filesystem::path pluginsPath = parentPath/ "PlugIns/ArcWelder.exe";
+#elif __APPLE__
+    char        executablePath[PATH_MAX];
+    uint32_t    bufferSize = sizeof(executablePath);
+    std::string folderPath;
+    if (_NSGetExecutablePath(executablePath, &bufferSize) == 0) {
+        std::string executableFolderPath = std::string(executablePath);
+        size_t      lastSlashIndex       = executableFolderPath.find_last_of("/");
+        folderPath                       = executableFolderPath.substr(0, lastSlashIndex);
+
+    } else {
         return false;
+    }
+    // 获取父目录路径
+    // boost::filesystem::path parentPath = boost::filesystem::current_path();
+
+    // 拼接插件目录的路径
+    boost::filesystem::path new_folderPath(folderPath);
+    boost::filesystem::path pluginsPath = new_folderPath.parent_path() / "PlugIns";
+
+    // boost::filesystem::path pluginsPath(wxStandardPaths::Get().GetPluginsDir().utf8_str().data());
+    pluginsPath /= "ArcWelder";
+#else
+    boost::filesystem::path pluginsPath;
+if(false)    {
+        char path[PATH_MAX]={0};
+        int size = readlink("/proc/self/exe", path, 512);
+        path[size] = 0;//'\0'
+        auto p =strrchr(path,'/');*p = 0;
+        strcat(path,"/PlugIns/ArcWelder");
+        pluginsPath = path;
+    }
+#endif
+
+
+    if (post_process_enable == false) {
+        return false;
+    }
+    else {
+        post_porcess.push_back(pluginsPath.string());
+    }
+
 
     std::string path;
     if (make_copy) {
@@ -268,7 +319,10 @@ bool run_post_process_scripts(std::string &src_path, bool make_copy, const std::
     remove_output_name_file();
 
     try {
-        for (const std::string &scripts : post_process->values) {
+        auto it = post_porcess.begin();
+        auto itend = post_porcess.end();
+        for (; it != itend; ++it) {
+            const std::string &scripts = *it;
     		std::vector<std::string> lines;
     		boost::split(lines, scripts, boost::is_any_of("\r\n"));
             for (std::string script : lines) {
@@ -287,10 +341,10 @@ bool run_post_process_scripts(std::string &src_path, bool make_copy, const std::
                     throw Slic3r::RuntimeError(msg);
                 }
                 if (! boost::filesystem::exists(gcode_file)) {
-                    const std::string msg = (boost::format(_(L(
+                    const std::string msg = (boost::format(_u8L(
                         "Post-processing script %1% failed.\n\n"
                         "The post-processing script is expected to change the G-code file %2% in place, but the G-code file was deleted and likely saved under a new name.\n"
-                        "Please adjust the post-processing script to change the G-code in place and consult the manual on how to optionally rename the post-processed G-code file.\n")))
+                        "Please adjust the post-processing script to change the G-code in place and consult the manual on how to optionally rename the post-processed G-code file.\n"))
                         % script % path).str();
                     BOOST_LOG_TRIVIAL(error) << msg;
                     throw Slic3r::RuntimeError(msg);

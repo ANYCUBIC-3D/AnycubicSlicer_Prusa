@@ -4,7 +4,7 @@
 #include "slic3r/GUI/3DScene.hpp"
 #include "slic3r/GUI/Camera.hpp"
 #include "slic3r/GUI/GUI_App.hpp"
-#include "slic3r/GUI/GUI_ObjectManipulation.hpp"
+//#include "slic3r/GUI/GUI_ObjectManipulation.hpp"
 #include "slic3r/GUI/GUI_ObjectList.hpp"
 #include "slic3r/GUI/Plater.hpp"
 #include "slic3r/Utils/UndoRedo.hpp"
@@ -115,7 +115,7 @@ bool GLGizmosManager::init()
         //EType::Emboss,
         //EType::Simplify,
         //EType::Undefined
-        // 
+        //
     // Order of gizmos in the vector must match order in EType!
     m_gizmos.emplace_back(new GLGizmoMove3D(m_parent, "icon-move-hover.svg", EType::Move,&m_object_manipulation));
     m_gizmos.emplace_back(new GLGizmoRotate3D(m_parent, "icon-rotate.svg", EType::Rotate, &m_object_manipulation));
@@ -356,7 +356,7 @@ void GLGizmosManager::update_data()
         m_common_gizmos_data->update(get_current()
                                    ? get_current()->get_requirements()
                                    : CommonGizmosDataID(0));
-    if (m_current != Undefined) m_gizmos[m_current]->data_changed();
+    if (m_current != Undefined) m_gizmos[m_current]->data_changed(m_serializing);
 
     //BBS: GUI refactor: add object manipulation in gizmo
     m_object_manipulation.update_ui_from_settings();
@@ -375,15 +375,24 @@ bool GLGizmosManager::is_running() const
 
 bool GLGizmosManager::handle_shortcut(int key)
 {
-    if (!m_enabled || m_parent.get_selection().is_empty())
+    if (!m_enabled)
         return false;
 
-    auto it = std::find_if(m_gizmos.begin(), m_gizmos.end(),
-            [key](const std::unique_ptr<GLGizmoBase>& gizmo) {
-                int gizmo_key = gizmo->get_shortcut_key();
-                return gizmo->is_activable()
-                       && ((gizmo_key == key - 64) || (gizmo_key == key - 96));
-    });
+    auto is_key = [pressed_key = key](int gizmo_key) { return (gizmo_key == pressed_key - 64) || (gizmo_key == pressed_key - 96); };
+    // allowe open shortcut even when selection is empty
+    GLGizmoBase* gizmo_emboss = Emboss < m_gizmos.size() ? m_gizmos[Emboss].get() : nullptr;
+    if (gizmo_emboss && is_key(gizmo_emboss->get_shortcut_key())) {
+        dynamic_cast<GLGizmoEmboss *>(gizmo_emboss)->on_shortcut_key();
+        return true;
+    }
+
+    if (m_parent.get_selection().is_empty())
+        return false;
+
+    auto is_gizmo = [is_key](const std::unique_ptr<GLGizmoBase> &gizmo) {
+        return gizmo->is_activable() && is_key(gizmo->get_shortcut_key());
+    };
+    auto it = std::find_if(m_gizmos.begin(), m_gizmos.end(), is_gizmo);
 
     if (it == m_gizmos.end())
         return false;
@@ -1161,6 +1170,8 @@ bool GLGizmosManager::activate_gizmo(EType type)
     if (type == Undefined) { 
         // it is deactivation of gizmo
         m_current = Undefined;
+        if (m_parent.current_printer_technology() == ptSLA)
+            m_parent.detect_sla_view_type();
         return true;
     }
 
@@ -1179,6 +1190,9 @@ bool GLGizmosManager::activate_gizmo(EType type)
         m_current = Undefined;
         return false; // gizmo refused to be turned on.
     }
+
+    if (m_parent.current_printer_technology() == ptSLA)
+        m_parent.set_sla_view_type(GLCanvas3D::ESLAViewType::Original);
 
     new_gizmo.register_raycasters_for_picking();
 

@@ -23,7 +23,7 @@ namespace Slic3r {
 namespace GUI {
 
 ExtruderSequenceDialog::ExtruderSequenceDialog(const DoubleSlider::ExtrudersSequence& sequence)
-    : DPIDialog(static_cast<wxWindow*>(wxGetApp().mainframe), wxID_ANY, wxString(SLIC3R_APP_NAME) + " - " + _(L("Set extruder sequence")),
+    : DPIDialog(static_cast<wxWindow*>(wxGetApp().mainframe), wxID_ANY, wxString::FromUTF8(wxGetApp().appName()) + " - " + _(L("Set extruder sequence")),
         wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER),
     m_sequence(sequence)
 {

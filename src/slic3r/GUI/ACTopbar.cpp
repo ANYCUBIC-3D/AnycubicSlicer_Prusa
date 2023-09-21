@@ -78,12 +78,21 @@ void ACTopbar::Init(wxFrame* parent)
     SetBackgroundColour(AC_COLOR_WHITE);
 
 
-    wxBitmap logo_bitmap = create_scaled_bitmap("AnycubicSlicer", nullptr, TOPBAR_ICON_SIZE);
-    wxString iconName_logo = "AnycubicSlicer";
-    ACButton *btLogo = new ACButton(this, "", iconName_logo, iconName_logo, iconName_logo, wxNO_BORDER, wxSize(TOPBAR_ICON_SIZE, TOPBAR_ICON_SIZE));
-    btLogo->SetEnable(false);
+    std::string iconName_logo = "AnycubicSlicer";
+    std::string filePath;
+    if (boost::filesystem::exists(iconName_logo + ".png"))
+        filePath = iconName_logo + ".png";
+    else
+        filePath = Slic3r::var(iconName_logo + ".png");
+    wxImage imageHigh = wxImage(from_u8(filePath), wxBITMAP_TYPE_PNG);
+    imageHigh.Rescale(FromDIP(TOPBAR_ICON_SIZE), FromDIP(TOPBAR_ICON_SIZE), wxIMAGE_QUALITY_HIGH);
+
+    //wxBitmap logo_bitmap = create_scaled_bitmap("AnycubicSlicer", nullptr, TOPBAR_ICON_SIZE);
+    wxStaticBitmap *btLogo = new wxStaticBitmap(this, wxID_ANY, wxBitmap(imageHigh));
+    //ACButton *btLogo = new ACButton(this, "", iconName_logo, iconName_logo, iconName_logo, wxNO_BORDER, wxSize(TOPBAR_ICON_SIZE, TOPBAR_ICON_SIZE));
+    //btLogo->SetEnable(false);
     btLogo->SetCanFocus(false);
-    btLogo->SetPaddingSize(wxSize(0, 0));
+    //btLogo->SetPaddingSize(wxSize(0, 0));
 
     
     m_btFile    = new ACButton(this, _L("File")    , "", "", "", wxNO_BORDER, wxSize(0,0));
@@ -121,6 +130,8 @@ void ACTopbar::Init(wxFrame* parent)
     hSizer_left->Add(m_btSettings,0, wxALIGN_CENTER_VERTICAL);
     hSizer_left->Add(m_btView,0, wxALIGN_CENTER_VERTICAL);
     hSizer_left->Add(m_btHelp, 0,wxALIGN_CENTER_VERTICAL);
+    if (wxGetApp().is_gcode_viewer())
+        m_btHelp->Hide();
 
 
     wxString iconName_Iconize      = "software_minimization-nor"  ;
@@ -135,7 +146,7 @@ void ACTopbar::Init(wxFrame* parent)
     wxString iconName_CloseHover = "software_close-hover";
 
     m_btIconize  = new ACButton(this, "",  iconName_Iconize   ,  iconName_IconizeHover   , iconName_Iconize   , wxNO_BORDER, wxSize(TOPBAR_ICON_SIZE, TOPBAR_ICON_SIZE));
-    m_btMaximize = new ACButton(this, "",  m_iconName_Maximize,  m_iconName_MaximizeHover, m_iconName_Maximize, wxNO_BORDER, wxSize(TOPBAR_ICON_SIZE, TOPBAR_ICON_SIZE));
+    m_btMaximize = new ACButton(this, "", m_iconName_Window, m_iconName_WindowHover, m_iconName_WindowHover , wxNO_BORDER,wxSize(TOPBAR_ICON_SIZE, TOPBAR_ICON_SIZE));
     m_btClose    = new ACButton(this, "",  iconName_Close     ,  iconName_CloseHover     , iconName_Close     , wxNO_BORDER, wxSize(TOPBAR_ICON_SIZE, TOPBAR_ICON_SIZE));
 
     setBtStyle(m_btIconize );
@@ -152,8 +163,8 @@ void ACTopbar::Init(wxFrame* parent)
     hSizer_right->Add(m_btClose, wxALIGN_CENTER_VERTICAL);
 
     if (m_frame->IsMaximized()) {
-        m_btMaximize->SetIcon     (m_iconName_Window);
-        m_btMaximize->SetHoverIcon(m_iconName_WindowHover);
+        m_btMaximize->SetIcon(m_iconName_Maximize);
+        m_btMaximize->SetHoverIcon(m_iconName_MaximizeHover);
     }
  
     m_title_item = new ACButton(this, "", "", "", "", wxNO_BORDER);
@@ -204,7 +215,8 @@ void ACTopbar::Init(wxFrame* parent)
     this->Bind(wxEVT_MENU_CLOSE,&ACTopbar::OnMenuClose,this);
 }
 void ACTopbar::OnMenuClose(wxMenuEvent &event) { 
-   if (now_showBtn != nullptr) {
+   if (now_showBtn != nullptr && event.GetId() < 0) {
+        static_cast<MainFrame *>(m_frame)->SetPopWinShowIndex(false);
         setMenuStyle(now_showBtn);
        now_showBtn = nullptr;
    }
@@ -262,10 +274,15 @@ void ACTopbar::SetTitle(wxString title)
 
 void ACTopbar::OnFullScreen(wxCommandEvent& event)
 {
-    if (m_frame->IsMaximized()) {
+    if (m_frame->IsMaximized() || m_frame->IsFullScreen()) {
         m_btMaximize->SetIcon     (m_iconName_Window);
         m_btMaximize->SetHoverIcon(m_iconName_WindowHover);
-        m_frame->Restore();
+        //m_frame->Restore();
+        if (m_frame->IsFullScreen()) {
+            m_frame->ShowFullScreen(false);
+            return;
+        }
+        m_frame->Maximize(false);
 
     }
     else { // isWindow
@@ -300,10 +317,19 @@ void ACTopbar::Rescale() {
     m_btIconize ->Rescale();
     m_btMaximize->Rescale();
     m_btClose   ->Rescale();
-}
 
-void ACTopbar::OnIconize(wxCommandEvent& event)
-{
+    
+}
+void ACTopbar::ChangeIconStyle() {
+    if (m_frame->IsMaximized() || m_frame->IsFullScreen()) {
+        m_btMaximize->SetIcon(m_iconName_Maximize);
+        m_btMaximize->SetHoverIcon(m_iconName_MaximizeHover);
+    } else { // isWindow
+        m_btMaximize->SetIcon(m_iconName_Window);
+        m_btMaximize->SetHoverIcon(m_iconName_WindowHover);
+    }
+}
+void ACTopbar::OnIconize(wxCommandEvent &event) {
     m_frame->Iconize();
 }
 
@@ -318,6 +344,7 @@ void ACTopbar::OnFileToolItem(wxCommandEvent& event)
     m_btFile->SetBackgroundColor(AC_COLOR_BT_SEL_BG_HOV);
     m_btFile->SetTextColor(AC_COLOR_BT_SEL_FG_HOV);
     now_showBtn = m_btFile;
+    static_cast<MainFrame*>(m_frame)->SetPopWinShowIndex(true);
     this->PopupMenu(m_file_menu, wxPoint(m_btFile->GetPosition().x, this->GetSize().GetHeight() + 2));
     //setMenuStyle(m_btFile);
 
@@ -328,6 +355,7 @@ void ACTopbar::OnEditToolItem(wxCommandEvent& event)
     m_btEdit->SetBackgroundColor(AC_COLOR_BT_SEL_BG_HOV);
     m_btEdit->SetTextColor(AC_COLOR_BT_SEL_FG_HOV);
     now_showBtn = m_btEdit;
+    static_cast<MainFrame *>(m_frame)->SetPopWinShowIndex(true);
     this->PopupMenu(m_edit_menu, wxPoint(m_btEdit->GetPosition().x, this->GetSize().GetHeight() + 2));
     //setMenuStyle(m_btEdit);
 }
@@ -337,6 +365,7 @@ void ACTopbar::OnViewToolItem(wxCommandEvent& event)
     m_btView->SetBackgroundColor(AC_COLOR_BT_SEL_BG_HOV);
     m_btView->SetTextColor(AC_COLOR_BT_SEL_FG_HOV);
     now_showBtn = m_btView;
+    static_cast<MainFrame *>(m_frame)->SetPopWinShowIndex(true);
     this->PopupMenu(m_view_menu, wxPoint(m_btView->GetPosition().x, this->GetSize().GetHeight() + 2));
     //setMenuStyle(m_btView);
 }
@@ -346,6 +375,7 @@ void ACTopbar::OnSetsToolItem(wxCommandEvent& event)
     m_btSettings->SetBackgroundColor(AC_COLOR_BT_SEL_BG_HOV);
     m_btSettings->SetTextColor(AC_COLOR_BT_SEL_FG_HOV);
     now_showBtn = m_btSettings;
+    static_cast<MainFrame *>(m_frame)->SetPopWinShowIndex(true);
     this->PopupMenu(m_sets_menu, wxPoint(m_btSettings->GetPosition().x, this->GetSize().GetHeight() + 2));
     //setMenuStyle(m_btSettings);
 }
@@ -355,6 +385,7 @@ void ACTopbar::OnHelpToolItem(wxCommandEvent& event)
     m_btHelp->SetBackgroundColor(AC_COLOR_BT_SEL_BG_HOV);
     m_btHelp->SetTextColor(AC_COLOR_BT_SEL_FG_HOV);
     now_showBtn = m_btHelp;
+    static_cast<MainFrame *>(m_frame)->SetPopWinShowIndex(true);
     this->PopupMenu(m_help_menu, wxPoint(m_btHelp->GetPosition().x, this->GetSize().GetHeight() + 2));
     //setMenuStyle(m_btHelp);
 }
@@ -377,10 +408,15 @@ void ACTopbar::OnMouseLeftDClock(wxMouseEvent& mouse)
 //    return;
 //#endif //  __WXMSW__
 
-    if (m_frame->IsMaximized()) {
+    if (m_frame->IsMaximized() || m_frame->IsFullScreen()) {
         m_btMaximize->SetIcon     (m_iconName_Window);
         m_btMaximize->SetHoverIcon(m_iconName_WindowHover);
-        m_frame->Restore();
+        //m_frame->Restore();
+        if (m_frame->IsFullScreen()) {
+            m_frame->ShowFullScreen(false);
+            return;
+        }
+        m_frame->Maximize(false);
     }
     else {
         m_btMaximize->SetIcon     (m_iconName_Maximize);

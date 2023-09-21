@@ -11,7 +11,6 @@
 #include "libslic3r/PrintConfig.hpp"
 
 #include "OptionsGroup.hpp"
-#include "I18N.hpp"
 
 // Translate the ifdef 
 #ifdef __WXOSX__
@@ -29,7 +28,7 @@ class OG_CustomCtrl :public wxPanel
     int     m_v_gap;
     int     m_h_gap;
     int     m_em_unit;
-
+    wxWindow *m_parent{nullptr};
     wxSize  m_bmp_mode_sz;
     wxSize  m_bmp_blinking_sz;
 
@@ -55,11 +54,13 @@ class OG_CustomCtrl :public wxPanel
         int     get_max_win_width();
         void    correct_items_positions();
         void    msw_rescale();
+        void    msw_rescale(float _specialGap);
         void    update_visibility(ConfigOptionMode mode);
 
         void render_separator(wxDC& dc, wxCoord v_pos);
 
         void    render(wxDC& dc, wxCoord v_pos);
+        void    render(wxDC &dc, wxCoord v_pos, float specialGap=1.0f);
         wxCoord draw_mode_bmp(wxDC& dc, wxCoord v_pos);
         wxCoord draw_text      (wxDC& dc, wxPoint pos, const wxString& text, const wxColour* color, int width, bool is_url = false);
         wxPoint draw_blinking_bmp(wxDC& dc, wxPoint pos, bool is_blinking);
@@ -103,7 +104,8 @@ public:
     int     get_height(const Line& line);
 
     OptionsGroup*  opt_group;
-
+    std::vector<wxString> specialTitleList;
+    float                 _specialGap = 1.0f;
 };
 
 }}

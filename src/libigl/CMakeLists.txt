@@ -11,4 +11,9 @@ if(libigl_FOUND)
 else()
     message(STATUS "IGL NOT found, using bundled version...")
     target_include_directories(libigl SYSTEM BEFORE INTERFACE ${LIBDIR}/libigl)
+    INSTALL(TARGETS libigl
+            RUNTIME DESTINATION bin/
+            LIBRARY DESTINATION lib/
+            ARCHIVE DESTINATION lib/
+    )
 endif()

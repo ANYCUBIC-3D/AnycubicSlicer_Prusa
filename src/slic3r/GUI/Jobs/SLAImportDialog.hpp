@@ -11,6 +11,7 @@
 
 #include "libslic3r/AppConfig.hpp"
 #include "libslic3r/Format/SLAArchiveReader.hpp"
+#include "libslic3r/Format/SLAArchiveFormatRegistry.hpp"
 
 #include "slic3r/GUI/I18N.hpp"
 
@@ -29,11 +30,16 @@ std::string get_readers_wildcard()
 {
     std::string ret;
 
-    for (const char *archtype : SLAArchiveReader::registered_archives()) {
-        ret += _utf8(SLAArchiveReader::get_description(archtype));
+    auto registry = registered_sla_archives();
+
+    for (const ArchiveEntry &entry : registry) {
+        if (!entry.rdfactoryfn)
+            continue;
+
+        ret += into_u8(_(entry.desc));
         ret += " (";
-        auto extensions = SLAArchiveReader::get_extensions(archtype);
-        for (const char * ext : extensions) {
+        std::vector<std::string> extensions = get_extensions(entry);
+        for (const std::string &ext : extensions) {
             ret += "*.";
             ret += ext;
             ret += ", ";

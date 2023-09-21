@@ -135,10 +135,10 @@ bool AppUpdateAvailableDialog::disable_version_check() const
 
 // AppUpdateDownloadDialog
 AppUpdateDownloadDialog::AppUpdateDownloadDialog( const Semver& ver_online, boost::filesystem::path& path)
-	: MsgDialog(nullptr, _(L("App Update download")), wxString::Format(_(L("New version of %s is available.")), SLIC3R_APP_NAME))
+	: MsgDialog(nullptr, _L("App Update download"), format_wxstr(_L("New version of %1% is available."), SLIC3R_APP_NAME))
 {
 	auto* versions = new wxFlexGridSizer(2, 0, VERT_SPACING);
-	versions->Add(new wxStaticText(this, wxID_ANY, _(L("New version:"))));
+	versions->Add(new wxStaticText(this, wxID_ANY, _L("New version") + ":"));
 	versions->Add(new wxStaticText(this, wxID_ANY, ver_online.to_string()));
 	content_sizer->Add(versions);
 	content_sizer->AddSpacer(VERT_SPACING);
@@ -148,9 +148,10 @@ AppUpdateDownloadDialog::AppUpdateDownloadDialog( const Semver& ver_online, boos
 #endif
 	content_sizer->AddSpacer(VERT_SPACING);
 	content_sizer->AddSpacer(VERT_SPACING);
-	content_sizer->Add(new wxStaticText(this, wxID_ANY, _(L("Target directory:"))));
+	content_sizer->Add(new wxStaticText(this, wxID_ANY, _L("Target directory") + ":"));
 	content_sizer->AddSpacer(VERT_SPACING);
 	txtctrl_path = new wxTextCtrl(this, wxID_ANY, GUI::format_wxstr(path.parent_path().string()));
+    txtctrl_path->SetForegroundColour(AC_COLOR_BLACK);
 	filename = GUI::format_wxstr(path.filename().string());
 	content_sizer->Add(txtctrl_path, 1, wxEXPAND);
 	content_sizer->AddSpacer(VERT_SPACING);
@@ -173,7 +174,7 @@ AppUpdateDownloadDialog::AppUpdateDownloadDialog( const Semver& ver_online, boos
 			dir = GUI::format(txtctrl_path->GetValue());
 		wxDirDialog save_dlg(
 			this
-			, _L("Select directory:")
+			, _L("Select directory") + ":"
 			, GUI::format_wxstr(dir.string())
 			/*
 			, filename //boost::nowide::widen(AppUpdater::get_filename_from_url(txtctrl_path->GetValue().ToUTF8().data()))
@@ -268,8 +269,8 @@ boost::filesystem::path AppUpdateDownloadDialog::get_download_path() const
 
 MsgUpdateConfig::MsgUpdateConfig(const std::vector<Update> &updates, bool force_before_wizard/* = false*/) :
 	MsgDialog(nullptr, force_before_wizard ? _L("Opening Configuration Wizard") : _L("Configuration update"), 
-					   force_before_wizard ? _L("AnycubicSlicer is not using the newest configuration available.\n"
-												"Configuration Wizard may not offer the latest printers, filaments and SLA materials to be installed.") : 
+					   force_before_wizard ? format_wxstr(_L("%1% is not using the newest configuration available.\n"
+												"Configuration Wizard may not offer the latest printers, filaments and SLA materials to be installed."),wxGetApp().appName()) : 
 											 _L("Configuration update is available"), wxICON_ERROR)
 {
 	auto *text = new wxStaticText(this, wxID_ANY, _(L(
@@ -330,14 +331,14 @@ MsgUpdateConfig::~MsgUpdateConfig() {}
 //MsgUpdateForced
 
 MsgUpdateForced::MsgUpdateForced(const std::vector<Update>& updates) :
-    MsgDialog(nullptr, wxString::Format(_(L("%s incompatibility")), SLIC3R_APP_NAME), _(L("You must install a configuration update.")) + " ", wxOK | wxICON_ERROR)
+    MsgDialog(nullptr, format_wxstr(_(L("%s incompatibility")), wxGetApp().appName()), _(L("You must install a configuration update.")) + " ", wxOK | wxICON_ERROR)
 {
-	auto* text = new wxStaticText(this, wxID_ANY, wxString::Format(_(L(
+	auto* text = new wxStaticText(this, wxID_ANY, format_wxstr(_(L(
 		"%s will now start updates. Otherwise it won't be able to start.\n\n"
 		"Note that a full configuration snapshot will be created first. It can then be restored at any time "
 		"should there be a problem with the new version.\n\n"
 		"Updated configuration bundles:"
-	)), SLIC3R_APP_NAME));
+	)), wxGetApp().appName()));
 	
 
 	text->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
@@ -385,20 +386,19 @@ MsgUpdateForced::~MsgUpdateForced() {}
 // MsgDataIncompatible
 
 MsgDataIncompatible::MsgDataIncompatible(const std::unordered_map<std::string, wxString> &incompats) :
-    MsgDialog(nullptr, wxString::Format(_(L("%s incompatibility")), SLIC3R_APP_NAME), 
-                       wxString::Format(_(L("%s configuration is incompatible")), SLIC3R_APP_NAME), wxICON_ERROR)
+    MsgDialog(nullptr, format_wxstr(_(L("%s incompatibility")), wxGetApp().appName()), 
+                       format_wxstr(_(L("%s configuration is incompatible")), wxGetApp().appName()), wxICON_ERROR)
 {
-	auto *text = new wxStaticText(this, wxID_ANY, wxString::Format(_(L(
+	auto *text = new wxStaticText(this, wxID_ANY, format_wxstr(_(L(
 		"This version of %s is not compatible with currently installed configuration bundles.\n"
 		"This probably happened as a result of running an older %s after using a newer one.\n\n"
-
 		"You may either exit %s and try again with a newer version, or you may re-run the initial configuration. "
 		"Doing so will create a backup snapshot of the existing configuration before installing files compatible with this %s.")) + "\n", 
-		SLIC3R_APP_NAME, SLIC3R_APP_NAME, SLIC3R_APP_NAME, SLIC3R_APP_NAME));
+		wxGetApp().appName(), wxGetApp().appName(), wxGetApp().appName(), wxGetApp().appName()));
 	text->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
 	content_sizer->Add(text);
 
-	auto *text2 = new wxStaticText(this, wxID_ANY, wxString::Format(_(L("This %s version: %s")), SLIC3R_APP_NAME, SLIC3R_VERSION));
+	auto *text2 = new wxStaticText(this, wxID_ANY, format_wxstr(_(L("This %s version: %s")), wxGetApp().appName(), SLIC3R_VERSION));
 	text2->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
 	content_sizer->Add(text2);
 	content_sizer->AddSpacer(VERT_SPACING);
@@ -436,8 +436,7 @@ MsgDataIncompatible::~MsgDataIncompatible() {}
 MsgDataLegacy::MsgDataLegacy() :
 	MsgDialog(nullptr, _(L("Configuration update")), _(L("Configuration update")))
 {
-    auto *text = new wxStaticText(this, wxID_ANY, from_u8((boost::format(
-        _utf8(L(
+    auto *text = new wxStaticText(this, wxID_ANY, format_wxstr( _L(
 			"%s now uses an updated configuration structure.\n\n"
 
 			"So called 'System presets' have been introduced, which hold the built-in default settings for various "
@@ -447,10 +446,8 @@ MsgDataLegacy::MsgDataLegacy() :
 
 			"Please proceed with the %s that follows to set up the new presets "
 			"and to choose whether to enable automatic preset updates."
-        )))
-        % SLIC3R_APP_NAME
-        % _utf8(ACConfigWizard::name())).str()
-	));
+        )
+        , SLIC3R_APP_NAME, ACConfigWizard::name()));
 	text->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
 	content_sizer->Add(text);
 	content_sizer->AddSpacer(VERT_SPACING);
@@ -458,7 +455,8 @@ MsgDataLegacy::MsgDataLegacy() :
 	auto *text2 = new wxStaticText(this, wxID_ANY, _(L("For more information please visit our wiki page:")));
 	static const wxString url("https://github.com/xxxxxxx/PrusaSlicer/wiki/Slic3r-PE-1.40-configuration-update");
 	// The wiki page name is intentionally not localized:
-	auto *link = new wxHyperlinkCtrl(this, wxID_ANY, wxString::Format("%s 1.40 configuration update", SLIC3R_APP_NAME), CONFIG_UPDATE_WIKI_URL);
+	// TRN %s = PrusaSlicer
+	auto *link = new wxHyperlinkCtrl(this, wxID_ANY, format_wxstr(_L("%s 1.40 configuration update"), SLIC3R_APP_NAME), CONFIG_UPDATE_WIKI_URL);
 	content_sizer->Add(text2);
 	content_sizer->Add(link);
 	content_sizer->AddSpacer(VERT_SPACING);
@@ -494,13 +492,8 @@ MsgNoUpdates::~MsgNoUpdates() {}
 MsgNoAppUpdates::MsgNoAppUpdates() :
 	MsgDialog(nullptr, _(L("App update")), _(L("No updates available")), wxICON_ERROR | wxOK)
 {
-
-	auto* text = new wxStaticText(this, wxID_ANY, wxString::Format(
-		_(L(
-			"%s has no version updates available."
-		)),
-		SLIC3R_APP_NAME
-	));
+	//TRN %1% is PrusaSlicer
+	auto* text = new wxStaticText(this, wxID_ANY, format_wxstr(_L("Your %1% is up to date."),SLIC3R_APP_NAME));
 	text->Wrap(CONTENT_WIDTH * wxGetApp().em_unit());
 	content_sizer->Add(text);
 	content_sizer->AddSpacer(VERT_SPACING);

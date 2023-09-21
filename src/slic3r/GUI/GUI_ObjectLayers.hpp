@@ -21,13 +21,6 @@ typedef std::pair<coordf_t, coordf_t>   t_layer_height_range;
 
 class ObjectLayers;
 
-enum EditorType
-{
-    etUndef         = 0,
-    etMinZ          = 1,
-    etMaxZ          = 2,
-    etLayerHeight   = 4,
-};
 
 class LayerRangeEditor : public wxTextCtrl
 {

@@ -49,10 +49,12 @@ struct FontProp
     // used for move over model surface
     // When not set value is zero and is not stored
     std::optional<float> distance; // [in mm]
-
-    // change up vector direction of font
+        
+    // Angle of rotation around emboss direction (Z axis)
+    // It is calculate on the fly from volume world transformation
+    // only StyleManager keep actual value for comparision with style
     // When not set value is zero and is not stored
-    std::optional<float> angle; // [in radians]
+    std::optional<float> angle; // [in radians] form -Pi to Pi
 
     // Parameter for True Type Font collections
     // Select index of font in collection

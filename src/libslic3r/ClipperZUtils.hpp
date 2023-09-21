@@ -40,7 +40,7 @@ inline ZPath to_zpath(const Points &path, coord_t z)
 // Convert multiple paths to paths with a given Z coordinate.
 // If Open, then duplicate the first point of each path at its end.
 template<bool Open = false>
-inline ZPaths to_zpaths(const std::vector<Points> &paths, coord_t z)
+inline ZPaths to_zpaths(const VecOfPoints &paths, coord_t z)
 {
     ZPaths out;
     out.reserve(paths.size());
@@ -86,16 +86,16 @@ inline Points from_zpath(const ZPoints &path)
 // Convert multiple paths to paths with a given Z coordinate.
 // If Open, then duplicate the first point of each path at its end.
 template<bool Open = false>
-inline void from_zpaths(const ZPaths &paths, std::vector<Points> &out)
+inline void from_zpaths(const ZPaths &paths, VecOfPoints &out)
 {
     out.reserve(out.size() + paths.size());
     for (const ZPoints &path : paths)
         out.emplace_back(from_zpath<Open>(path));
 }
 template<bool Open = false>
-inline std::vector<Points> from_zpaths(const ZPaths &paths)
+inline VecOfPoints from_zpaths(const ZPaths &paths)
 {
-    std::vector<Points> out;
+    VecOfPoints out;
     from_zpaths(paths, out);
     return out;
 }

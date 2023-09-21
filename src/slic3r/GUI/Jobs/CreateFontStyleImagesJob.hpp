@@ -19,11 +19,11 @@ class CreateFontStyleImagesJob : public Job
 
     // Output data
     // texture size
-    int width, height;
+    int m_width, m_height;
     // texture data
-    std::vector<unsigned char> pixels; 
+    std::vector<unsigned char> m_pixels; 
     // descriptors of sub textures
-    std::vector<StyleManager::StyleImage> images;
+    std::vector<StyleManager::StyleImage> m_images;
 
 public:
     CreateFontStyleImagesJob(StyleManager::StyleImagesData &&input);

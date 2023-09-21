@@ -1,19 +1,16 @@
 #ifndef slic3r_GLGizmoEmboss_hpp_
 #define slic3r_GLGizmoEmboss_hpp_
 
-// Include GLGizmoBase.hpp before I18N.hpp as it includes some libigl code,
-// which overrides our localization "L" macro.
 #include "GLGizmoBase.hpp"
 #include "GLGizmoRotate.hpp"
-#include "slic3r/GUI/GLTexture.hpp"
+#include "slic3r/GUI/IconManager.hpp"
+#include "slic3r/GUI/SurfaceDrag.hpp"
+#include "slic3r/GUI/I18N.hpp"
 #include "slic3r/Utils/RaycastManager.hpp"
 #include "slic3r/Utils/EmbossStyleManager.hpp"
 
-#include "admesh/stl.h" // indexed_triangle_set
 #include <optional>
 #include <memory>
-#include <mutex>
-#include <thread>
 #include <atomic>
 
 #include "libslic3r/Emboss.hpp"
@@ -28,12 +25,10 @@ class wxFont;
 namespace Slic3r{
     class AppConfig;
     class GLVolume;
-
     enum class ModelVolumeType : int;
 }
 
 namespace Slic3r::GUI {
-class MeshRaycaster;
 class GLGizmoEmboss : public GLGizmoBase
 {
 public:
@@ -52,17 +47,21 @@ public:
     /// <param name="volume_type">Object part / Negative volume / Modifier</param>
     void create_volume(ModelVolumeType volume_type);
 
+    /// <summary>
+    /// Handle pressing of shortcut
+    /// </summary>
+    void on_shortcut_key();
 protected:
     bool on_init() override;
     std::string on_get_name() const override;
     void on_render() override;
-    virtual void on_register_raycasters_for_picking() override;
-    virtual void on_unregister_raycasters_for_picking() override;
+    void on_register_raycasters_for_picking() override;
+    void on_unregister_raycasters_for_picking() override;
     void on_render_input_window(float x, float y, float bottom_limit) override;
-    bool on_is_activable() const override { return true; }
     bool on_is_selectable() const override { return false; }
-    void on_set_state() override;    
-    void data_changed() override; // selection changed
+    bool on_is_activable() const override { return true; };
+    void on_set_state() override;
+    void data_changed(bool is_serializing) override; // selection changed
     void on_set_hover_id() override{ m_rotate_gizmo.set_hover_id(m_hover_id); }
     void on_enable_grabber(unsigned int id) override { m_rotate_gizmo.enable_grabber(); }
     void on_disable_grabber(unsigned int id) override { m_rotate_gizmo.disable_grabber(); }
@@ -80,16 +79,14 @@ protected:
     bool wants_enter_leave_snapshots() const override { return true; }
     std::string get_gizmo_entering_text() const override { return _u8L("Enter emboss gizmo"); }
     std::string get_gizmo_leaving_text() const override { return _u8L("Leave emboss gizmo"); }
-    std::string get_action_snapshot_name() override { return _u8L("Embossing actions"); }
+    std::string get_action_snapshot_name() const override { return _u8L("Embossing actions"); }
 private:
-    void initialize();
     static EmbossStyles create_default_styles();
     // localized default text
-    void set_default_text();
+    bool init_create(ModelVolumeType volume_type);
 
     void set_volume_by_selection();
-    // load text configuration from volume into gizmo
-    bool set_volume(ModelVolume *volume); 
+    void reset_volume();
 
     // create volume from text - main functionality
     bool process();
@@ -108,17 +105,21 @@ private:
     void init_font_name_texture();
     struct FaceName;
     void draw_font_preview(FaceName &face, bool is_visible);
+    void draw_font_list_line();
     void draw_font_list();
-    void draw_style_edit();
     void draw_height(bool use_inch);
     void draw_depth(bool use_inch);
+
+    // call after set m_style_manager.get_style().prop.size_in_mm
+    bool set_height();
+    // call after set m_style_manager.get_style().prop.emboss
+    bool set_depth();
 
     bool draw_italic_button();
     bool draw_bold_button();
     void draw_advanced();
 
     bool select_facename(const wxString& facename);
-    void init_face_names();
 
     void do_translate(const Vec3d& relative_move);
     void do_rotate(float relative_z_angle);
@@ -145,49 +146,54 @@ private:
     template<typename T, typename Draw>
     bool revertible(const std::string &name, T &value, const T *default_value, const std::string &undo_tooltip, float undo_offset, Draw draw);
 
-    bool   m_should_set_minimal_windows_size = false;
+    bool m_should_set_minimal_windows_size = false;
     void set_minimal_window_size(bool is_advance_edit_style);
     ImVec2 get_minimal_window_size() const;
 
     // process mouse event
     bool on_mouse_for_rotation(const wxMouseEvent &mouse_event);
     bool on_mouse_for_translate(const wxMouseEvent &mouse_event);
-
-    bool choose_font_by_wxdialog();
-    bool choose_true_type_file();
-    bool choose_svg_file();
+    void on_mouse_change_selection(const wxMouseEvent &mouse_event);
 
     // When open text loaded from .3mf it could be written with unknown font
     bool m_is_unknown_font;
     void create_notification_not_valid_font(const TextConfiguration& tc);
+    void create_notification_not_valid_font(const std::string& text);
     void remove_notification_not_valid_font();
-
+    
     // This configs holds GUI layout size given by translated texts.
     // etc. When language changes, GUI is recreated and this class constructed again,
     // so the change takes effect. (info by GLGizmoFdmSupports.hpp)
     struct GuiCfg
     {
+        // Detect invalid config values when change monitor DPI
+        double screen_scale;
+        float  main_toolbar_height;
+
         // Zero means it is calculated in init function
-        ImVec2 minimal_window_size              = ImVec2(0, 0);
-        ImVec2 minimal_window_size_with_advance = ImVec2(0, 0);
-        ImVec2 minimal_window_size_with_collections = ImVec2(0, 0);
-        float height_of_volume_type_selector = 0.f;
-        float input_width                    = 0.f;
-        float delete_pos_x                   = 0.f;
-        float max_style_name_width           = 0.f;
-        unsigned int icon_width              = 0;
+        ImVec2       minimal_window_size                  = ImVec2(0, 0);
+        ImVec2       minimal_window_size_with_advance     = ImVec2(0, 0);
+        ImVec2       minimal_window_size_with_collections = ImVec2(0, 0);
+        float        height_of_volume_type_selector       = 0.f;
+        float        input_width                          = 0.f;
+        float        delete_pos_x                         = 0.f;
+        float        max_style_name_width                 = 0.f;
+        unsigned int icon_width                           = 0;
 
         // maximal width and height of style image
         Vec2i max_style_image_size = Vec2i(0, 0);
 
+        float indent                = 0.f;
         float input_offset          = 0.f;
         float advanced_input_offset = 0.f;
+
+        float lock_offset = 0.f;
 
         ImVec2 text_size;
 
         // maximal size of face name image
-        Vec2i face_name_size = Vec2i(100, 0);
-        float face_name_max_width = 100.f;
+        Vec2i face_name_size             = Vec2i(100, 0);
+        float face_name_max_width        = 100.f;
         float face_name_texture_offset_x = 105.f;
 
         // maximal texture generate jobs running at once
@@ -197,7 +203,7 @@ private:
         struct Translations
         {
             std::string font;
-            std::string size;
+            std::string height;
             std::string depth;
             std::string use_surface;
 
@@ -205,16 +211,18 @@ private:
             std::string char_gap;
             std::string line_gap;
             std::string boldness;
-            std::string italic;
-            std::string surface_distance;
-            std::string angle;
+            std::string skew_ration;
+            std::string from_surface;
+            std::string rotation;
+            std::string keep_up;
             std::string collection;
         };
         Translations translations;
-                
-        GuiCfg() = default;
     };
-    std::optional<const GuiCfg> m_gui_cfg;
+    std::optional<const GuiCfg> m_gui_cfg; 
+    static GuiCfg create_gui_configuration();
+
+    // Is open tree with advanced options
     bool m_is_advanced_edit_style = false;
 
     // when true window will appear near to text volume when open
@@ -223,6 +231,7 @@ private:
     // setted only when wanted to use - not all the time
     std::optional<ImVec2> m_set_window_offset;
 
+    // Keep information about stored styles and loaded actual style to compare with
     Emboss::StyleManager m_style_manager;
 
     struct FaceName{
@@ -244,13 +253,15 @@ private:
         // true  .. already enumerated(During opened combo box)
         bool is_init = false;
 
+        bool has_truncated_names = false;
+
         // data of can_load() faces
         std::vector<FaceName> faces = {};
         // Sorter set of Non valid face names in OS
         std::vector<wxString> bad   = {};
 
         // Configuration of font encoding
-        const wxFontEncoding encoding = wxFontEncoding::wxFONTENCODING_SYSTEM;
+        static constexpr wxFontEncoding encoding = wxFontEncoding::wxFONTENCODING_SYSTEM;
 
         // Identify if preview texture exists
         GLuint texture_id = 0;
@@ -277,11 +288,17 @@ private:
     static bool store(const Facenames &facenames);
     static bool load(Facenames &facenames);
 
+    static void init_face_names(Facenames &facenames);
+    static void init_truncated_names(Facenames &face_names, float max_width);
 
     // Text to emboss
-    std::string m_text;
+    std::string m_text; // Sequence of Unicode UTF8 symbols
 
-    // actual volume
+    // When true keep up vector otherwise relative rotation
+    bool m_keep_up = true;
+
+    // current selected volume 
+    // NOTE: Be carefull could be uninitialized (removed from Model)
     ModelVolume *m_volume;
 
     // When work with undo redo stack there could be situation that 
@@ -299,15 +316,12 @@ private:
     // Value is set only when dragging rotation to calculate actual angle
     std::optional<float> m_rotate_start_angle;
 
-    // when draging with text object hold screen offset of cursor from object center
-    std::optional<Vec2d> m_dragging_mouse_offset;
+    // Keep data about dragging only during drag&drop
+    std::optional<SurfaceDrag> m_surface_drag;
 
     // TODO: it should be accessible by other gizmo too.
     // May be move to plater?
     RaycastManager m_raycast_manager;
-
-    // Only when drag text object it stores world position
-    std::optional<Transform3d> m_temp_transformation;
 
     // For text on scaled objects
     std::optional<float> m_scale_height;
@@ -315,43 +329,12 @@ private:
     void calculate_scale();
 
     // drawing icons
-    GLTexture m_icons_texture;
+    IconManager m_icon_manager;
+    IconManager::VIcons m_icons;
     void init_icons();
-    enum class IconType : unsigned {
-        rename = 0,
-        erase,
-        add,
-        save,
-        undo,
-        italic,
-        unitalic,
-        bold,
-        unbold,
-        system_selector,
-        open_file,
-        // automatic calc of icon's count
-        _count
-    };
-    enum class IconState: unsigned { activable = 0, hovered /*1*/, disabled /*2*/};
-    void draw_icon(IconType icon, IconState state, ImVec2 size = ImVec2(0,0));
-    void draw_transparent_icon();
-    bool draw_clickable(IconType icon, IconState state, IconType hover_icon, IconState hover_state);
-    bool draw_button(IconType icon, bool disable = false);
 
     // only temporary solution
     static const std::string M_ICON_FILENAME;
-
-public:
-    /// <summary>
-    /// Check if text is last solid part of object
-    /// TODO: move to emboss gui utils
-    /// </summary>
-    /// <param name="text">Model volume of Text</param>
-    /// <returns>True when object otherwise False</returns>
-    static bool is_text_object(const ModelVolume *text);
-
-    // TODO: move to file utils
-    static std::string get_file_name(const std::string &file_path);
 };
 
 } // namespace Slic3r::GUI

@@ -108,17 +108,52 @@ bool ACGroupBox::Create(wxWindow *parent,
     groupboxCounter++;
     return true;
 }
+bool ACGroupBox::Create(wxWindow *                                          parent,
+                        const wxString &                                    label,
+                        wxWindowID                                          id,
+                        bool                                                createIndex,
+                        const wxPoint &pos,
+                        const wxSize & size,
+                        long                                            style)
+{
+    this->SetCornerRadius(10);
 
+    wxString iconName = "title-circle";
+    m_labelWin        = new ACButton(this, label, iconName, iconName, iconName, ACButton::AC_ALIGN_LEFT, wxSize(10, 10));
+    m_labelWin->SetSpacing(6);
+    m_labelWin->SetPaddingSize(wxSize(0, 0));
+    m_labelWin->SetButtonType(ACButton::AC_BUTTON_LABEL);
+    if (createIndex) {
+        wxString rest_iconName = "reset-click";
+        m_circleBack           = new ACButton(this, "", rest_iconName, rest_iconName, rest_iconName, wxNO_BORDER, wxSize(24, 24));
+        m_circleBack->SetPaddingSize(wxSize(0, 0));
+        m_circleBack->SetButtonType(ACButton::AC_BUTTON_ICON);
+        m_circleBack->SetBackgroundColour(wxColor(255,255,255));
+        m_circleBack->Hide();
+    }
+    // Bind(wxEVT_PAINT, [&](wxPaintEvent& WXUNUSED(event)){
+    //    OnPaint();
+    //});
+    PositionLabelWindow();
+
+    groupboxCounter++;
+    return true;
+}
 ACGroupBox::~ACGroupBox()
 {
     printf("ACGroupBox Desdroyed.... %d \n", --groupboxCounter);
 
     delete m_labelWin;
+    delete m_circleBack;
 }
 
 void ACGroupBox::PositionLabelWindow()
 {
     m_labelWin->Move(m_padding, m_padding);
+    if (m_createIndex) {
+        wxSize labelSize = m_labelWin->GetSize();
+        m_circleBack->Move(labelSize.x, (labelSize.y - m_circleBack->GetSize().y) / 2 + m_padding);
+    }
 }
 
 
@@ -127,8 +162,10 @@ wxSize ACGroupBox::DoGetBestSize() const
 
     // Calculate the size needed by the label
     wxSize labelSize = m_labelWin->GetMinSize();
-
     wxSize best = wxSize(m_padding*2, m_padding*2) + labelSize;
+    if (m_createIndex) {
+        best = labelSize;
+    }
     // If there is a sizer then the base best size is the sizer's minimum
     if (GetSizer() != NULL)
     {
@@ -138,6 +175,9 @@ wxSize ACGroupBox::DoGetBestSize() const
         best = wxSize(std::max(labelSize.x, childrenSize.x), labelSize.y+childrenSize.y);
     } else {
         best.y += m_spacing;
+        if (m_createIndex) {
+            best.y -= m_spacing;
+        }
     }
     // otherwise the best size falls back to the label size
     return best;
@@ -151,6 +191,9 @@ void ACGroupBox::ACGetBordersForSizer(int *borderTop, int *borderOther) const
     if ( m_labelWin )
     {
         *borderTop = m_padding + m_labelWin->GetSize().y + m_spacing;
+        if (m_createIndex) {
+            *borderTop = m_labelWin->GetSize().y;
+        }
     }
     else // No label window nor text.
     {

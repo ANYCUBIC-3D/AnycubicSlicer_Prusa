@@ -4,7 +4,7 @@
 #include <GL/glew.h>
 
 #include "slic3r/GUI/GUI_App.hpp"
-#include "slic3r/GUI/GUI_ObjectManipulation.hpp"
+////#include "slic3r/GUI/GUI_ObjectManipulation.hpp"
 #include "slic3r/GUI/Plater.hpp"
 
 // TODO: Display tooltips quicker on Linux
@@ -158,6 +158,12 @@ GLGizmoBase::GLGizmoBase(GLCanvas3D& parent, const std::string& icon_filename, u
 {
 }
 
+
+std::string GLGizmoBase::get_action_snapshot_name() const
+{
+    return _u8L("Gizmo action");
+}
+
 void GLGizmoBase::set_hover_id(int id)
 {
     // do not change hover id during dragging
@@ -257,44 +263,18 @@ bool GLGizmoBase::use_grabbers(const wxMouseEvent &mouse_event) {
 
             on_dragging(data);
 
-            wxGetApp().obj_manipul()->set_dirty();
+            //wxGetApp().obj_manipul()->set_dirty();
             m_parent.set_as_dirty();
             return true;
         }
         else if (mouse_event.LeftUp() || is_leaving || is_dragging_finished) {
-#if ENABLE_WORLD_COORDINATE
             do_stop_dragging(is_leaving);
-#else
-            for (auto &grabber : m_grabbers) grabber.dragging = false;
-            m_dragging = false;
-
-            // NOTE: This should be part of GLCanvas3D
-            // Reset hover_id when leave window
-            if (is_leaving) m_parent.mouse_up_cleanup();
-
-            on_stop_dragging();
-
-            // There is prediction that after draggign, data are changed
-            // Data are updated twice also by canvas3D::reload_scene.
-            // Should be fixed.
-            m_parent.get_gizmos_manager().update_data(); 
-
-            wxGetApp().obj_manipul()->set_dirty();
-
-            // Let the plater know that the dragging finished, so a delayed
-            // refresh of the scene with the background processing data should
-            // be performed.
-            m_parent.post_event(SimpleEvent(EVT_GLCANVAS_MOUSE_DRAGGING_FINISHED));
-            // updates camera target constraints
-            m_parent.refresh_camera_scene_box();
-#endif // ENABLE_WORLD_COORDINATE
             return true;
         }
     }
     return false;
 }
 
-#if ENABLE_WORLD_COORDINATE
 void GLGizmoBase::do_stop_dragging(bool perform_mouse_cleanup)
 {
     for (auto& grabber : m_grabbers) grabber.dragging = false;
@@ -311,7 +291,7 @@ void GLGizmoBase::do_stop_dragging(bool perform_mouse_cleanup)
     // Should be fixed.
     m_parent.get_gizmos_manager().update_data();
 
-    wxGetApp().obj_manipul()->set_dirty();
+    //wxGetApp().obj_manipul()->set_dirty();
 
     // Let the plater know that the dragging finished, so a delayed
     // refresh of the scene with the background processing data should
@@ -320,7 +300,6 @@ void GLGizmoBase::do_stop_dragging(bool perform_mouse_cleanup)
     // updates camera target constraints
     m_parent.refresh_camera_scene_box();
 }
-#endif // ENABLE_WORLD_COORDINATE
 
 std::string GLGizmoBase::format(float value, unsigned int decimals) const
 {

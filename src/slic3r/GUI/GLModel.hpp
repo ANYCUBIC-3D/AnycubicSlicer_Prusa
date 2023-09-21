@@ -14,7 +14,7 @@ namespace Slic3r {
 
 class TriangleMesh;
 class Polygon;
-using Polygons = std::vector<Polygon>;
+using Polygons = std::vector<Polygon, PointsAllocator<Polygon>>;
 class BuildVolume;
 
 namespace GUI {
@@ -227,6 +227,7 @@ namespace GUI {
         void init_from(const TriangleMesh& mesh);
 #endif // ENABLE_SMOOTH_NORMALS
         void init_from(const indexed_triangle_set& its);
+        void init_from(const Polygon& polygon, float z);
         void init_from(const Polygons& polygons, float z);
         bool init_from_file(const std::string& filename);
 

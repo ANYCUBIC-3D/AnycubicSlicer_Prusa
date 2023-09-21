@@ -9,6 +9,9 @@
 #include <sstream>
 #include <unordered_map>
 
+#include <oneapi/tbb/scalable_allocator.h>
+
+
 #include <Eigen/Geometry> 
 
 #include "LocalesUtils.hpp"
@@ -49,13 +52,18 @@ using Vec2d   = Eigen::Matrix<double,   2, 1, Eigen::DontAlign>;
 using Vec3d   = Eigen::Matrix<double,   3, 1, Eigen::DontAlign>;
 using Vec4d   = Eigen::Matrix<double,   4, 1, Eigen::DontAlign>;
 
-using Points         = std::vector<Point>;
+template<typename BaseType>
+using PointsAllocator = tbb::scalable_allocator<BaseType>;
+//using PointsAllocator = std::allocator<BaseType>;
+using Points         = std::vector<Point, PointsAllocator<Point>>;
 using PointPtrs      = std::vector<Point*>;
 using PointConstPtrs = std::vector<const Point*>;
 using Points3        = std::vector<Vec3crd>;
 using Pointfs        = std::vector<Vec2d>;
 using Vec2ds         = std::vector<Vec2d>;
 using Pointf3s       = std::vector<Vec3d>;
+
+using VecOfPoints    = std::vector<Points, PointsAllocator<Points>>;
 
 using Matrix2f       = Eigen::Matrix<float,  2, 2, Eigen::DontAlign>;
 using Matrix2d       = Eigen::Matrix<double, 2, 2, Eigen::DontAlign>;
@@ -247,9 +255,9 @@ extern template BoundingBox get_extents<true>(const Points &pts);
 // if IncludeBoundary, then a bounding box is defined even for a single point.
 // otherwise a bounding box is only defined if it has a positive area.
 template<bool IncludeBoundary = false>
-BoundingBox get_extents(const std::vector<Points> &pts);
-extern template BoundingBox get_extents<false>(const std::vector<Points> &pts);
-extern template BoundingBox get_extents<true>(const std::vector<Points> &pts);
+BoundingBox get_extents(const VecOfPoints &pts);
+extern template BoundingBox get_extents<false>(const VecOfPoints &pts);
+extern template BoundingBox get_extents<true>(const VecOfPoints &pts);
 
 BoundingBoxf get_extents(const std::vector<Vec2d> &pts);
 
@@ -263,16 +271,16 @@ inline std::pair<Point, bool> nearest_point(const Points &points, const Point &p
 
 // Test for duplicate points in a vector of points.
 // The points are copied, sorted and checked for duplicates globally.
-bool        has_duplicate_points(std::vector<Point> &&pts);
-inline bool has_duplicate_points(const std::vector<Point> &pts)
+bool        has_duplicate_points(Points &&pts);
+inline bool has_duplicate_points(const Points &pts)
 {
-    std::vector<Point> cpy = pts;
+    Points cpy = pts;
     return has_duplicate_points(std::move(cpy));
 }
 
 // Test for duplicate points in a vector of points.
 // Only successive points are checked for equality.
-inline bool has_duplicate_successive_points(const std::vector<Point> &pts)
+inline bool has_duplicate_successive_points(const Points &pts)
 {
     for (size_t i = 1; i < pts.size(); ++ i)
         if (pts[i - 1] == pts[i])
@@ -282,7 +290,7 @@ inline bool has_duplicate_successive_points(const std::vector<Point> &pts)
 
 // Test for duplicate points in a vector of points.
 // Only successive points are checked for equality. Additionally, first and last points are compared for equality.
-inline bool has_duplicate_successive_points_closed(const std::vector<Point> &pts)
+inline bool has_duplicate_successive_points_closed(const Points &pts)
 {
     return has_duplicate_successive_points(pts) || (pts.size() >= 2 && pts.front() == pts.back());
 }

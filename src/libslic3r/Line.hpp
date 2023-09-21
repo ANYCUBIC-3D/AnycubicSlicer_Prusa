@@ -40,11 +40,12 @@ template<class L> auto get_b(L &&l) { return Traits<remove_cvref_t<L>>::get_b(l)
 
 // Distance to the closest point of line.
 template<class L>
-double distance_to_squared(const L &line, const Vec<Dim<L>, Scalar<L>> &point, Vec<Dim<L>, Scalar<L>> *nearest_point)
+inline double distance_to_squared(const L &line, const Vec<Dim<L>, Scalar<L>> &point, Vec<Dim<L>, Scalar<L>> *nearest_point)
 {
-    const Vec<Dim<L>, double>  v  = (get_b(line) - get_a(line)).template cast<double>();
-    const Vec<Dim<L>, double>  va = (point  - get_a(line)).template cast<double>();
-    const double  l2 = v.squaredNorm();  // avoid a sqrt
+    using VecType = Vec<Dim<L>, double>;
+    const VecType  v  = (get_b(line) - get_a(line)).template cast<double>();
+    const VecType  va = (point  - get_a(line)).template cast<double>();
+    const double  l2 = v.squaredNorm();
     if (l2 == 0.0) {
         // a == b case
         *nearest_point = get_a(line);
@@ -53,19 +54,20 @@ double distance_to_squared(const L &line, const Vec<Dim<L>, Scalar<L>> &point, V
     // Consider the line extending the segment, parameterized as a + t (b - a).
     // We find projection of this point onto the line.
     // It falls where t = [(this-a) . (b-a)] / |b-a|^2
-    const double t = va.dot(v) / l2;
+    const double t = va.dot(v);
     if (t <= 0.0) {
         // beyond the 'a' end of the segment
         *nearest_point = get_a(line);
         return va.squaredNorm();
-    } else if (t >= 1.0) {
+    } else if (t >= l2) {
         // beyond the 'b' end of the segment
         *nearest_point = get_b(line);
         return (point - get_b(line)).template cast<double>().squaredNorm();
     }
 
-    *nearest_point = (get_a(line).template cast<double>() + t * v).template cast<Scalar<L>>();
-    return (t * v - va).squaredNorm();
+    const VecType w = ((t / l2) * v).eval();
+    *nearest_point = (get_a(line).template cast<double>() + w).template cast<Scalar<L>>();
+    return (w - va).squaredNorm();
 }
 
 // Distance to the closest point of line.
@@ -208,6 +210,18 @@ public:
 
     double a_width, b_width;
 };
+
+class CurledLine : public Line
+{
+public:
+    CurledLine() : curled_height(0.0f) {}
+    CurledLine(const Point& a, const Point& b) : Line(a, b), curled_height(0.0f) {}
+    CurledLine(const Point& a, const Point& b, float curled_height) : Line(a, b), curled_height(curled_height) {}
+
+    float curled_height;
+};
+
+using CurledLines = std::vector<CurledLine>;
 
 class Line3
 {

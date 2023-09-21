@@ -28,6 +28,7 @@
 #include <stddef.h>
 
 #include <vector>
+#include <istream>
 #include <Eigen/Geometry> 
 
 // Size of the binary STL header, free form.
@@ -168,6 +169,7 @@ struct indexed_triangle_set
 };
 
 extern bool stl_open(stl_file *stl, const char *file);
+extern bool stl_open(stl_file *stl, std::istream &stream);
 extern void stl_stats_out(stl_file *stl, FILE *file, char *input_file);
 extern bool stl_print_neighbors(stl_file *stl, char *file);
 extern bool stl_write_ascii(stl_file *stl, const char *file, const char *label);

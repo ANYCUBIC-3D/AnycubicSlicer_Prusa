@@ -872,7 +872,7 @@ void GizmoObjectManipulation::do_render_ac_rotate_window(ImGuiWrapper *imgui_wra
                                         76.0f * _scaleIndex,
                                         6.0f * _scaleIndex,
                                         8.0f * _scaleIndex);
-    imgui_wrapper->disabled_begin(m_glcanvas.get_selection().get_volume_idxs().size() != 1);
+    imgui_wrapper->disabled_begin(m_glcanvas.get_selection().get_object_idxs().size() != 1);
     if (imgui_wrapper->button(_L("Reset"), 186.0f * _scaleIndex, 30.0f * _scaleIndex)) {
         reset_rotation_value();
     }
@@ -1204,7 +1204,7 @@ void GizmoObjectManipulation::do_render_ac_scale_input_window(ImGuiWrapper* imgu
         imgui_wrapper->bbl_ac_checkbox(_L("uniform scalling"), uniform_scale);
     }*/
 
-    imgui_wrapper->bbl_ac_checkbox(_L("uniform scale"), uniform_scale);
+    imgui_wrapper->checkbox(_L("uniform scale"), uniform_scale);
     ImGui::PopFont();
     ImGui::PopStyleVar(3);
     /*ImGui::SameLine();
@@ -1215,10 +1215,21 @@ void GizmoObjectManipulation::do_render_ac_scale_input_window(ImGuiWrapper* imgu
     ImGui::PopFont();*/
 
 
-    m_buffered_size = display_size;
+    //m_buffered_size = display_size;
     for (int i = 0; i < display_size.size(); i++) {
-        if (std::abs(display_size[i]) > MAX_NUM) display_size[i] = MAX_NUM;
+        if (std::abs(display_size[i]) > MAX_NUM) {
+            display_size[i] = MAX_NUM;
+        }
+        if (std::abs(display_size[i]) <= 0) {
+            display_size[i] = original_size[i];
+        }
     }
+    for (int i = 0; i < scale.size(); i++) {
+        if (std::abs(scale[i]) <= 0) {
+            scale[i] = m_buffered_scale[i];
+        }
+    }
+    m_buffered_size = display_size;
     // m_buffered_size = display_size;
     int size_sel = update(current_active_id, "size", original_size, m_buffered_size);
 
@@ -1239,7 +1250,7 @@ void GizmoObjectManipulation::do_render_ac_scale_input_window(ImGuiWrapper* imgu
                                         6.0f * _scaleIndex,
                                         8.0f * _scaleIndex);
 									
-    imgui_wrapper->disabled_begin(m_glcanvas.get_selection().get_volume_idxs().size() != 1);
+    imgui_wrapper->disabled_begin(m_glcanvas.get_selection().get_object_idxs().size() != 1);
     if (imgui_wrapper->button(_L("Reset"), 228.0f * _scaleIndex, 30.0f * _scaleIndex)) { 
         reset_scale_value();
     }
@@ -1359,7 +1370,9 @@ void GizmoObjectManipulation::do_render_ac_layout_window(ImGuiWrapper *imgui_wra
     ImGui::PopStyleColor();
     ImGui::SameLine();
     ImGui::Dummy(ImVec2(2.0f * _scaleIndex, 0));
-    ImGui::SameLine(); imgui_wrapper->text("mm");
+    ImGui::SameLine();
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() - 15 * _scaleIndex);
+    imgui_wrapper->text("mm");
 
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 10 * _scaleIndex);
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10.0f * _scaleIndex, 2.0f * _scaleIndex));

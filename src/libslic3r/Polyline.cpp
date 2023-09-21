@@ -110,7 +110,7 @@ Points Polyline::equally_spaced_points(double distance) const
 
 void Polyline::simplify(double tolerance)
 {
-    this->points = MultiPoint::_douglas_peucker(this->points, tolerance);
+    this->points = MultiPoint::douglas_peucker(this->points, tolerance);
 }
 
 #if 0
@@ -267,36 +267,41 @@ ThickLines ThickPolyline::thicklines() const
 // Removes the given distance from the end of the ThickPolyline
 void ThickPolyline::clip_end(double distance)
 {
-    while (distance > 0) {
-        Vec2d    last_point = this->last_point().cast<double>();
-        coordf_t last_width = this->width.back();
-        this->points.pop_back();
-        this->width.pop_back();
-        if (this->points.empty())
-            break;
-
-        Vec2d    vec            = this->last_point().cast<double>() - last_point;
-        coordf_t width_diff     = this->width.back() - last_width;
-        double   vec_length_sqr = vec.squaredNorm();
-        if (vec_length_sqr > distance * distance) {
-            double t = (distance / std::sqrt(vec_length_sqr));
-            this->points.emplace_back((last_point + vec * t).cast<coord_t>());
-            this->width.emplace_back(last_width + width_diff * t);
-            assert(this->width.size() == (this->points.size() - 1) * 2);
-            return;
-        } else
+    if (! this->empty()) {
+        assert(this->width.size() == (this->points.size() - 1) * 2);
+        while (distance > 0) {
+            Vec2d last_point = this->last_point().cast<double>();
+            this->points.pop_back();
+            if (this->points.empty()) {
+                assert(this->width.empty());
+                break;
+            }
+            coordf_t last_width = this->width.back();
             this->width.pop_back();
 
-        distance -= std::sqrt(vec_length_sqr);
+            Vec2d    vec            = this->last_point().cast<double>() - last_point;
+            coordf_t width_diff     = this->width.back() - last_width;
+            double   vec_length_sqr = vec.squaredNorm();
+            if (vec_length_sqr > distance * distance) {
+                double t = (distance / std::sqrt(vec_length_sqr));
+                this->points.emplace_back((last_point + vec * t).cast<coord_t>());
+                this->width.emplace_back(last_width + width_diff * t);
+                assert(this->width.size() == (this->points.size() - 1) * 2);
+                return;
+            } else
+                this->width.pop_back();
+
+            distance -= std::sqrt(vec_length_sqr);
+        }
     }
-    assert(this->width.size() == (this->points.size() - 1) * 2);
+    assert(this->points.empty() ? this->width.empty() : this->width.size() == (this->points.size() - 1) * 2);
 }
 
 void ThickPolyline::start_at_index(int index)
 {
     assert(index >= 0 && index < this->points.size());
     assert(this->points.front() == this->points.back() && this->width.front() == this->width.back());
-    if (index != 0 && index != (this->points.size() - 1) && this->points.front() == this->points.back() && this->width.front() == this->width.back()) {
+    if (index != 0 && index + 1 != int(this->points.size()) && this->points.front() == this->points.back() && this->width.front() == this->width.back()) {
         this->points.pop_back();
         assert(this->points.size() * 2 == this->width.size());
         std::rotate(this->points.begin(), this->points.begin() + index, this->points.end());

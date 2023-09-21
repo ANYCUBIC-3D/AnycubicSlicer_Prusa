@@ -106,8 +106,17 @@ class OptionsGroup {
 protected:
 	ACGroupBox*	stb {nullptr};
 public:
+    ACGroupBox *              getGroupBoxObj() { return stb; }
+    ACButton *            getCircleBackButton() { return stb->getCircleBackButton(); }
+    std::vector<std::string>  circleBackList;
+    std::vector<std::string> GetCircleBackList() { return circleBackList; }
+    void                      setCircleBack(std::string newObj) { circleBackList.push_back(newObj); }
     const bool		staticbox {true};
     const wxString	title;
+    bool            titleCircleRest   = false;
+    bool   getTittleCircleRest() { return titleCircleRest; }
+    void   setTitleCircleRest(bool _newIndex) { titleCircleRest = _newIndex; }
+    std::function<void()> titleCircleRestEvent = NULL;
     size_t			label_width = 20 ;// {200};
     wxSizer*		sizer {nullptr};
 	OG_CustomCtrl*  custom_ctrl{ nullptr };

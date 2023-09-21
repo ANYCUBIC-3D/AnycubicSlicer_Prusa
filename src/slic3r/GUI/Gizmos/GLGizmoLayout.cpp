@@ -14,6 +14,7 @@ GLGizmoLayout3D::GLGizmoLayout3D(GLCanvas3D& parent, const std::string& icon_fil
 
 bool GLGizmoLayout3D::on_init() 
 {
+    m_shortcut_key = WXK_CONTROL_A;
     return true;
 }
 

@@ -145,7 +145,7 @@ void CreateVolumeJob::finalize(bool canceled, std::exception_ptr &eptr) {
     if (!priv::finalize(canceled, eptr, m_input))
         return;
     if (m_result.its.empty()) 
-        return priv::create_message(_u8L("Can't create empty volume."));
+        return priv::create_message("Can't create empty volume.");
 
     priv::create_volume(std::move(m_result), m_input.object_id, m_input.volume_type, m_input.trmat, m_input);
 }
@@ -198,7 +198,7 @@ void CreateObjectJob::finalize(bool canceled, std::exception_ptr &eptr)
 
     // only for sure
     if (m_result.empty()) 
-        return priv::create_message(_u8L("Can't create empty object."));
+        return priv::create_message("Can't create empty object.");
 
     GUI_App    &app      = wxGetApp();
     Plater     *plater   = app.plater();
@@ -244,7 +244,7 @@ void UpdateJob::process(Ctl &ctl)
     m_result = priv::try_create_mesh(m_input, was_canceled);
     if (was_canceled()) return;
     if (m_result.its.empty())
-        throw priv::JobException(_u8L("Created text volume is empty. Change text or font.").c_str());
+        throw priv::JobException("Created text volume is empty. Change text or font.");
 
     // center triangle mesh
     Vec3d shift = m_result.bounding_box().center();
@@ -430,16 +430,13 @@ TriangleMesh priv::try_create_mesh(DataBase &input, Fnc was_canceled)
 {
     ExPolygons shapes = priv::create_shape(input, was_canceled);
     if (shapes.empty()) return {};
-    if (was_canceled()) return {};
+    if (was_canceled()) return {}; 
     
     const FontProp &prop = input.text_configuration.style.prop;
-    const std::optional<unsigned int> &cn = prop.collection_number;
-    unsigned int font_index = (cn.has_value()) ? *cn : 0;
-    const FontFileWithCache &font = input.font_file;
-    assert(font_index < font.font_file->infos.size());
-    int unit_per_em = font.font_file->infos[font_index].unit_per_em;
-    float scale    = prop.size_in_mm / unit_per_em;
-    float depth    = prop.emboss / scale;
+    const FontFile &ff = *input.font_file.font_file;
+    // NOTE: SHAPE_SCALE is applied in ProjectZ
+    double scale = get_shape_scale(prop, ff) / SHAPE_SCALE;
+    double depth = prop.emboss / scale;    
     auto  projectZ = std::make_unique<ProjectZ>(depth);
     ProjectScale project(std::move(projectZ), scale);
     if (was_canceled()) return {};
@@ -462,8 +459,8 @@ TriangleMesh priv::create_mesh(DataBase &input, Fnc was_canceled, Job::Ctl& ctl)
         if (was_canceled()) return {};
         // only info
         ctl.call_on_main_thread([]() {
-            create_message(_u8L("It is used default volume for embossed "
-                                "text, try to change text or font to fix it."));
+            create_message("It is used default volume for embossed "
+                                "text, try to change text or font to fix it.");
         });
     }
 
@@ -476,17 +473,53 @@ TriangleMesh priv::create_default_mesh()
     // When cant load any font use default object loaded from file
     std::string  path = Slic3r::resources_dir() + "/data/embossed_text.obj";
     TriangleMesh triangle_mesh;
-    if (!load_obj(path.c_str(), &triangle_mesh)) {
+    if (!load_obj(from_u8(path).c_str(), &triangle_mesh)) {
         // when can't load mesh use cube
         return TriangleMesh(its_make_cube(36., 4., 2.5));
     }
     return triangle_mesh;
 }
 
+namespace{
+void update_volume_name(const ModelVolume &volume, const ObjectList *obj_list)
+{
+    if (obj_list == nullptr)
+        return;
+
+    const std::vector<ModelObject *>* objects = obj_list->objects();
+    if (objects == nullptr)
+        return;
+
+    int object_idx = -1;
+    int volume_idx = -1;
+    for (size_t oi = 0; oi < objects->size(); ++oi) {
+        const ModelObject *mo = objects->at(oi);
+        if (mo == nullptr)
+            continue;
+        if (volume.get_object()->id() != mo->id())
+            continue;
+        const ModelVolumePtrs& volumes = mo->volumes;
+        for (size_t vi = 0; vi < volumes.size(); ++vi) {
+            const ModelVolume *mv = volumes[vi];
+            if (mv == nullptr)
+                continue;
+            if (mv->id() == volume.id()){
+                object_idx = static_cast<int>(oi);
+                volume_idx = static_cast<int>(vi);
+                break;
+            }
+        }
+        if (volume_idx > 0)
+            break;
+    }
+    obj_list->update_name_in_list(object_idx, volume_idx);
+}
+}
+
 void UpdateJob::update_volume(ModelVolume             *volume,
                               TriangleMesh           &&mesh,
                               const TextConfiguration &text_configuration,
-                              const std::string       &volume_name)
+                              std::string_view       volume_name)
 {
     // check inputs
     bool is_valid_input = 
@@ -502,20 +535,16 @@ void UpdateJob::update_volume(ModelVolume             *volume,
     volume->calculate_convex_hull();
     volume->get_object()->invalidate_bounding_box();
     volume->text_configuration = text_configuration;
-        
-    GUI_App         &app        = wxGetApp(); // may be move to input
-    GLCanvas3D      *canvas     = app.plater()->canvas3D();
-    const Selection &selection  = canvas->get_selection();
-    const GLVolume  *gl_volume  = selection.get_volume(*selection.get_volume_idxs().begin());
-    int              object_idx = gl_volume->object_idx();
 
+    // discard information about rotation, should not be stored in volume
+    volume->text_configuration->style.prop.angle.reset();
+        
+    GUI_App &app = wxGetApp(); // may be move ObjectList and Plater to input?
+
+    // update volume name in right panel( volume / object name)
     if (volume->name != volume_name) {
         volume->name = volume_name;
-
-        // update volume name in right panel( volume / object name)
-        int         volume_idx = gl_volume->volume_idx();
-        ObjectList *obj_list   = app.obj_list();
-        obj_list->update_name_in_list(object_idx, volume_idx);
+        update_volume_name(*volume, app.obj_list());
     }
 
     // When text is object.
@@ -525,11 +554,12 @@ void UpdateJob::update_volume(ModelVolume             *volume,
         volume->get_object()->ensure_on_bed();
 
     // redraw scene
-    bool refresh_immediately = false;
-    canvas->reload_scene(refresh_immediately);
+    Plater *plater = app.plater();
+    if (plater == nullptr)
+        return;
 
-    // Change buttons "Export G-code" into "Slice now"
-    canvas->post_event(SimpleEvent(EVT_GLCANVAS_SCHEDULE_BACKGROUND_PROCESS));
+    // Update Model and redraw scene
+    plater->update();
 }
 
 void priv::update_volume(TriangleMesh &&mesh, const DataUpdate &data, Transform3d* tr)
@@ -590,10 +620,10 @@ void priv::create_volume(
     // Parent object for text volume was propably removed.
     // Assumption: User know what he does, so text volume is no more needed.
     if (obj == nullptr) 
-        return priv::create_message(_u8L("Bad object to create volume."));
+        return priv::create_message("Bad object to create volume.");
 
     if (mesh.its.empty()) 
-        return priv::create_message(_u8L("Can't create empty volume."));
+        return priv::create_message("Can't create empty volume.");
 
     plater->take_snapshot(_L("Add Emboss text Volume"));
 
@@ -615,6 +645,10 @@ void priv::create_volume(
 
     volume->name               = data.volume_name; // copy
     volume->text_configuration = data.text_configuration; // copy
+
+    // discard information about rotation, should not be stored in volume
+    volume->text_configuration->style.prop.angle.reset();
+
     volume->set_transformation(trmat);
 
     // update printable state on canvas
@@ -639,8 +673,9 @@ void priv::create_volume(
     if (manager.get_current_type() != GLGizmosManager::Emboss) 
         manager.open_gizmo(GLGizmosManager::Emboss);
 
-    // redraw scene
-    canvas->reload_scene(true);
+    // update model and redraw scene
+    //canvas->reload_scene(true);
+    plater->update();
 }
 
 ModelVolume *priv::get_volume(ModelObjectPtrs &objects,
@@ -816,10 +851,6 @@ bool priv::finalize(bool canceled, std::exception_ptr &eptr, const DataBase &inp
     return !process(eptr);
 }
 
-
-#include <wx/msgdlg.h>
-
 void priv::create_message(const std::string &message) {
-    wxMessageBox(wxString(message), _L("Issue during embossing the text."),
-                 wxOK | wxICON_WARNING);
+    show_error(nullptr, message.c_str());
 }

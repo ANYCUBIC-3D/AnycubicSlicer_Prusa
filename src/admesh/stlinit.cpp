@@ -25,12 +25,14 @@
 #include <string.h>
 #include <math.h>
 #include <assert.h>
+#include <type_traits>
 
 #include <boost/log/trivial.hpp>
 #include <boost/nowide/cstdio.hpp>
 #include <boost/predef/other/endian.h>
 
 #include "stl.h"
+#include "stream.h"
 
 #include "libslic3r/LocalesUtils.hpp"
 
@@ -142,6 +144,109 @@ static FILE* stl_open_count_facets(stl_file *stl, const char *file)
   	return fp;
 }
 
+static FILE *stl_open_count_facets(stl_file *stl, std::istream &stream) {
+  stream.seekg(0, std::ios::end);
+  long file_size = stream.tellg();
+
+  auto fp = IStreamFILE::new_from_stream(stream, "rb");
+
+  // Check for binary or ASCII file.
+  fseek(fp, HEADER_SIZE, SEEK_SET);
+  unsigned char chtest[128];
+  if (!fread(chtest, sizeof(chtest), 1, fp)) {
+    BOOST_LOG_TRIVIAL(error)
+        << "stl_open_count_facets: The input is an empty stream";
+    fclose(fp);
+    return nullptr;
+  }
+  stl->stats.type = ascii;
+  for (size_t s = 0; s < sizeof(chtest); s++) {
+    if (chtest[s] > 127) {
+      stl->stats.type = binary;
+      break;
+    }
+  }
+  rewind(fp);
+
+  uint32_t num_facets = 0;
+
+  // Get the header and the number of facets in the .STL file.
+  // If the .STL file is binary, then do the following:
+  if (stl->stats.type == binary) {
+    // Test if the STL file has the right size.
+    if (((file_size - HEADER_SIZE) % SIZEOF_STL_FACET != 0) ||
+        (file_size < STL_MIN_FILE_SIZE)) {
+      BOOST_LOG_TRIVIAL(error)
+          << "stl_open_count_facets: The stream has the wrong size.";
+      fclose(fp);
+      return nullptr;
+    }
+    num_facets = (file_size - HEADER_SIZE) / SIZEOF_STL_FACET;
+
+    // Read the header.
+    if (fread(stl->stats.header, LABEL_SIZE, 1, fp) > 79)
+      stl->stats.header[80] = '\0';
+
+    // Read the int following the header.  This should contain # of facets.
+    uint32_t header_num_facets;
+    bool header_num_faces_read =
+        fread(&header_num_facets, sizeof(uint32_t), 1, fp) != 0;
+#if BOOST_ENDIAN_BIG_BYTE
+    // Convert from little endian to big endian.
+    stl_internal_reverse_quads((char *)&header_num_facets, 4);
+#endif /* BOOST_ENDIAN_BIG_BYTE */
+    if (!header_num_faces_read || num_facets != header_num_facets)
+      BOOST_LOG_TRIVIAL(info)
+          << "stl_open_count_facets: Warning: stream size doesn't match number "
+             "of facets in the header ";
+  }
+  // Otherwise, if the .STL stream is ASCII, then do the following:
+  else {
+    // Reopen the stream in text mode (for getting correct newlines on Windows)
+    // fix to silence a warning about unused return value.
+    // obviously if it fails we have problems....
+    // fp = boost::nowide::freopen(file, "r", fp);
+    rewind(fp);
+
+    // do another null check to be safe
+    if (fp == nullptr) {
+      BOOST_LOG_TRIVIAL(error)
+          << "stl_open_count_facets: Couldn't open stream for reading";
+      fclose(fp);
+      return nullptr;
+    }
+
+    // Find the number of facets.
+    char linebuf[100];
+    int num_lines = 1;
+    while (fgets(linebuf, 100, fp) != nullptr) {
+      // Don't count short lines.
+      if (strlen(linebuf) <= 4)
+        continue;
+      // Skip solid/endsolid lines as broken STL file generators may put several
+      // of them.
+      if (strncmp(linebuf, "solid", 5) == 0 ||
+          strncmp(linebuf, "endsolid", 8) == 0)
+        continue;
+      ++num_lines;
+    }
+
+    rewind(fp);
+
+    // Get the header.
+    int i = 0;
+    for (; i < 80 && (stl->stats.header[i] = getc(fp)) != '\n'; ++i)
+      ;
+    stl->stats.header[i] = '\0'; // Lose the '\n'
+    stl->stats.header[80] = '\0';
+
+    num_facets = num_lines / ASCII_LINES_PER_FACET;
+  }
+
+  stl->stats.number_of_facets += num_facets;
+  stl->stats.original_num_facets = stl->stats.number_of_facets;
+  return fp;
+}
 /* Reads the contents of the file pointed to by fp into the stl structure,
    starting at facet first_facet.  The second argument says if it's our first
    time running this for the stl and therefore we should reset our max and min stats. */
@@ -244,7 +349,18 @@ bool stl_open(stl_file *stl, const char *file)
   	fclose(fp);
   	return result;
 }
-
+bool stl_open(stl_file *stl, std::istream &stream)
+{
+    Slic3r::CNumericLocalesSetter locales_setter;
+	stl->clear();
+	FILE *fp = stl_open_count_facets(stl, stream);
+	if (fp == nullptr)
+		return false;
+	stl_allocate(stl);
+	bool result = stl_read(stl, fp, 0, true);
+  	fclose(fp);
+  	return result;
+}
 void stl_allocate(stl_file *stl) 
 {
   	//  Allocate memory for the entire .STL file.

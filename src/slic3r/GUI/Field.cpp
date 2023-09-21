@@ -6,6 +6,7 @@
 #include "Plater.hpp"
 #include "MainFrame.hpp"
 #include "format.hpp"
+#include "ACButton.hpp"
 
 #include "libslic3r/PrintConfig.hpp"
 
@@ -16,6 +17,7 @@
 #include <wx/listbook.h>
 #include <wx/tokenzr.h>
 #include <wx/window.h>
+#include <wx/graphics.h>
 #include <boost/algorithm/string/predicate.hpp>
 #include "OG_CustomCtrl.hpp"
 #include "MsgDialog.hpp"
@@ -35,7 +37,7 @@ wxString double_to_string(double const value, const int max_precision /*= 4*/)
 // Style_NoTrailingZeroes does not work on OSX. It also does not work correctly with some locales on Windows.
 //	return wxNumberFormatter::ToString(value, max_precision, wxNumberFormatter::Style_NoTrailingZeroes);
 
-	wxString s = wxNumberFormatter::ToString(value, std::abs(value) < 0.0001 ? 10 : max_precision, wxNumberFormatter::Style_None);
+	wxString s = wxNumberFormatter::ToString(value, std::abs(value) < 0.0001 ? 10 : max_precision, wxNumberFormatter::Style_NoTrailingZeroes);
 
 	// The following code comes from wxNumberFormatter::RemoveTrailingZeroes(wxString& s)
 	// with the exception that here one sets the decimal separator explicitely to dot.
@@ -56,7 +58,9 @@ wxString double_to_string(double const value, const int max_precision /*= 4*/)
 		        s = "0";
 		}
 	}
-
+    /*if (s.StartsWith("-")) {
+        s = s.Mid(1);
+    }*/
     return s;
 }
 
@@ -228,7 +232,7 @@ void Field::get_value_by_opt_type(wxString& str, const bool check_value/* = true
             }
 
 			wxString label = m_opt.full_label.empty() ? _(m_opt.label) : _(m_opt.full_label);
-            show_error(m_parent, from_u8((boost::format(_utf8(L("%s doesn't support percentage"))) % label).str()));
+            show_error(m_parent, format_wxstr(_L("%s doesn't support percentage"), label));
 			set_value(double_to_string(m_opt.min), true);
 			m_value = double(m_opt.min);
 			break;
@@ -258,6 +262,8 @@ void Field::get_value_by_opt_type(wxString& str, const bool check_value/* = true
                     break;
                 }
                 show_error(m_parent, _(L("Invalid numeric input.")));
+
+                val = m_value.empty() ? m_opt.min : boost::any_cast<double>(m_value);
                 set_value(double_to_string(val), true);
             }
             if (m_opt.min > val || val > m_opt.max)
@@ -266,29 +272,29 @@ void Field::get_value_by_opt_type(wxString& str, const bool check_value/* = true
                     m_value.clear();
                     break;
                 }
-                if (m_opt_id == "extrusion_multiplier") {
-                    if (m_value.empty() || boost::any_cast<double>(m_value) != val) {
-                        wxString msg_text = format_wxstr(_L("Input value is out of range\n"
-                            "Are you sure that %s is a correct value and that you want to continue?"), str);
-//                        wxMessageDialog dialog(m_parent, msg_text, _L("Parameter validation") + ": " + m_opt_id, wxICON_WARNING | wxYES | wxNO);
-                        WarningDialog dialog(m_parent, msg_text, _L("Parameter validation") + ": " + m_opt_id, wxYES | wxNO);
-                        if (dialog.ShowModal() == wxID_NO) {
-                            if (m_value.empty()) {
-                                if (m_opt.min > val) val = m_opt.min;
-                                if (val > m_opt.max) val = m_opt.max;
-                            }
-                            else
-                                val = boost::any_cast<double>(m_value);
-                            set_value(double_to_string(val), true);
-                        }
-                    }
-                }
-                else {
+//                if (m_opt_id == "extrusion_multiplier") {
+//                    if (m_value.empty() || boost::any_cast<double>(m_value) != val) {
+//                        wxString msg_text = format_wxstr(_L("Input value is out of range\n"
+//                            "Are you sure that %s is a correct value and that you want to continue?"), str);
+////                        wxMessageDialog dialog(m_parent, msg_text, _L("Parameter validation") + ": " + m_opt_id, wxICON_WARNING | wxYES | wxNO);
+//                        WarningDialog dialog(m_parent, msg_text, _L("Parameter validation") + ": " + m_opt_id, wxYES | wxNO);
+//                        if (dialog.ShowModal() == wxID_NO) {
+//                            if (m_value.empty()) {
+//                                if (m_opt.min > val) val = m_opt.min;
+//                                if (val > m_opt.max) val = m_opt.max;
+//                            }
+//                            else
+//                                val = boost::any_cast<double>(m_value);
+//                            set_value(double_to_string(val), true);
+//                        }
+//                    }
+//                }
+//                else {
                     show_error(m_parent, _L("Input value is out of range"));
                     if (m_opt.min > val) val = m_opt.min;
                     if (val > m_opt.max) val = m_opt.max;
                     set_value(double_to_string(val), true);
-                }
+                //}
             }
         }
         m_value = val;
@@ -301,7 +307,7 @@ void Field::get_value_by_opt_type(wxString& str, const bool check_value/* = true
             // Workaroud to avoid of using of the % for first layer height
             // see https://github.com/prusa3d/PrusaSlicer/issues/7418
             wxString label = m_opt.full_label.empty() ? _(m_opt.label) : _(m_opt.full_label);
-            show_error(m_parent, from_u8((boost::format(_utf8(L("%s doesn't support percentage"))) % label).str()));
+            show_error(m_parent, format_wxstr(_L("%s doesn't support percentage"), label));
             const wxString stVal = double_to_string(0.01, 2);
             set_value(stVal, true);
             m_value = into_u8(stVal);;
@@ -343,9 +349,10 @@ void Field::get_value_by_opt_type(wxString& str, const bool check_value/* = true
 
                 const std::string sidetext = m_opt.sidetext.rfind("mm/s") != std::string::npos ? "mm/s" : "mm";
                 const wxString stVal = double_to_string(val, 2);
-                const wxString msg_text = from_u8((boost::format(_utf8(L("Do you mean %s%% instead of %s %s?\n"
-                    "Select YES if you want to change this value to %s%%, \n"
-                    "or NO if you are sure that %s %s is a correct value."))) % stVal % stVal % sidetext % stVal % stVal % sidetext).str());
+                // TRN %1% = Value, %2% = units
+                const wxString msg_text = format_wxstr(_L("Do you mean %1%%% instead of %1% %2%?\n"
+                    "Select YES if you want to change this value to %1%%%, \n"
+                    "or NO if you are sure that %1% %2% is a correct value."), stVal, sidetext);
                 WarningDialog dialog(m_parent, msg_text, _L("Parameter validation") + ": " + m_opt_id, wxYES | wxNO);
                 if ((!infill_anchors || val > 100) && dialog.ShowModal() == wxID_YES) {
                     set_value(from_u8((boost::format("%s%%") % stVal).str()), false/*true*/);
@@ -512,7 +519,11 @@ void TextCtrl::BUILD() {
                   Slic3r::GUI::wxGetApp().code_font():
                   Slic3r::GUI::wxGetApp().normal_font());
 	wxGetApp().UpdateDarkUI(temp);
-
+    if (m_opt.multiline) {
+        text_ctrl->SetWindowStyleFlag(wxTE_AUTO_URL | wxNO_BORDER | wxTE_MULTILINE);
+        text_ctrl->SetBackgroundColour(AC_COLOR_WHITEBLUE);
+        text_ctrl->SetForegroundColour(AC_COLOR_BLACK);
+    }
     if (! m_opt.multiline && !wxOSX)
 		// Only disable background refresh for single line input fields, as they are completely painted over by the edit control.
 		// This does not apply to the multi-line edit field, where the last line and a narrow frame around the text is not cleared.
@@ -548,14 +559,22 @@ void TextCtrl::BUILD() {
 		temp->GetToolTip()->Enable(flag);
 	}), text_ctrl->GetId());
 
+    temp->Bind(wxEVT_SET_FOCUS, ([this, temp](wxEvent &e) {
+            m_hasFoucs = true;
+            e.Skip();
+        }),temp->GetId());
+
 	temp->Bind(wxEVT_KILL_FOCUS, ([this, temp](wxEvent& e)
 	{
 		e.Skip();
+        if (!m_hasFoucs)
+            return;
 #if !defined(__WXGTK__)
 		temp->GetToolTip()->Enable(true);
 #endif // __WXGTK__
         if (!bEnterPressed)
             propagate_value();
+        m_hasFoucs = false;
 	}), temp->GetId());
 /*
 	// select all text using Ctrl+A
@@ -614,6 +633,15 @@ bool TextCtrl::value_was_changed()
 void TextCtrl::propagate_value()
 {
     wxString val = dynamic_cast<wxTextCtrl *>(text_ctrl())->GetValue();
+#ifdef __APPLE__
+    if (m_lastValue != wxEmptyString && m_lastValue == val) {
+        m_lastValue = wxEmptyString;
+        return;
+    } else {
+        m_lastValue = val;
+    }
+#endif // __APPLE__
+
     if (m_opt.nullable && val != na_value())
         m_last_meaningful_value = val;
     //todo: 这是有同步的修改
@@ -622,7 +650,7 @@ void TextCtrl::propagate_value()
 		// on_kill_focus() cause a call of OptionsGroup::reload_config(),
 		// Thus, do it only when it's really needed (when undefined value was input)
         on_kill_focus();
-	else if (value_was_changed())
+    else if (value_was_changed())
         on_change_field();
 }
 
@@ -982,8 +1010,8 @@ boost::any& SpinCtrl::get_value()
     if (spin->GetTextValue() == na_value(true))
         return m_value;
 
-	int value = spin->GetValue();
-	return m_value = value;
+    int value = spin->GetValue();
+    return m_value = value;
 }
 
 void SpinCtrl::propagate_value()
@@ -998,7 +1026,7 @@ void SpinCtrl::propagate_value()
 
     if (tmp_value == UNDEF_VALUE) {
         on_kill_focus();
-	} else {
+    } else {
 #ifdef __WXOSX__
         // check input value for minimum
         if (m_opt.min > 0 && tmp_value < m_opt.min) {
@@ -1044,7 +1072,6 @@ void Choice::BUILD() {
 
 	choice_ctrl* temp;
     if (m_opt.gui_type != ConfigOptionDef::GUIType::undefined
-        && m_opt.gui_type != ConfigOptionDef::GUIType::select_open
         && m_opt.gui_type != ConfigOptionDef::GUIType::select_close) {
         m_is_editable = true;
         temp = new choice_ctrl(m_parent, wxID_ANY, wxString(""), wxDefaultPosition, size, 0, nullptr, wxTE_PROCESS_ENTER);
@@ -1094,8 +1121,8 @@ void Choice::BUILD() {
     temp->Bind(wxEVT_COMBOBOX_DROPDOWN, [this](wxCommandEvent&) { m_is_dropped = true; });
     temp->Bind(wxEVT_COMBOBOX_CLOSEUP,  [this](wxCommandEvent&) { m_is_dropped = false; });
 
-    temp->Bind(wxEVT_COMBOBOX,          [this](wxCommandEvent&) { 
-        on_change_field(); 
+    temp->Bind(wxEVT_COMBOBOX,          [this](wxCommandEvent&) {
+        on_change_field();
         });
 
     if (m_is_editable) {
@@ -1116,6 +1143,18 @@ void Choice::BUILD() {
 
 void Choice::propagate_value()
 {
+#ifdef __APPLE__
+    choice_ctrl *field = dynamic_cast<choice_ctrl *>(window);
+    wxString ret_str = field->GetValue();
+    if (m_lastValue != wxEmptyString && m_lastValue == ret_str) {
+        m_lastValue = wxEmptyString;
+        return;
+    } else {
+        m_lastValue = ret_str;
+    }
+#endif // __APPLE__
+
+
     if (m_opt.type == coStrings) {
         on_change_field();
         return;
@@ -1212,7 +1251,7 @@ void Choice::set_value(const std::string& value, bool change_event)  //! Redunda
         field->SetSelection(*opt);
     else
         field->SetValue(value);
-	m_disable_change_event = false;
+    m_disable_change_event = false;
 }
 
 void Choice::set_value(const boost::any& value, bool change_event)
@@ -1414,14 +1453,19 @@ void ColourPicker::BUILD()
 		clr = wxTransparentColour;
 	}
 
-	auto temp = new wxColourPickerCtrl(m_parent, wxID_ANY, clr, wxDefaultPosition, size);
+	auto temp = new /*wxColourPickerCtrl*/FieldColourPickerCtrl(m_parent, wxID_ANY, clr, wxDefaultPosition, size, wxBORDER_NONE | wxCLRP_SHOW_ALPHA);
     if (parent_is_custom_ctrl && m_opt.height < 0)
         opt_height = (double)temp->GetSize().GetHeight() / m_em_unit;
     temp->SetFont(Slic3r::GUI::wxGetApp().normal_font());
-    if (!wxOSX) temp->SetBackgroundStyle(wxBG_STYLE_PAINT);
 
-	wxGetApp().UpdateDarkUI(temp->GetPickerCtrl());
+    if (!wxOSX) 
+        temp->SetBackgroundStyle(wxBG_STYLE_PAINT);
 
+    temp->SetBackgroundColour(*wxWHITE);
+    if (temp->GetPickerCtrl())
+        temp->GetPickerCtrl()->SetBackgroundColour(*wxWHITE);
+
+	//wxGetApp().UpdateDarkUI(temp->GetPickerCtrl());
 	// 	// recast as a wxWindow to fit the calling convention
 	window = dynamic_cast<wxWindow*>(temp);
 
@@ -1760,6 +1804,36 @@ boost::any& SliderCtrl::get_value()
 // 	int ret_val;
 // 	x_textctrl->GetValue().ToDouble(&val);
 	return m_value = int(m_slider->GetValue()/m_scale);
+}
+
+FieldColourPickerCtrl::FieldColourPickerCtrl(wxWindow* parent, wxWindowID id, const wxColour& colour, const wxPoint& pos, const wxSize& size, long style) :
+	wxColourPickerCtrl(parent, id, colour, pos, size, style)
+{
+	Bind(wxEVT_PAINT, &FieldColourPickerCtrl::OnPaint, this);
+}
+
+void FieldColourPickerCtrl::OnPaint(wxPaintEvent& event)
+{
+#ifdef _WIN32
+    wxColourPickerCtrl::OnPaint(event);
+    return;
+#endif // _WIN32SS
+	wxAutoBufferedPaintDC paintDC(this);
+    if (GetPickerCtrl())
+    {
+       GetPickerCtrl()->SetSize(GetSize().GetWidth() - 2, GetSize().GetHeight() - 2);
+	    GetPickerCtrl()->SetPosition(wxPoint(1, 1)); 
+    }
+    
+	std::unique_ptr<wxGraphicsContext> gc{ wxGraphicsContext::Create(paintDC) };
+
+	if (gc)
+	{
+		gc->SetAntialiasMode(wxANTIALIAS_DEFAULT);
+		gc->SetBrush(wxNullBrush);
+		gc->SetPen(wxPen(wxColour(220, 220, 220), 1));
+		gc->DrawRoundedRectangle(0, 0, GetSize().GetWidth(), GetSize().GetHeight(), 8);
+	}
 }
 
 

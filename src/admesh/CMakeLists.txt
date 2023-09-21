@@ -12,3 +12,11 @@ add_library(admesh STATIC
 )
 
 target_link_libraries(admesh PRIVATE boost_headeronly)
+
+INSTALL(TARGETS admesh
+            RUNTIME DESTINATION bin/
+            LIBRARY DESTINATION lib/
+            ARCHIVE DESTINATION lib/
+    )
+
+INSTALL(FILES stl.h DESTINATION include/admesh)  

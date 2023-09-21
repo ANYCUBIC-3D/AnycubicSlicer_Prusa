@@ -106,6 +106,7 @@ Slic3r::Pointfs Slic3r::intersection_points(const ExPolygons &expolygons)
 #include <libslic3r/BoundingBox.hpp>
 
 namespace priv {
+//FIXME O(n^2) complexity!
 Slic3r::Pointfs compute_intersections(const Slic3r::Lines &lines)
 {
     using namespace Slic3r;

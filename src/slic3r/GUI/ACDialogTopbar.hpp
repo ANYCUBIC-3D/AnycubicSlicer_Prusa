@@ -24,6 +24,10 @@ public:
     void SetShowCloseButton(bool show);
     void msw_rescale();
 
+	ACButton* GetTextPtr();
+	ACButton* GetButtonPtr();
+	void LayoutLeft();// Only call once
+
 public:
     void OnClose(wxEvent &event);
 private:

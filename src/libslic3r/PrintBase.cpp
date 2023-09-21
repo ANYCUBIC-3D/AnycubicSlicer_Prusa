@@ -6,10 +6,6 @@
 
 #include "I18N.hpp"
 
-//! macro used to mark string used at localization, 
-//! return same string
-#define L(s) Slic3r::I18N::translate(s)
-
 namespace Slic3r
 {
 
@@ -81,7 +77,7 @@ std::string PrintBase::output_filename(const std::string &format, const std::str
             filename = boost::filesystem::change_extension(filename, default_ext);
         return filename.string();
     } catch (std::runtime_error &err) {
-        throw Slic3r::PlaceholderParserError(L("Failed processing of the output_filename_format template.") + "\n" + err.what());
+        throw Slic3r::PlaceholderParserError(_u8L("Failed processing of the output_filename_format template.") + "\n" + err.what());
     }
 }
 

@@ -437,7 +437,7 @@ Polygons extract_perimeter_polygons(const Layer *layer, std::vector<const LayerR
 
     if (polygons.empty()) { // If there are no perimeter polygons for whatever reason (disabled perimeters .. ) insert dummy point
         // it is easier than checking everywhere if the layer is not emtpy, no seam will be placed to this layer anyway
-        polygons.emplace_back(std::vector { Point { 0, 0 } });
+        polygons.emplace_back(Points{ { 0, 0 } });
         corresponding_regions_out.push_back(nullptr);
     }
 

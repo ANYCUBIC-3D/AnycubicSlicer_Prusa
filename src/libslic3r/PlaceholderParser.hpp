@@ -20,7 +20,10 @@ public:
     // In the future, the context may hold variables created and modified by the PlaceholderParser
     // and shared between the PlaceholderParser::process() invocations.
     struct ContextData {
-        std::mt19937 rng;
+        std::mt19937                    rng;
+        // If defined, then this dictionary is used by the scripts to define user variables and persist them
+        // between PlaceholderParser evaluations.
+        std::unique_ptr<DynamicConfig>  global_config;
     };
 
     PlaceholderParser(const DynamicConfig *external_config = nullptr);
@@ -55,8 +58,10 @@ public:
 
     // Fill in the template using a macro processing language.
     // Throws Slic3r::PlaceholderParserError on syntax or runtime error.
-    std::string process(const std::string &templ, unsigned int current_extruder_id = 0, const DynamicConfig *config_override = nullptr, ContextData *context = nullptr) const;
-    
+    std::string process(const std::string &templ, unsigned int current_extruder_id, const DynamicConfig *config_override, DynamicConfig *config_outputs, ContextData *context) const;
+    std::string process(const std::string &templ, unsigned int current_extruder_id = 0, const DynamicConfig *config_override = nullptr, ContextData *context = nullptr) const
+        { return this->process(templ, current_extruder_id, config_override, nullptr /* config_outputs */, context); }
+
     // Evaluate a boolean expression using the full expressive power of the PlaceholderParser boolean expression syntax.
     // Throws Slic3r::PlaceholderParserError on syntax or runtime error.
     static bool evaluate_boolean_expression(const std::string &templ, const DynamicConfig &config, const DynamicConfig *config_override = nullptr);

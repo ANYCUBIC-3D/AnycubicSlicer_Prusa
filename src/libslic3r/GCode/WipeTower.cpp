@@ -4,12 +4,17 @@
 #include <iostream>
 #include <vector>
 #include <numeric>
+#include <memory>
 #include <sstream>
 #include <iomanip>
 
+#include "ClipperUtils.hpp"
 #include "GCodeProcessor.hpp"
 #include "BoundingBox.hpp"
 #include "LocalesUtils.hpp"
+#include "Geometry.hpp"
+#include "Surface.hpp"
+#include "Fill/FillRectilinear.hpp"
 
 #include <boost/algorithm/string/predicate.hpp>
 
@@ -88,9 +93,12 @@ public:
     }
 
     WipeTowerWriter&            disable_linear_advance() {
-        m_gcode += (m_gcode_flavor == gcfRepRapSprinter || m_gcode_flavor == gcfRepRapFirmware
-                        ? (std::string("M572 D") + std::to_string(m_current_tool) + " S0\n")
-                        : std::string("M900 K0\n"));
+        if (m_gcode_flavor == gcfRepRapSprinter || m_gcode_flavor == gcfRepRapFirmware)
+            m_gcode += (std::string("M572 D") + std::to_string(m_current_tool) + " S0\n");
+        else if (m_gcode_flavor == gcfKlipper)
+            m_gcode += "SET_PRESSURE_ADVANCE ADVANCE=0\n";
+        else
+            m_gcode += "M900 K0\n";
         return *this;
     }
 
@@ -358,6 +366,8 @@ public:
 	// Set digital trimpot motor
 	WipeTowerWriter& set_extruder_trimpot(int current)
 	{
+        if (m_gcode_flavor == gcfKlipper)
+            return *this;
         if (m_gcode_flavor == gcfRepRapSprinter || m_gcode_flavor == gcfRepRapFirmware)
             m_gcode += "M906 E";
         else
@@ -512,6 +522,8 @@ WipeTower::WipeTower(const PrintConfig& config, const std::vector<std::vector<fl
     m_wipe_tower_width(float(config.wipe_tower_width)),
     m_wipe_tower_rotation_angle(float(config.wipe_tower_rotation_angle)),
     m_wipe_tower_brim_width(float(config.wipe_tower_brim_width)),
+    m_wipe_tower_cone_angle(float(config.wipe_tower_cone_angle)),
+    m_extra_spacing(float(config.wipe_tower_extra_spacing/100.)),
     m_y_shift(0.f),
     m_z_pos(0.f),
     m_bridging(float(config.wipe_tower_bridging)),
@@ -569,7 +581,7 @@ void WipeTower::set_extruder(size_t idx, const PrintConfig& config)
     m_filpar.push_back(FilamentParameters());
 
     m_filpar[idx].material = config.filament_type.get_at(idx);
-    m_filpar[idx].is_soluble = config.filament_soluble.get_at(idx);
+    m_filpar[idx].is_soluble = config.wipe_tower_extruder == 0 ? config.filament_soluble.get_at(idx) : (idx != size_t(config.wipe_tower_extruder - 1));
     m_filpar[idx].temperature = config.temperature.get_at(idx);
     m_filpar[idx].first_layer_temperature = config.first_layer_temperature.get_at(idx);
 
@@ -929,7 +941,7 @@ void WipeTower::toolchange_Unload(
         writer.retract(-m_cooling_tube_length/2.f+m_parking_pos_retraction-m_cooling_tube_retraction, 2000);
     }
 
-	// this is to align ramming and future wiping extrusions, so the future y-steps can be uniform from the start:
+    // this is to align ramming and future wiping extrusions, so the future y-steps can be uniform from the start:
     // the perimeter_width will later be subtracted, it is there to not load while moving over just extruded material
     Vec2f pos = Vec2f(end_of_ramming.x(), end_of_ramming.y() + (y_step/m_extra_spacing-m_perimeter_width) / 2.f + m_perimeter_width);
     if (m_semm)
@@ -937,8 +949,8 @@ void WipeTower::toolchange_Unload(
     else
         writer.set_position(pos);
 
-	writer.resume_preview()
-		  .flush_planner_queue();
+    writer.resume_preview()
+          .flush_planner_queue();
 }
 
 // Change the tool, set a speed override for soluble and flex materials.
@@ -1169,43 +1181,193 @@ WipeTower::ToolChangeResult WipeTower::finish_layer()
                       ";------------------\n\n\n\n\n\n\n");
     }
 
-    // outer perimeter (always):
-    writer.rectangle(wt_box, feedrate);
+    const float spacing = m_perimeter_width - m_layer_height*float(1.-M_PI_4);
+
+    // This block creates the stabilization cone.
+    // First define a lambda to draw the rectangle with stabilization.
+    auto supported_rectangle = [this, &writer, spacing](const box_coordinates& wt_box, double feedrate, bool infill_cone) -> Polygon {
+        const auto [R, support_scale] = get_wipe_tower_cone_base(m_wipe_tower_width, m_wipe_tower_height, m_wipe_tower_depth, m_wipe_tower_cone_angle);
+
+        double z = m_no_sparse_layers ? (m_current_height + m_layer_info->height) : m_layer_info->z; // the former should actually work in both cases, but let's stay on the safe side (the 2.6.0 is close)
+
+        double r = std::tan(Geometry::deg2rad(m_wipe_tower_cone_angle/2.f)) * (m_wipe_tower_height - z);
+        Vec2f center = (wt_box.lu + wt_box.rd) / 2.;
+        double w = wt_box.lu.y() - wt_box.ld.y();
+        enum Type {
+            Arc,
+            Corner,
+            ArcStart,
+            ArcEnd
+        };
+
+        // First generate vector of annotated point which form the boundary.
+        std::vector<std::pair<Vec2f, Type>> pts = {{wt_box.ru, Corner}};        
+        if (double alpha_start = std::asin((0.5*w)/r); ! std::isnan(alpha_start) && r > 0.5*w+0.01) {
+            for (double alpha = alpha_start; alpha < M_PI-alpha_start+0.001; alpha+=(M_PI-2*alpha_start) / 20.)
+                pts.emplace_back(Vec2f(center.x() + r*std::cos(alpha)/support_scale, center.y() + r*std::sin(alpha)), alpha == alpha_start ? ArcStart : Arc);
+            pts.back().second = ArcEnd;
+        }        
+        pts.emplace_back(wt_box.lu, Corner);
+        pts.emplace_back(wt_box.ld, Corner);
+        for (int i=int(pts.size())-3; i>0; --i)
+            pts.emplace_back(Vec2f(pts[i].first.x(), 2*center.y()-pts[i].first.y()), i == int(pts.size())-3 ? ArcStart : i == 1 ? ArcEnd : Arc);
+        pts.emplace_back(wt_box.rd, Corner);
+
+        // Create a Polygon from the points.
+        Polygon poly;
+        for (const auto& [pt, tag] : pts)
+            poly.points.push_back(Point::new_scale(pt));
+
+        // Prepare polygons to be filled by infill.
+        Polylines polylines;
+        if (infill_cone && m_wipe_tower_width > 2*spacing && m_wipe_tower_depth > 2*spacing) {
+            ExPolygons infill_areas;
+            ExPolygon wt_contour(poly);
+            Polygon wt_rectangle(Points{Point::new_scale(wt_box.ld), Point::new_scale(wt_box.rd), Point::new_scale(wt_box.ru), Point::new_scale(wt_box.lu)});
+            wt_rectangle = offset(wt_rectangle, scale_(-spacing/2.)).front();
+            wt_contour = offset_ex(wt_contour, scale_(-spacing/2.)).front();
+            infill_areas = diff_ex(wt_contour, wt_rectangle);
+            if (infill_areas.size() == 2) {
+                ExPolygon& bottom_expoly = infill_areas.front().contour.points.front().y() < infill_areas.back().contour.points.front().y() ? infill_areas[0] : infill_areas[1];
+                std::unique_ptr<Fill> filler(Fill::new_from_type(ipMonotonicLines));
+                filler->angle = Geometry::deg2rad(45.f);
+                filler->spacing = spacing;
+                FillParams params;
+                params.density = 1.f;
+                Surface surface(stBottom, bottom_expoly);
+                filler->bounding_box = get_extents(bottom_expoly);
+                polylines = filler->fill_surface(&surface, params);
+                if (! polylines.empty()) {
+                    if (polylines.front().points.front().x() > polylines.back().points.back().x()) {
+                        std::reverse(polylines.begin(), polylines.end());
+                        for (Polyline& p : polylines)
+                            p.reverse();
+                    }
+                }
+            }
+        }
+
+        // Find the closest corner and travel to it.
+        int start_i = 0;
+        double min_dist = std::numeric_limits<double>::max();
+        for (int i=0; i<int(pts.size()); ++i) {
+            if (pts[i].second == Corner) {
+                double dist = (pts[i].first - Vec2f(writer.x(), writer.y())).squaredNorm();
+                if (dist < min_dist) {
+                    min_dist = dist;
+                    start_i = i;
+                }
+            }
+        }
+        writer.travel(pts[start_i].first);
+
+        // Now actually extrude the boundary (and possibly infill):
+        int i = start_i+1 == int(pts.size()) ? 0 : start_i + 1;
+        while (i != start_i) {
+            writer.extrude(pts[i].first, feedrate);
+            if (pts[i].second == ArcEnd) {
+                // Extrude the infill.
+                if (! polylines.empty()) {
+                    // Extrude the infill and travel back to where we were.
+                    bool mirror = ((pts[i].first.y() - center.y()) * (unscale(polylines.front().points.front()).y() - center.y())) < 0.;
+                    for (const Polyline& line : polylines) {
+                        writer.travel(center - (mirror ? 1.f : -1.f) * (unscale(line.points.front()).cast<float>() - center));
+                        for (size_t i=0; i<line.points.size(); ++i)
+                            writer.extrude(center - (mirror ? 1.f : -1.f) * (unscale(line.points[i]).cast<float>() - center));
+                    }
+                    writer.travel(pts[i].first);
+                }
+            }
+            if (++i == int(pts.size()))
+                i = 0;
+        }
+        writer.extrude(pts[start_i].first, feedrate);
+        return poly;
+    };
+
+    // outer contour (always)
+    bool infill_cone = first_layer && m_wipe_tower_width > 2*spacing && m_wipe_tower_depth > 2*spacing;
+    Polygon poly = supported_rectangle(wt_box, feedrate, infill_cone);
+
 
     // brim (first layer only)
     if (first_layer) {
-        box_coordinates box = wt_box;
-        float spacing = m_perimeter_width - m_layer_height*float(1.-M_PI_4);
-        // How many perimeters shall the brim have?
         size_t loops_num = (m_wipe_tower_brim_width + spacing/2.f) / spacing;
-
+        
         for (size_t i = 0; i < loops_num; ++ i) {
-            box.expand(spacing);
-            writer.rectangle(box);
+            poly = offset(poly, scale_(spacing)).front();
+            int cp = poly.closest_point_index(Point::new_scale(writer.x(), writer.y()));
+            writer.travel(unscale(poly.points[cp]).cast<float>());
+            for (int i=cp+1; true; ++i ) {
+                if (i==int(poly.points.size()))
+                    i = 0;
+                writer.extrude(unscale(poly.points[i]).cast<float>());
+                if (i == cp)
+                    break;
+            }
         }
 
         // Save actual brim width to be later passed to the Print object, which will use it
         // for skirt calculation and pass it to GLCanvas for precise preview box
-        m_wipe_tower_brim_width_real = wt_box.ld.x() - box.ld.x() + spacing/2.f;
-        wt_box = box;
+        m_wipe_tower_brim_width_real = loops_num * spacing;
     }
 
-    // Now prepare future wipe. box contains rectangle that was extruded last (ccw).
-    Vec2f target = (writer.pos() == wt_box.ld ? wt_box.rd :
-                   (writer.pos() == wt_box.rd ? wt_box.ru :
-                   (writer.pos() == wt_box.ru ? wt_box.lu :
-                    wt_box.ld)));
-    writer.add_wipe_point(writer.pos())
-          .add_wipe_point(target);
-
+    // Now prepare future wipe.
+    int i = poly.closest_point_index(Point::new_scale(writer.x(), writer.y()));
+    writer.add_wipe_point(writer.pos());
+    writer.add_wipe_point(unscale(poly.points[i==0 ? int(poly.points.size())-1 : i-1]).cast<float>());
 
     // Ask our writer about how much material was consumed.
     // Skip this in case the layer is sparse and config option to not print sparse layers is enabled.
-    if (! m_no_sparse_layers || toolchanges_on_layer || first_layer)
+    if (! m_no_sparse_layers || toolchanges_on_layer || first_layer) {
         if (m_current_tool < m_used_filament_length.size())
             m_used_filament_length[m_current_tool] += writer.get_and_reset_used_filament_length();
+        m_current_height += m_layer_info->height;
+    }
 
     return construct_tcr(writer, false, old_tool);
+}
+
+// Static method to get the radius and x-scaling of the stabilizing cone base.
+std::pair<double, double> WipeTower::get_wipe_tower_cone_base(double width, double height, double depth, double angle_deg)
+{
+    double R = std::tan(Geometry::deg2rad(angle_deg/2.)) * height;
+    double fake_width = 0.66 * width;
+    double diag = std::hypot(fake_width / 2., depth / 2.);
+    double support_scale = 1.;
+    if (R > diag) {
+        double w = fake_width;
+        double sin = 0.5 * depth / diag;
+        double tan = depth / w;
+        double t = (R - diag) * sin;
+        support_scale = (w / 2. + t / tan + t * tan) / (w / 2.);
+    }
+    return std::make_pair(R, support_scale);
+}
+
+// Static method to extract wipe_volumes[from][to] from the configuration.
+std::vector<std::vector<float>> WipeTower::extract_wipe_volumes(const PrintConfig& config)
+{
+    // Get wiping matrix to get number of extruders and convert vector<double> to vector<float>:
+    std::vector<float> wiping_matrix(cast<float>(config.wiping_volumes_matrix.values));
+
+    // The values shall only be used when SEMM is enabled. The purging for other printers
+    // is determined by filament_minimal_purge_on_wipe_tower.
+    if (! config.single_extruder_multi_material.value)
+        std::fill(wiping_matrix.begin(), wiping_matrix.end(), 0.f);
+
+    // Extract purging volumes for each extruder pair:
+    std::vector<std::vector<float>> wipe_volumes;
+    const unsigned int number_of_extruders = (unsigned int)(sqrt(wiping_matrix.size())+EPSILON);
+    for (unsigned int i = 0; i<number_of_extruders; ++i)
+        wipe_volumes.push_back(std::vector<float>(wiping_matrix.begin()+i*number_of_extruders, wiping_matrix.begin()+(i+1)*number_of_extruders));
+
+    // Also include filament_minimal_purge_on_wipe_tower. This is needed for the preview.
+    for (unsigned int i = 0; i<number_of_extruders; ++i)
+        for (unsigned int j = 0; j<number_of_extruders; ++j)
+            wipe_volumes[i][j] = std::max<float>(wipe_volumes[i][j], config.filament_minimal_purge_on_wipe_tower.get_at(j));
+
+    return wipe_volumes;
 }
 
 // Appends a toolchange into m_plan and calculates neccessary depth of the corresponding box
@@ -1250,6 +1412,8 @@ void WipeTower::plan_tower()
 	m_wipe_tower_depth = 0.f;
 	for (auto& layer : m_plan)
 		layer.depth = 0.f;
+    m_wipe_tower_height = m_plan.empty() ? 0.f : m_plan.back().z;
+    m_current_height = 0.f;
 	
     for (int layer_index = int(m_plan.size()) - 1; layer_index >= 0; --layer_index)
 	{
@@ -1334,8 +1498,6 @@ void WipeTower::generate(std::vector<std::vector<WipeTower::ToolChangeResult>> &
 	if (m_plan.empty())
         return;
 
-    m_extra_spacing = 1.f;
-
 	plan_tower();
     for (int i=0;i<5;++i) {
         save_on_last_wipe();
@@ -1343,6 +1505,7 @@ void WipeTower::generate(std::vector<std::vector<WipeTower::ToolChangeResult>> &
     }
 
     m_layer_info = m_plan.begin();
+    m_current_height = 0.f;
 
     // we don't know which extruder to start with - we'll set it according to the first toolchange
     for (const auto& layer : m_plan) {
@@ -1358,7 +1521,7 @@ void WipeTower::generate(std::vector<std::vector<WipeTower::ToolChangeResult>> &
     m_old_temperature = -1; // reset last temperature written in the gcode
 
     std::vector<WipeTower::ToolChangeResult> layer_result;
-	for (auto layer : m_plan)
+	for (const WipeTower::WipeTowerInfo& layer : m_plan)
 	{
         set_layer(layer.z, layer.height, 0, false/*layer.z == m_plan.front().z*/, layer.z == m_plan.back().z);
         m_internal_rotation += 180.f;
@@ -1397,6 +1560,21 @@ void WipeTower::generate(std::vector<std::vector<WipeTower::ToolChangeResult>> &
 
 		result.emplace_back(std::move(layer_result));
 	}
+}
+
+
+
+std::vector<std::pair<float, float>> WipeTower::get_z_and_depth_pairs() const
+{
+    std::vector<std::pair<float, float>> out = {{0.f, m_wipe_tower_depth}};
+    for (const WipeTowerInfo& wti : m_plan) {
+        assert(wti.depth < wti.depth + WT_EPSILON);
+        if (wti.depth < out.back().second - WT_EPSILON)
+            out.emplace_back(wti.z, wti.depth);
+    }
+    if (out.back().first < m_wipe_tower_height - WT_EPSILON)
+        out.emplace_back(m_wipe_tower_height, 0.f);
+    return out;
 }
 
 } // namespace Slic3r

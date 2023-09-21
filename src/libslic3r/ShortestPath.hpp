@@ -8,9 +8,12 @@
 #include <utility>
 #include <vector>
 
-namespace ClipperLib { class PolyNode; }
-
 namespace Slic3r {
+
+	namespace ClipperLib {
+		class PolyNode;
+		using PolyNodes = std::vector<PolyNode*, PointsAllocator<PolyNode*>>;
+	}
 
 class ExPolygon;
 using ExPolygons = std::vector<ExPolygon>;
@@ -29,7 +32,7 @@ void                                 chain_and_reorder_extrusion_paths(std::vect
 Polylines 							 chain_polylines(Polylines &&src, const Point *start_near = nullptr);
 inline Polylines 					 chain_polylines(const Polylines& src, const Point* start_near = nullptr) { Polylines tmp(src); return chain_polylines(std::move(tmp), start_near); }
 
-std::vector<ClipperLib::PolyNode*>	 chain_clipper_polynodes(const Points &points, const std::vector<ClipperLib::PolyNode*> &items);
+ClipperLib::PolyNodes				 chain_clipper_polynodes(const Points &points, const ClipperLib::PolyNodes &items);
 
 // Chain instances of print objects by an approximate shortest path.
 // Returns pairs of PrintObject idx and instance of that PrintObject.

@@ -44,7 +44,7 @@ public:
     {
         CHECKSTYLE_NO_CHECK = 0,
         CHECKSTYLE_ON,
-        CHECKSTYLE_ON_BOX,
+        CHECKSTYLE_ON_BOX,     // checkbox
         CHECKSTYLE_ON_HALF,
         CHECKSTYLE_ON_MARK,
     };
@@ -89,6 +89,8 @@ public:
 
     void SetHalfChecked(bool sendEvents = false);
 
+    void SetTextAtLeft(bool atLeft = true);
+
     bool GetChecked() const { return m_checkState != CHECKSTATE_OFF; }
 
     bool checkable() const { return m_checkStyle != CHECKSTYLE_NO_CHECK; }
@@ -119,6 +121,8 @@ public:
 
     void messureSize();
 
+    void setFixedSizePar(int index) { m_fixedWidth = index; }
+
 protected:
 #ifdef __WIN32__
     WXLRESULT MSWWindowProc(WXUINT nMsg, WXWPARAM wParam, WXLPARAM lParam) override;
@@ -144,6 +148,9 @@ protected:
     DECLARE_EVENT_TABLE()
 
 private:
+    wxString firstPart;
+    wxString secondPart;
+    int m_fixedWidth = 0;
     wxSize m_szText = wxSize(0,0);
     wxSize m_minSize; // set by outer
     wxSize m_paddingSize;
@@ -180,6 +187,7 @@ private:
     int m_spacing = 5;
     int m_circleSize = 6;
     bool m_isHorizontal = true;
+    bool m_textAtLeft = true;
     AC_BUTTON_CHECK_STYLE m_checkStyle = CHECKSTYLE_NO_CHECK;
     AC_BUTTON_CHECK_STATE m_checkState = CHECKSTATE_OFF;
     bool                  m_draw_circle    = false;

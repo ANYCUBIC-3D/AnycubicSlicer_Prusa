@@ -3,6 +3,8 @@
 
 #include "GLGizmoPainterBase.hpp"
 
+#include "slic3r/GUI/I18N.hpp"
+
 namespace Slic3r::GUI {
 
 class GLGizmoFdmSupports : public GLGizmoPainterBase
@@ -21,12 +23,12 @@ protected:
 
     std::string get_gizmo_entering_text() const override { return _u8L("Entering Paint-on supports"); }
     std::string get_gizmo_leaving_text() const override { return _u8L("Leaving Paint-on supports"); }
-    std::string get_action_snapshot_name() override { return _u8L("Paint-on supports editing"); }
+    std::string get_action_snapshot_name() const override { return _u8L("Paint-on supports editing"); }
 
 
 private:
     bool on_init() override;
-    void data_changed() override;
+    void data_changed(bool is_serializing) override;
 
     void update_model_object() const override;
     void update_from_model_object() override;

@@ -1,0 +1,23 @@
+number=8
+SRC_BUILD_DIR=$(rootdir)buildd
+INSTALL_DIR=$(rootdir)install
+DEPS_DIR=$(rootdir)deps
+DEPS_ISNTALL_DIR=$(DEPS_DIR)/deps_install
+DEPS_DOWNLOAD_DIR=$(DEPS_DIR)/download
+DEPS_BUILD_DIR=$(DEPS_DIR)/build
+
+
+build:
+	ls $(DEPS_BUILD_DIR)/finished || { cmake -S $(DEPS_DIR) -B $(DEPS_BUILD_DIR) -DDESTDIR:PATH=$(DEPS_ISNTALL_DIR) \
+		-DDEP_DOWNLOAD_DIR:PATH=$(DEPS_DOWNLOAD_DIR) -DSLIC3R_STATIC:BOOL=ON -DSLIC3R_GUI:BOOL=OFF -DENABLE_CGAL:BOOL=OFF -DCMAKE_BUILD_TYPE:STRING=Release \
+		&&  cmake --build $(DEPS_BUILD_DIR) -j$(number) &&  touch $(DEPS_BUILD_DIR)/finished ; }
+	cmake -S $(rootdir) -B $(SRC_BUILD_DIR) -DCMAKE_PREFIX_PATH:PATH=$(DEPS_ISNTALL_DIR)/usr/local -DSLIC3R_ENABLE_FORMAT_STEP:BOOL=OFF -DSLIC3R_STATIC:BOOL=ON \
+	-DSLIC3R_GUI:BOOL=OFF -DENABLE_CGAL:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH=$(INSTALL_DIR) -DCMAKE_BUILD_TYPE:STRING=$(type)
+	cmake --build $(SRC_BUILD_DIR) --target install -j$(number)
+
+clean:
+	rm -rf $(DEPS_BUILD_DIR) && rm -rf $(SRC_BUILD_DIR)||echo "">/dev/null
+
+
+install:
+	sudo apt install -y libdbus-1-dev libglu1-mesa-dev

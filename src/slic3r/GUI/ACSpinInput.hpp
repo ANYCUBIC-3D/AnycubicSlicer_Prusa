@@ -20,7 +20,7 @@ class ACSpinInput : public wxNavigationEnabled<ACStaticBox>
     int min;
     int max;
     int delta;
-
+    bool             activate = false;
     static const int ACSpinInputWidth = 200;
     static const int ACSpinInputHeight = 50;
 
@@ -44,7 +44,7 @@ public:
               int            min     = 0,
               int            max     = 100,
               int            initial = 0);
-
+    void SetActivateState(bool newIndex) { activate = newIndex; }
     void SetCornerRadius(double radius);
 
     void SetLabel(const wxString &label) wxOVERRIDE;
@@ -97,6 +97,7 @@ private:
     void keyPressed(wxKeyEvent& event);
     void onTimer(wxTimerEvent &evnet);
     void onTextLostFocus(wxEvent &event);
+    void onTextGetFocus(wxFocusEvent &event);
     void onTextEnter(wxCommandEvent &event);
 
     void sendSpinEvent();

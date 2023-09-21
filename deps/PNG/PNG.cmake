@@ -20,7 +20,7 @@ prusaslicer_add_cmake_project(PNG
     CMAKE_ARGS
         -DPNG_SHARED=OFF
         -DPNG_STATIC=ON
-        -DPNG_PREFIX=prusaslicer_
+        -DPNG_PREFIX=anycubicslicer_
         -DPNG_TESTS=OFF
         -DDISABLE_DEPENDENCY_TRACKING=OFF
         ${_disable_neon_extension}

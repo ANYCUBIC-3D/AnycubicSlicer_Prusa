@@ -3,7 +3,10 @@
 #include "OptionsGroup.hpp"
 #include "libslic3r/AppConfig.hpp"
 #include "GUI.hpp"
-//#include "Plater.hpp"
+#include "MsgDialog.hpp"
+#include "Plater.hpp"
+#include <wx/evtloop.h>
+#include "MainFrame.hpp"
 //#include "MsgDialog.hpp"
 //#include "I18N.hpp"
 //#include "libslic3r/AppConfig.hpp"
@@ -30,15 +33,17 @@ namespace Slic3r {
 
 namespace GUI {
 
+wxDEFINE_EVENT(EVT_ACSLICER_APP_CHANGE_LANGUAGE, wxCommandEvent);
 
 ACPreferencesDialog::ACPreferencesDialog(wxWindow* parent)
-	: DPIDialog(parent, wxID_ANY, _L("Preferences"), wxDefaultPosition,  wxDefaultSize, wxNO_BORDER)
+    : DPIDialog(parent, wxID_ANY, _L("Preferences"), wxDefaultPosition, wxDefaultSize, wxNO_BORDER, "ACPreferencesDialog")
 {
 	create();
 }
 
 void ACPreferencesDialog::create()
 {
+    AddWindowDrakEdg(this);
 	this->SetBackgroundColour(AC_COLOR_WHITE);
 
 	const int &em = em_unit();
@@ -53,17 +58,15 @@ void ACPreferencesDialog::create()
 	m_page->SetBackgroundColour(AC_COLOR_PANEL_BG);
 	m_page->SetCornerRadius(14);
 	m_page->SetSizer(m_pageSizer);
-
+    m_page->SetFocus();
 	m_mainSizer = new wxBoxSizer(wxVERTICAL);
-	m_mainSizer->Add(topbar, 0, wxEXPAND);
+    m_mainSizer->Add(topbar, 0, wxEXPAND | wxTOP | wxLEFT | wxRIGHT, 1);
 	m_mainSizer->Add(m_page, 1, wxEXPAND|wxALL, 14);
-
 	SetSizer(m_mainSizer);
 
 	build();
-
+    Refresh();
 	Layout();
-	Refresh();
 }
 
 static std::shared_ptr<ConfigOptionsGroup> create_options_group(const wxString& title, wxWindow* parent)
@@ -91,7 +94,7 @@ static void ac_append_bool_option( std::shared_ptr<ConfigOptionsGroup> optgroup,
 	optgroup->append_single_option_line(option);
 
 	//// fill data to the Search Dialog
-	//wxGetApp().sidebar().get_searcher().add_key(opt_key, Preset::TYPE_PREFERENCES, optgroup->config_category(), L("Preferences"));
+	//wxGetApp().plater()->get_searcher().add_key(opt_key, Preset::TYPE_PREFERENCES, optgroup->config_category(), L("Preferences"));
 }
 
 static void ac_append_enum_option( std::shared_ptr<ConfigOptionsGroup> optgroup,
@@ -108,7 +111,7 @@ static void ac_append_enum_option( std::shared_ptr<ConfigOptionsGroup> optgroup,
 	def.tooltip = tooltip;
 	def.mode = mode;
     def.gui_flags = "show_value";
-	def.set_enum_values(ConfigOptionDef::GUIType::select_open, enum_labels);
+    def.set_enum_values(ConfigOptionDef::GUIType::select_close, enum_labels);
 	def.set_default_value(def_val);
 
 	Option option(def, opt_key);
@@ -134,26 +137,78 @@ void ACPreferencesDialog::build()
 	int defaultIndex;
 	int curIndex;
 	wxGetApp().get_language_info(language_infos, languageNames, defaultIndex, curIndex);
+
+	if (curIndex == -1)
+		curIndex = defaultIndex;
+
 	std::string defaultSelName = curIndex == -1 ? "" : languageNames[curIndex];
 
 	m_optgroup_language = create_options_group(L("General"), m_page);
-	m_optgroup_language->m_on_change = [this, languageNames, language_infos, defaultIndex, curIndex](t_config_option_key opt_key, boost::any value) {
+
+	static bool isLanguageSetting = false;
+
+	m_optgroup_language->m_on_change = [this, defaultSelName,languageNames, language_infos,
+                                        curIndex](t_config_option_key opt_key, boost::any value) {
+		if (isLanguageSetting)
+			return;
+		isLanguageSetting = true;
         const std::string& selection = boost::any_cast<std::string>(value);
 		auto itSel = std::find(languageNames.begin(), languageNames.end(), selection);
 		if (itSel == languageNames.end()) {
+			isLanguageSetting = false;
 			return;
 		}
 		int selIndex = int(itSel - languageNames.begin());
 
-		if (curIndex != -1 && selIndex == curIndex)
+		if (curIndex != -1 && selIndex == curIndex) {
+			isLanguageSetting = false;
 			return;
-
-		if (selIndex >= 0 && selIndex < language_infos.size()) {
-			this->Close();
-			wxGetApp().switch_language(language_infos[selIndex]);
-			// m_recreate_GUI = true;
 		}
+		
+		ChangeLanguageInfo* info = new ChangeLanguageInfo();
+		info->currentLanguage = defaultSelName;
+		info->targetLanguage  = language_infos[selIndex];
+
+		wxCommandEvent evt(EVT_ACSLICER_APP_CHANGE_LANGUAGE);
+		evt.SetClientData(info);
+		evt.SetEventObject(this);
+		wxPostEvent(this, evt);
 	};
+
+	Bind(EVT_ACSLICER_APP_CHANGE_LANGUAGE, [this](const wxCommandEvent &evt) {
+		ChangeLanguageInfo* ptr = static_cast<ChangeLanguageInfo*>(evt.GetClientData());
+		ChangeLanguageInfo info = *ptr;
+		delete ptr;
+
+		int id = -1;
+		{
+
+			MessageDialog dialog( this, _L("Attention: Switching languages requires a reboot and the current operation will not be saved!"),
+                                 _L("Switching Language"), wxYES_NO | wxNO_DEFAULT | wxICON_QUESTION);
+            dialog.SetName("select_switching_warning_dialog");
+#ifdef _WIN32
+            dialog.SetYesBtnLabel(_L("YES"));
+            dialog.SetNoBtnLabel(_L("NO"));
+#else
+
+            dialog.SetYesNoLabels(_L("YES"), _L("NO"));
+#endif
+			id = dialog.ShowModal();
+		}
+
+		if (id == wxID_YES) {
+            this->EndModal(wxID_YES);
+            wxGetApp().switch_language(info.targetLanguage);
+        } else {
+			{
+				wxWindowUpdateLocker locker(this);
+				dynamic_cast<Choice *>(m_optgroup_language->get_field("language"))->set_value(info.currentLanguage, false);
+			}
+            this->Raise();
+        }
+
+		isLanguageSetting = false;
+    }); 
 
 	ac_append_enum_option(m_optgroup_language, "language",
 		L("Language"),
@@ -200,6 +255,9 @@ void ACPreferencesDialog::build()
 
 	this->SetMinSize(minSize);
 	this->SetSize(this->GetSize().x, minSize.y);
+    int screenwidth  = wxSystemSettings::GetMetric(wxSYS_SCREEN_X, NULL);
+    int screenheight = wxSystemSettings::GetMetric(wxSYS_SCREEN_Y, NULL);
+    SetPosition(wxPoint((screenwidth - minSize.x) / 2, (screenheight - minSize.y) / 2));
 }
 
 std::vector<ConfigOptionsGroup*> ACPreferencesDialog::optgroups()
@@ -274,15 +332,15 @@ void ACPreferencesDialog::show(const std::string& highlight_opt_key /*= std::str
 	//	for (size_t mode = 0; mode < color_pickres.size(); ++mode)
 	//		update_color(color_pickres[mode], palette[mode]);
 	//}
-    if (IsShown()) {
-        SetFocus();
-    }
-    else {
-        Show();
-    }
 
-	if (IsIconized())
-        Iconize(false);
+    /*if (markDialog == nullptr)
+        setDialogObj(setMarkWindow(this->GetParent(), this));*/
+
+	/*this->Show();
+	wxGetApp().mainframe->Raise();
+	this->Raise();*/
+    this->ShowModal();
+
 }
 
 

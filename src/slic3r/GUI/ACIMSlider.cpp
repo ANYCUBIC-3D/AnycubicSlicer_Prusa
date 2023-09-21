@@ -456,10 +456,10 @@ bool ACIMSlider::init_texture()
         // BBS init image texture id
         //result &= IMTexture::load_from_svg_file(Slic3r::resources_dir() + "/icons/reset_normal.svg", 20, 20, m_reset_normal_id);
         //result &= IMTexture::load_from_svg_file(Slic3r::resources_dir() + "/icons/reset_hover.svg", 20, 20, m_reset_hover_id);
-        result &= IMTexture::load_from_svg_file(Slic3r::resources_dir() + "/icons/one-layer_lock-nor.svg", 24, 24, m_one_layer_on_id);
-        result &= IMTexture::load_from_svg_file(Slic3r::resources_dir() + "/icons/one-layer_lock-hover.svg", 28, 28, m_one_layer_on_hover_id);
-        result &= IMTexture::load_from_svg_file(Slic3r::resources_dir() + "/icons/layer_lock-nor.svg", 28, 28, m_one_layer_off_id);
-        result &= IMTexture::load_from_svg_file(Slic3r::resources_dir() + "/icons/layer_lock-hover.svg", 28, 28, m_one_layer_off_hover_id);
+        result &= IMTexture::load_from_svg_file(Slic3r::resources_dir() + "/icons/one-layer_lock-nor.svg", 44, 44, m_one_layer_on_id);
+        result &= IMTexture::load_from_svg_file(Slic3r::resources_dir() + "/icons/one-layer_lock-hover.svg", 44, 44, m_one_layer_on_hover_id);
+        result &= IMTexture::load_from_svg_file(Slic3r::resources_dir() + "/icons/layer_lock-nor.svg", 44, 44, m_one_layer_off_id);
+        result &= IMTexture::load_from_svg_file(Slic3r::resources_dir() + "/icons/layer_lock-hover.svg", 44, 44, m_one_layer_off_hover_id);
         //result &= IMTexture::load_from_svg_file(Slic3r::resources_dir() + "/icons/one_layer_arrow.svg", 28, 28, m_one_layer_arrow_id);
         result &= IMTexture::load_from_svg_file(Slic3r::resources_dir() + "/icons/im_gcode_pause.svg", 14, 14, m_pause_icon_id);
         result &= IMTexture::load_from_svg_file(Slic3r::resources_dir() + "/icons/im_slider_delete.svg", 14, 14, m_delete_icon_id);
@@ -734,7 +734,7 @@ void ACIMSlider::draw_background(const ImRect& groove) {
         bg_rect.Expand(groove_padding);
 
         // draw bg of slider
-        ImGui::RenderFrame(bg_rect.Min, bg_rect.Max, bg_rect_col, false, 0.5 * bg_rect.GetWidth());
+        //ImGui::RenderFrame(bg_rect.Min, bg_rect.Max, bg_rect_col, false, 0.5 * bg_rect.GetWidth());
         // draw bg of scroll
         ImGui::RenderFrame(groove.Min, groove.Max, groove_col, false, 0.5 * groove.GetWidth());
     }
@@ -766,21 +766,24 @@ bool ACIMSlider::horizontal_slider(const char* str_id, int* value, int v_min, in
     float  text_right_dummy    = 50.0f * scale * m_scale;
     float  groove_y            = 8.0f * m_scale;
     float  draggable_region_y  = 19.0f * m_scale;
-    float  handle_radius       = 14.0f * m_scale;
+    float  handle_radius       = 10.0f * m_scale;
     float  handle_border       = 2.0f * m_scale;
     float  rounding            = 2.0f * m_scale;
-    float  text_start_offset   = 8.0f * m_scale;
+    float  text_start_offset   = 10.0f * m_scale;
     ImVec2 text_padding        = ImVec2(5.0f, 2.0f) * m_scale;
     float  triangle_offsets[3] = {-3.5f * m_scale, 3.5f * m_scale, -6.06f * m_scale};
 
 
     const ImU32 white_bg = IM_COL32(57, 134, 255, 255);
-    const ImU32 handle_clr = IM_COL32(57, 134, 255, 255);
-    const ImU32 handle_border_clr = IM_COL32(248, 248, 248, 255);
+    const ImU32 acBlue_clr = IM_COL32(57, 134, 255, 255);
+    const ImU32 normal_handle_clr     = IM_COL32(198, 200, 204, 255);
+    const ImU32 handle_out_clr        = IM_COL32(57, 134, 255, 64);
+    const ImU32 handle_clr     = IM_COL32(248, 248, 248, 255);
+    ImU32 handle_border_clr     = normal_handle_clr;
 
     // calc groove size
-    ImVec2 groove_start = ImVec2(pos.x + handle_dummy_width, pos.y + size.y - groove_y - bottom_dummy);
-    ImVec2 groove_size = ImVec2(size.x - 2 * handle_dummy_width - text_right_dummy, groove_y);
+    ImVec2 groove_start = ImVec2(pos.x + handle_dummy_width, pos.y + size.y - groove_y/2 - bottom_dummy);
+    ImVec2 groove_size = ImVec2(size.x - 2 * handle_dummy_width - text_right_dummy, groove_y/2);
     ImRect groove = ImRect(groove_start, groove_start + groove_size);
 
     // set active(draggable) region.
@@ -810,13 +813,17 @@ bool ACIMSlider::horizontal_slider(const char* str_id, int* value, int v_min, in
     ImVec2 handle_center = handle.GetCenter();
 
     // draw scroll line
-    ImRect scroll_line = ImRect(ImVec2(groove.Min.x, mid_y - groove_y / 2), ImVec2(handle_center.x, mid_y + groove_y / 2));
-    window->DrawList->AddRectFilled(scroll_line.Min, scroll_line.Max, handle_clr, rounding);
+    ImRect scroll_line = ImRect(ImVec2(groove.Min.x, mid_y - groove_y / 4), ImVec2(handle_center.x, mid_y + groove_y / 4));
+    window->DrawList->AddRectFilled(scroll_line.Min, scroll_line.Max, acBlue_clr, rounding);
 
+    if (hovered) {
+        handle_border_clr = acBlue_clr;
+        window->DrawList->AddCircleFilled(handle_center, 2 * handle_radius, handle_out_clr);
+    }
     // draw handle
-    window->DrawList->AddCircleFilled(handle_center, handle_radius, handle_border_clr);
-    window->DrawList->AddCircleFilled(handle_center, handle_radius - handle_border, handle_clr);
-
+    window->DrawList->AddCircleFilled(handle_center, handle_radius + handle_border, handle_border_clr);
+    window->DrawList->AddCircleFilled(handle_center, handle_radius, handle_clr);
+    
     // draw label
     auto text_utf8 = into_u8(std::to_string(*value));
     ImVec2 text_content_size = ImGui::CalcTextSize(text_utf8.c_str());
@@ -1000,7 +1007,7 @@ bool ACIMSlider::vertical_slider(const char* str_id, int* higher_value, int* low
     float  text_dummy_height   = 34.0f * scale * m_scale;
     float  groove_x            = 8.0f * m_scale;
     float  draggable_region_x  = 40.0f * m_scale;
-    float  handle_radius       = 14.0f * m_scale;
+    float  handle_radius       = 10.0f * m_scale;
     float  handle_border       = 2.0f * m_scale;
     float  rounding            = 2.0f * m_scale;
     float  line_width          = 2.0f * m_scale;
@@ -1013,13 +1020,19 @@ bool ACIMSlider::vertical_slider(const char* str_id, int* higher_value, int* low
     ImVec2 text_size;
 
     const ImU32 white_bg = IM_COL32(57, 134, 255, 255);
-    const ImU32 handle_clr = IM_COL32(57, 134, 255, 255);
-    const ImU32 handle_border_clr = IM_COL32(248, 248, 248, 255);
+    //const ImU32 handle_clr = IM_COL32(57, 134, 255, 255);
+    //const ImU32 handle_border_clr = IM_COL32(248, 248, 248, 255);
     const ImU32 delete_btn_clr = IM_COL32(144, 144, 144, 255);
 
+    const ImU32 acBlue_clr        = IM_COL32(57, 134, 255, 255);
+    const ImU32 normal_handle_clr = IM_COL32(198, 200, 204, 255);
+    const ImU32 handle_out_clr    = IM_COL32(57, 134, 255, 64);
+    const ImU32 handle_clr        = IM_COL32(248, 248, 248, 255);
+    ImU32 handle_border_clr = normal_handle_clr;
+
     // calc slider groove size
-    ImVec2 groove_start = ImVec2(pos.x + size.x - groove_x - right_dummy, pos.y + text_dummy_height);
-    ImVec2 groove_size = ImVec2(groove_x, size.y - 2 * text_dummy_height);
+    ImVec2 groove_start = ImVec2(pos.x + size.x - groove_x/2 - right_dummy, pos.y + text_dummy_height);
+    ImVec2 groove_size = ImVec2(groove_x/2, size.y - 2 * text_dummy_height);
     ImRect groove = ImRect(groove_start, groove_start + groove_size);
 
     // set active(draggable) region.
@@ -1113,25 +1126,36 @@ bool ACIMSlider::vertical_slider(const char* str_id, int* higher_value, int* low
         }
         else {
             // draw scroll line
-            ImRect scroll_line = ImRect(ImVec2(mid_x - groove_x / 2, higher_handle_center.y), ImVec2(mid_x + groove_x / 2, lower_handle_center.y));
-            window->DrawList->AddRectFilled(scroll_line.Min, scroll_line.Max, handle_clr, rounding);
+            ImRect scroll_line = ImRect(ImVec2(mid_x - groove_x / 4, higher_handle_center.y), ImVec2(mid_x + groove_x / 4, lower_handle_center.y));
+            window->DrawList->AddRectFilled(scroll_line.Min, scroll_line.Max, acBlue_clr, rounding);
         }
 
         // draw handles
-        window->DrawList->AddCircleFilled(higher_handle_center, handle_radius, handle_border_clr);
-        window->DrawList->AddCircleFilled(higher_handle_center, handle_radius - handle_border, handle_clr);
-        window->DrawList->AddCircleFilled(lower_handle_center, handle_radius, handle_border_clr);
-        window->DrawList->AddCircleFilled(lower_handle_center, handle_radius - handle_border, handle_clr);
         if (h_selected) {
-            window->DrawList->AddCircleFilled(higher_handle_center, handle_radius, handle_border_clr);
-            window->DrawList->AddCircleFilled(higher_handle_center, handle_radius - handle_border, handle_clr);
-            window->DrawList->AddLine(higher_handle_center + ImVec2(-line_offset, 0.0f), higher_handle_center + ImVec2(line_offset, 0.0f), white_bg, line_width);
-            window->DrawList->AddLine(higher_handle_center + ImVec2(0.0f, -line_offset), higher_handle_center + ImVec2(0.0f, line_offset), white_bg, line_width);
+            handle_border_clr = acBlue_clr;
+            if (hovered)
+                window->DrawList->AddCircleFilled(higher_handle_center, 2 * handle_radius, handle_out_clr);
         }
+        window->DrawList->AddCircleFilled(higher_handle_center, handle_radius + handle_border, handle_border_clr);
+        window->DrawList->AddCircleFilled(higher_handle_center, handle_radius, handle_clr);
+        handle_border_clr = normal_handle_clr;
         if (!h_selected) {
-            window->DrawList->AddLine(lower_handle_center + ImVec2(-line_offset, 0.0f), lower_handle_center + ImVec2(line_offset, 0.0f), white_bg, line_width);
-            window->DrawList->AddLine(lower_handle_center + ImVec2(0.0f, -line_offset), lower_handle_center + ImVec2(0.0f, line_offset), white_bg, line_width);
+            handle_border_clr = acBlue_clr;
+            if (hovered)
+                window->DrawList->AddCircleFilled(lower_handle_center, 2 * handle_radius, handle_out_clr);
         }
+        window->DrawList->AddCircleFilled(lower_handle_center, handle_radius + handle_border, handle_border_clr);
+        window->DrawList->AddCircleFilled(lower_handle_center, handle_radius, handle_clr);
+        //if (h_selected) {
+        //    window->DrawList->AddCircleFilled(higher_handle_center, handle_radius, handle_border_clr);
+        //    window->DrawList->AddCircleFilled(higher_handle_center, handle_radius - handle_border, handle_clr);
+        //    //window->DrawList->AddLine(higher_handle_center + ImVec2(-line_offset, 0.0f), higher_handle_center + ImVec2(line_offset, 0.0f), white_bg, line_width);
+        //    //window->DrawList->AddLine(higher_handle_center + ImVec2(0.0f, -line_offset), higher_handle_center + ImVec2(0.0f, line_offset), white_bg, line_width);
+        //}
+        //if (!h_selected) {
+        //    window->DrawList->AddLine(lower_handle_center + ImVec2(-line_offset, 0.0f), lower_handle_center + ImVec2(line_offset, 0.0f), white_bg, line_width);
+        //    window->DrawList->AddLine(lower_handle_center + ImVec2(0.0f, -line_offset), lower_handle_center + ImVec2(0.0f, line_offset), white_bg, line_width);
+        //}
 
         // draw higher label
         auto text_utf8 = into_u8(higher_label);
@@ -1241,7 +1265,7 @@ bool ACIMSlider::render(int canvas_width, int canvas_height)
         }
         imgui.end();
     } else {
-        float pos_x = canvas_width - (VERTICAL_SLIDER_SIZE.x + TEXT_WIDTH_DUMMY * scale - TEXT_WIDTH_DUMMY) * m_scale;
+        float pos_x = canvas_width - spac_h * m_scale - (VERTICAL_SLIDER_SIZE.x + TEXT_WIDTH_DUMMY * scale - TEXT_WIDTH_DUMMY) * m_scale;
         //float pos_y = std::max(ONE_LAYER_OFFSET.y, 0.15f * canvas_height - (VERTICAL_SLIDER_SIZE.y - SLIDER_LENGTH) * scale);
         float buttonsH = 100*m_scale;
         float onelayerBtH = 28*m_scale;
@@ -1272,14 +1296,18 @@ bool ACIMSlider::render(int canvas_width, int canvas_height)
 
         ImGui::Spacing();
         ImGui::SameLine((VERTICAL_SLIDER_SIZE.x - ONE_LAYER_OFFSET.x) * scale * m_scale);
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 25.0f * m_scale);
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() - 6.0f * m_scale);
         ImTextureID normal_id = is_one_layer() ? m_one_layer_on_id : m_one_layer_off_id;
         ImTextureID hover_id  = is_one_layer() ? m_one_layer_on_hover_id : m_one_layer_off_hover_id;
         ImGui::PushStyleColor(ImGuiCol_::ImGuiCol_FrameBg, ImVec4(0,0,0,0));
         ImGui::PushStyleColor(ImGuiCol_::ImGuiCol_ChildBg, ImVec4(0,0,0,0));
-        if (ImGui::ImageButton3(normal_id, hover_id, ImVec2(28 * m_scale, 28 * m_scale))) {
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0);
+        if (ImGui::ImageButton3(normal_id, hover_id, ImVec2(44.0f * m_scale, 44.0f * m_scale))) {
             switch_one_layer_mode();
         }
         ImGui::PopStyleColor(2);
+        ImGui::PopStyleVar();
         imgui.end();
     }
 

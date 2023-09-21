@@ -151,6 +151,8 @@ public:
 
     void set_keep_current_preview_type(bool value) { m_keep_current_preview_type = value; }
 
+    void set_layers_slider_values_range(int bottom, int top);
+
     //BBS
     //void on_tick_changed(Type type);
 

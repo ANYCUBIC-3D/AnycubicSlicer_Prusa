@@ -7,3 +7,10 @@ add_library(semver STATIC
 )
 
 encoding_check(semver)
+INSTALL(TARGETS semver
+            RUNTIME DESTINATION bin/
+            LIBRARY DESTINATION lib/
+            ARCHIVE DESTINATION lib/
+    )
+
+INSTALL(FILES semver.h DESTINATION include/semver)   

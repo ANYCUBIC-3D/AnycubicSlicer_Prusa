@@ -3,6 +3,11 @@ project(libslic3r)
 
 include(PrecompiledHeader)
 
+option(ENABLE_CGAL "开启cgal库使用" ON)
+if(ENABLE_CGAL)
+add_definitions(-DENABLE_CGAL)
+endif(ENABLE_CGAL)
+
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/libslic3r_version.h.in ${CMAKE_CURRENT_BINARY_DIR}/libslic3r_version.h @ONLY)
 
 if (MINGW)
@@ -22,8 +27,9 @@ set(SLIC3R_SOURCES
     AABBTreeLines.hpp
     AABBMesh.hpp
     AABBMesh.cpp
-    Algorithm/RegionExpansion.cpp
+    Algorithm/PathSorting.hpp
     Algorithm/RegionExpansion.hpp
+    Algorithm/RegionExpansion.cpp
     AnyPtr.hpp
     BoundingBox.cpp
     BoundingBox.hpp
@@ -127,14 +133,18 @@ set(SLIC3R_SOURCES
     Format/SL1.cpp
     Format/SL1_SVG.hpp
     Format/SL1_SVG.cpp
-    Format/pwmx.hpp
-    Format/pwmx.cpp
+    Format/AnycubicSLA.hpp
+    Format/AnycubicSLA.cpp
     Format/STEP.hpp
     Format/STEP.cpp
+    Format/SLAArchiveFormatRegistry.hpp
+    Format/SLAArchiveFormatRegistry.cpp
     GCode/ThumbnailData.cpp
     GCode/ThumbnailData.hpp
     GCode/Thumbnails.cpp
     GCode/Thumbnails.hpp
+    GCode/ConflictChecker.cpp
+    GCode/ConflictChecker.hpp
     GCode/CoolingBuffer.cpp
     GCode/CoolingBuffer.hpp
     GCode/FindReplace.cpp
@@ -159,6 +169,8 @@ set(SLIC3R_SOURCES
     GCode/GCodeProcessor.hpp
     GCode/AvoidCrossingPerimeters.cpp
     GCode/AvoidCrossingPerimeters.hpp
+    calib.hpp
+    calib.cpp
     GCode.cpp
     GCode.hpp
     GCodeReader.cpp
@@ -276,10 +288,25 @@ set(SLIC3R_SOURCES
     SlicingAdaptive.hpp
     Subdivide.cpp
     Subdivide.hpp
+    Support/SupportCommon.cpp
+    Support/SupportCommon.hpp
+    Support/SupportDebug.cpp
+    Support/SupportDebug.hpp
+    Support/SupportLayer.hpp
+    Support/SupportMaterial.cpp
+    Support/SupportMaterial.hpp
+    Support/SupportParameters.cpp
+    Support/SupportParameters.hpp
+    Support/OrganicSupport.cpp
+    Support/OrganicSupport.hpp
+    Support/TreeSupport.cpp
+    Support/TreeSupport.hpp
+    Support/TreeSupportCommon.cpp
+    Support/TreeSupportCommon.hpp
+    Support/TreeModelVolumes.cpp
+    Support/TreeModelVolumes.hpp
     SupportSpotsGenerator.cpp
     SupportSpotsGenerator.hpp
-    SupportMaterial.cpp
-    SupportMaterial.hpp
     Surface.cpp
     Surface.hpp
     SurfaceCollection.cpp
@@ -291,10 +318,6 @@ set(SLIC3R_SOURCES
     Tesselate.cpp
     Tesselate.hpp
     TextConfiguration.hpp
-    TreeSupport.cpp
-    TreeSupport.hpp
-    TreeModelVolumes.cpp
-    TreeModelVolumes.hpp
     TriangleMesh.cpp
     TriangleMesh.hpp
     TriangleMeshSlicer.cpp
@@ -426,11 +449,13 @@ if (SLIC3R_STATIC)
 endif ()
 set(CGAL_DO_NOT_WARN_ABOUT_CMAKE_BUILD_TYPE ON CACHE BOOL "" FORCE)
 
+
+
+if(ENABLE_CGAL)
 cmake_policy(PUSH)
 cmake_policy(SET CMP0011 NEW)
 find_package(CGAL REQUIRED)
 cmake_policy(POP)
-
 add_library(libslic3r_cgal STATIC 
     CutSurface.hpp CutSurface.cpp
     Geometry/VoronoiUtilsCgal.hpp Geometry/VoronoiUtilsCgal.cpp
@@ -462,6 +487,9 @@ target_link_libraries(libslic3r_cgal PRIVATE ${_cgal_tgt} libigl)
 if (MSVC AND "${CMAKE_SIZEOF_VOID_P}" STREQUAL "4") # 32 bit MSVC workaround
     target_compile_definitions(libslic3r_cgal PRIVATE CGAL_DO_NOT_USE_MPZF)
 endif ()
+add_definitions(-DUSE_CGAL)
+set(_libcgal libslic3r_cgal)
+endif(ENABLE_CGAL) # end ENABLE_CGAL
 
 encoding_check(libslic3r)
 
@@ -485,7 +513,8 @@ target_link_libraries(libslic3r
     qhull
     semver
     TBB::tbb
-    libslic3r_cgal
+    TBB::tbbmalloc
+    ${_libcgal}
     ${CMAKE_DL_LIBS}
     PNG::PNG
     ZLIB::ZLIB
@@ -516,3 +545,28 @@ endif ()
 if (SLIC3R_PCH AND NOT SLIC3R_SYNTAXONLY)
     add_precompiled_header(libslic3r pchheader.hpp FORCEINCLUDE)
 endif ()
+
+
+INSTALL(TARGETS libslic3r
+            RUNTIME DESTINATION bin/
+            LIBRARY DESTINATION lib/
+            ARCHIVE DESTINATION lib/
+    )
+
+file(GLOB HDRS_G "${CMAKE_CURRENT_SOURCE_DIR}/*.h*")
+list(APPEND HDRS_G "${CMAKE_CURRENT_BINARY_DIR}/libslic3r_version.h")
+INSTALL(FILES ${HDRS_G} DESTINATION include/libslic3r) 
+
+
+
+file(GLOB_RECURSE SUBHDRS_G "${CMAKE_CURRENT_SOURCE_DIR}/*.hpp")
+foreach(_source ${HDRS_G})
+    list(REMOVE_ITEM SUBHDRS_G ${_source})
+endforeach(_source)
+
+foreach(_source ${SUBHDRS_G})
+    get_filename_component(_source_path "${_source}" PATH)
+    string(REPLACE "/" "\\" _group_path "${_source_path}")
+    string(REPLACE  "${CMAKE_CURRENT_SOURCE_DIR}" "" _group_path "${_source_path}")
+    INSTALL(FILES ${_source} DESTINATION include/libslic3r/${_group_path})
+endforeach(_source)

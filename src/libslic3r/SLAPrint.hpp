@@ -494,7 +494,7 @@ public:
 
     const SLAPrintStatistics&   print_statistics() const { return m_print_statistics; }
 
-    std::string validate(std::string* warning = nullptr) const override;
+    std::string validate(std::vector<std::string>* warnings = nullptr) const override;
 
     // An aggregation of SliceRecord-s from all the print objects for each
     // occupied layer. Slice record levels dont have to match exactly.
@@ -546,10 +546,7 @@ public:
 
     void export_print(const std::string    &fname,
                       const ThumbnailsList &thumbnails,
-                      const std::string    &projectname = "")
-    {
-        m_archiver->export_print(fname, *this, thumbnails, projectname);
-    }
+                      const std::string    &projectname = "");
     
 private:
     

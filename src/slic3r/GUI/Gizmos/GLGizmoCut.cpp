@@ -12,7 +12,7 @@
 
 #include "slic3r/GUI/GUI_App.hpp"
 #include "slic3r/GUI/Plater.hpp"
-#include "slic3r/GUI/GUI_ObjectManipulation.hpp"
+////#include "slic3r/GUI/GUI_ObjectManipulation.hpp"
 #include "libslic3r/AppConfig.hpp"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/TriangleMeshSlicer.hpp"
@@ -32,7 +32,7 @@ std::string GLGizmoCut::get_tooltip() const
 {
     double cut_z = m_cut_z;
     if (wxGetApp().app_config->get("use_inches") == "1")
-        cut_z *= ObjectManipulation::mm_to_in;
+        cut_z *= mm_to_in;
 
     return (m_hover_id == 0 || m_grabbers[0].dragging) ? "Z: " + format(cut_z, 2) : "";
 }
@@ -295,7 +295,7 @@ void GLGizmoCut::on_render_input_window(float x, float y, float bottom_limit)
     ImGuiWrapper::push_ac_toolwin_style(m_parent.get_scale());
     ImGui::PushStyleColor(ImGuiCol_Text, ImGuiWrapper::COL_AC_WHITE);
     ImGui::PushFont(m_imgui->bold_font_14);
-    m_imgui->begin(_L("Cut"), ImGuiWrapper::TOOLBAR_WINDOW_FLAGS_AC_NEW);
+    m_imgui->begin(get_name(), ImGuiWrapper::TOOLBAR_WINDOW_FLAGS_AC_NEW);
     ImGui::PopFont();
     ImGui::PopStyleColor();
     ImGui::PushFont(m_imgui->default_font_13);
@@ -322,13 +322,14 @@ void GLGizmoCut::on_render_input_window(float x, float y, float bottom_limit)
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4 * _scaleIndex);
     double cut_z = m_cut_z;
     if (imperial_units)
-        cut_z *= ObjectManipulation::mm_to_in;
+        cut_z *= mm_to_in;
     ImGui::InputDouble("", &cut_z, 0.0f, 0.0f, "%.2f", ImGuiInputTextFlags_CharsDecimal);
     m_imgui->pop_ac_inputdouble_style();
     ImGui::SameLine();
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() - 5 * _scaleIndex);
     m_imgui->text(imperial_units ? _L("in") : _L("mm"));
 
-    m_cut_z = cut_z * (imperial_units ? ObjectManipulation::in_to_mm : 1.0);
+    m_cut_z = cut_z * (imperial_units ? in_to_mm : 1.0);
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 5 * _scaleIndex);
     ImGui::Separator();
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 10 * _scaleIndex);

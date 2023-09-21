@@ -81,7 +81,7 @@ public:
         }
     }
 
-    static Points _douglas_peucker(const Points &points, const double tolerance);
+    static Points douglas_peucker(const Points &points, const double tolerance);
     static Points visivalingam(const Points& pts, const double& tolerance);
 
     inline auto begin()        { return points.begin(); }
@@ -110,7 +110,7 @@ public:
 };
 
 extern BoundingBox get_extents(const MultiPoint &mp);
-extern BoundingBox get_extents_rotated(const std::vector<Point> &points, double angle);
+extern BoundingBox get_extents_rotated(const Points &points, double angle);
 extern BoundingBox get_extents_rotated(const MultiPoint &mp, double angle);
 
 inline double length(const Points &pts) {

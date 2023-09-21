@@ -65,8 +65,6 @@ public:
 
     virtual void SetMinSize(const wxSize& size) override;
 
-    void setItemSize(const wxSize& itemSize);
-
     wxTextCtrl *GetTextCtrl() { return text_ctrl; }
 
     wxTextCtrl const *GetTextCtrl() const { return text_ctrl; }

@@ -596,6 +596,38 @@ void GLModel::init_from(const indexed_triangle_set& its)
     }
 }
 
+void GLModel::init_from(const Polygon& polygon, float z)
+{
+    if (is_initialized()) {
+        // call reset() if you want to reuse this model
+        assert(false);
+        return;
+    }
+
+    Geometry& data = m_render_data.geometry;
+    data.format = { Geometry::EPrimitiveType::Lines, Geometry::EVertexLayout::P3 };
+
+    const size_t segments_count = polygon.points.size();
+    data.reserve_vertices(2 * segments_count);
+    data.reserve_indices(2 * segments_count);
+
+    // vertices + indices
+    unsigned int vertices_counter = 0;
+    for (size_t i = 0; i < segments_count; ++i) {
+        const Point& p0 = polygon.points[i];
+        const Point& p1 = (i == segments_count - 1) ? polygon.points.front() : polygon.points[i + 1];
+        data.add_vertex(Vec3f(unscale<float>(p0.x()), unscale<float>(p0.y()), z));
+        data.add_vertex(Vec3f(unscale<float>(p1.x()), unscale<float>(p1.y()), z));
+        vertices_counter += 2;
+        data.add_line(vertices_counter - 2, vertices_counter - 1);
+    }
+
+    // update bounding box
+    for (size_t i = 0; i < vertices_count(); ++i) {
+        m_bounding_box.merge(data.extract_position_3(i).cast<double>());
+    }
+}
+
 void GLModel::init_from(const Polygons& polygons, float z)
 {
     if (is_initialized()) {

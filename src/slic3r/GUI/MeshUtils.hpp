@@ -115,13 +115,14 @@ public:
 
     // Render the triangulated cut. Transformation matrices should
     // be set in world coords.
-    void render_cut(const ColorRGBA& color);
-    void render_contour(const ColorRGBA& color);
+    void render_cut(const ColorRGBA& color, const std::vector<size_t>* ignore_idxs = nullptr);
+    void render_contour(const ColorRGBA& color, const std::vector<size_t>* ignore_idxs = nullptr);
 
-    void pass_mouse_click(const Vec3d& pt);
-
-    bool is_projection_inside_cut(const Vec3d& point) const;
+    // Returns index of the contour which was clicked, -1 otherwise.
+    int is_projection_inside_cut(const Vec3d& point) const;
     bool has_valid_contour() const;
+    int get_number_of_contours() const { return m_result ? m_result->cut_islands.size() : 0; }
+    std::vector<Vec3d> point_per_contour() const;
 
 private:
     void recalculate_triangles();
@@ -140,6 +141,7 @@ private:
         ExPolygon expoly;
         BoundingBox expoly_bb;
         bool disabled = false;
+        size_t hash;
     };
     struct ClipResult {
         std::vector<CutIsland> cut_islands;

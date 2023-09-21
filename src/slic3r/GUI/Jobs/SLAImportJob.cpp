@@ -163,13 +163,13 @@ void SLAImportJob::finalize(bool canceled, std::exception_ptr &eptr)
             p->plater->get_notification_manager()->push_notification(
                 NotificationType::CustomNotification,
                 NotificationManager::NotificationLevel::WarningNotificationLevel,
-                _u8L("The profile in the imported archive is corrupt and will not be loaded."));
+                _u8L("The profile in the imported archive is corrupted and will not be loaded."));
         }
     }
 
     if (!p->mesh.empty()) {
         bool is_centered = false;
-        p->plater->sidebar().obj_list()->load_mesh_object(TriangleMesh{std::move(p->mesh)},
+        p->plater->obj_list()->load_mesh_object(TriangleMesh{std::move(p->mesh)},
                                                           name, is_centered);
     } else if (p->sel == Sel::modelOnly || p->sel == Sel::modelAndProfile) {
         p->plater->get_notification_manager()->push_notification(

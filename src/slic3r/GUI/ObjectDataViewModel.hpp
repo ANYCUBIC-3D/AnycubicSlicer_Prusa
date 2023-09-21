@@ -311,6 +311,7 @@ public:
     wxDataViewItem GetItemByLayerId(int obj_idx, int layer_idx);
     wxDataViewItem GetItemByLayerRange(const int obj_idx, const t_layer_height_range& layer_range);
     int  GetItemIdByLayerRange(const int obj_idx, const t_layer_height_range& layer_range);
+    wxString GetItemName(const wxDataViewItem& item) const;
     int  GetIdByItem(const wxDataViewItem& item) const;
     int  GetIdByItemAndType(const wxDataViewItem& item, const ItemType type) const;
     int  GetObjectIdByItem(const wxDataViewItem& item) const;

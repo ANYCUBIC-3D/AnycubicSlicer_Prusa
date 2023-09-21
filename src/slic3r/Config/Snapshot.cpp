@@ -23,6 +23,7 @@
 #include "../GUI/I18N.hpp"
 #include "../GUI/MainFrame.hpp"
 #include "../GUI/MsgDialog.hpp"
+#include "../GUI/format.hpp"
 
 #include <wx/richmsgdlg.h>
 
@@ -595,8 +596,8 @@ bool take_config_snapshot_cancel_on_error(const AppConfig &app_config, Snapshot:
         return true;
     } catch (std::exception &err) {
         RichMessageDialog dlg(static_cast<wxWindow*>(wxGetApp().mainframe),
-            _L("AnycubicSlicer has encountered an error while taking a configuration snapshot.") + "\n\n" + from_u8(err.what()) + "\n\n" + from_u8(message),
-            _L("AnycubicSlicer error"),
+            format_wxstr(_L("%1% has encountered an error while taking a configuration snapshot."), wxGetApp().appName()) + "\n\n" + from_u8(err.what()) + "\n\n" + from_u8(message),
+            format_wxstr(_L("%1% error"), wxGetApp().appName()),
             wxYES_NO);
         dlg.SetYesNoLabels(_L("Continue"), _L("Abort"));
         return dlg.ShowModal() == wxID_YES;

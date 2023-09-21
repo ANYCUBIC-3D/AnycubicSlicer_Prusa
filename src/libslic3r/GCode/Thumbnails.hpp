@@ -29,7 +29,7 @@ inline void export_thumbnails_to_file(ThumbnailsGeneratorCallback &thumbnail_cb,
     // Write thumbnails using base64 encoding
     if (thumbnail_cb != nullptr) {
         static constexpr const size_t max_row_length = 78;
-        ThumbnailsList thumbnails = thumbnail_cb(ThumbnailsParams{ sizes, true, true, true, true });
+        ThumbnailsList thumbnails = thumbnail_cb(ThumbnailsParams{ sizes, true, true, false, true });
         for (const ThumbnailData& data : thumbnails)
             if (data.is_valid()) {
                 auto compressed = compress_thumbnail(data, format);

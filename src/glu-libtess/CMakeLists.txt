@@ -34,3 +34,12 @@ if(UNIX)
 endif(UNIX)
 
 target_include_directories(glu-libtess PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+INSTALL(TARGETS glu-libtess
+            RUNTIME DESTINATION bin/
+            LIBRARY DESTINATION lib/
+            ARCHIVE DESTINATION lib/
+    )
+
+    
+file(GLOB HDRS_G "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h*")
+INSTALL(FILES ${HDRS_G} DESTINATION include/glu-libtess) 

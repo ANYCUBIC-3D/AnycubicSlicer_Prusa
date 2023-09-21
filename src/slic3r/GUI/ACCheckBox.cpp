@@ -28,8 +28,9 @@ ACCheckBox::ACCheckBox(wxWindow* parent)
     Bind(wxEVT_ENTER_WINDOW, &ACCheckBox::updateBitmap, this);
     Bind(wxEVT_LEAVE_WINDOW, &ACCheckBox::updateBitmap, this);
 #endif
-	SetSize(m_on.get_bitmap().GetSize());
-	SetMinSize(m_on.get_bitmap().GetSize());
+    wxSize size(16,16);
+    SetSize(size);
+    SetMinSize(size);
 	update();
 }
 

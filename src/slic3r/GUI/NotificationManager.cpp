@@ -151,6 +151,8 @@ void NotificationManager::PopNotification::render(GLCanvas3D& canvas, float init
 		return;
 	}
 
+	if (getSlicerFinish() && !wxGetApp().notification_manager()->is_in_preview())
+        return;
 	if (m_state == EState::ClosePending || m_state == EState::Finished)
 	{
 		m_state = EState::Finished;
@@ -220,7 +222,7 @@ void NotificationManager::PopNotification::render(GLCanvas3D& canvas, float init
 
 	if (imgui.begin(name, flags)) {
 		ImVec2 win_size = ImGui::GetWindowSize();
-        
+
 		render_left_sign(imgui);
         //render_text(imgui, win_size.x, win_size.y, win_pos.x, win_pos.y);
 		render_text(imgui, win_size.x, win_size.y, win_pos.x, win_pos.y,true);
@@ -230,7 +232,7 @@ void NotificationManager::PopNotification::render(GLCanvas3D& canvas, float init
 		if (m_multiline && m_lines_count > 3)
 			//render_minimize_button(imgui, win_pos.x, win_pos.y);
 			render_minimize_button(imgui, win_pos.x, win_pos.y,true);
-        
+
 	}
 	imgui.end();
 
@@ -602,12 +604,12 @@ void NotificationManager::PopNotification::render_hypertext(ImGuiWrapper& imgui,
 {
 	//invisible button
 	ImVec2 part_size = ImGui::CalcTextSize(text.c_str());
-	ImGui::SetCursorPosX(text_x -4);
-	ImGui::SetCursorPosY(text_y -5);
+    ImGui::SetCursorPosX(text_x - 4.0f * imgui.get_style_scaling());
+    ImGui::SetCursorPosY(text_y - 5.0f * imgui.get_style_scaling());
 	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(.0f, .0f, .0f, .0f));
 	ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(.0f, .0f, .0f, .0f));
 	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(.0f, .0f, .0f, .0f));
-	if (imgui.button("   ", part_size.x + 6, part_size.y + 10))
+    if (imgui.button("   ", part_size.x + 6 * imgui.get_style_scaling(), part_size.y + 10 * imgui.get_style_scaling()))
 	{
 		if (more)
 		{
@@ -634,7 +636,7 @@ void NotificationManager::PopNotification::render_hypertext(ImGuiWrapper& imgui,
 
 	//underline
 	ImVec2 lineEnd = ImGui::GetItemRectMax();
-	lineEnd.y -= 2;
+    lineEnd.y -= 2 * imgui.get_style_scaling();
 	ImVec2 lineStart = lineEnd;
 	lineStart.x = ImGui::GetItemRectMin().x;
 	ImGui::GetWindowDrawList()->AddLine(lineStart, lineEnd, IM_COL32((int)(orange_color.x * 255), (int)(orange_color.y * 255), (int)(orange_color.z * 255), (int)(orange_color.w * 255.f * (m_state == EState::FadingOut ? m_current_fade_opacity : 1.f))));
@@ -716,7 +718,7 @@ void NotificationManager::PopNotification::render_close_button(ImGuiWrapper& img
 	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(.0f, .0f, .0f, .0f));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
 	ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0);
-	
+
 	std::string button_text;
 	button_text = ImGui::CloseNotifButton;
 	
@@ -879,21 +881,23 @@ void NotificationManager::PopNotification::render_minimize_button(ImGuiWrapper &
 
 
 	float h_gap = 4.0f;
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(11.0f, h_gap));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4.0f, 0));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImGuiWrapper::COL_HOVER);
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.95f, 0.97f, 0.99f, 1.00f));
-    ImGui::PushStyleColor(ImGuiCol_Border, ImGuiWrapper::COL_AC_BLUE);
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImGuiWrapper::COL_AC_WHITE);
+    ImGui::PushStyleColor(ImGuiCol_Button, ImGuiWrapper::COL_AC_WHITE);
+    ImGui::PushStyleColor(ImGuiCol_Border, ImGuiWrapper::COL_AC_WHITE);
     ImGui::PushStyleColor(ImGuiCol_Text, ImGuiWrapper::COL_AC_BLUE);
     wxString btn_str   = _u8L("Minimization");
     ImVec2   text_size = ImGui::CalcTextSize(btn_str.c_str());
-    ImGui::SetCursorPosX(m_window_width * 0.7);
-    ImGui::SetCursorPosY(m_window_height - text_size.y - 3 * h_gap);
+    ImGui::SetCursorPosX(m_window_width - imgui.calc_text_size(btn_str).x - 20.0f);
+    //ImGui::SetCursorPosY(m_window_height - text_size.y - 2 * h_gap);
+    ImGui::SetCursorPosY(1.5*h_gap);
     if (ImGui::Button(btn_str.c_str())) {
         m_multiline = false;
     }
     ImGui::PopStyleColor(4);
-    ImGui::PopStyleVar(2);
+    ImGui::PopStyleVar(3);
 
     m_minimize_b_visible = true;
 
@@ -1297,7 +1301,7 @@ void NotificationManager::ProgressBarNotification::render_bar(ImGuiWrapper& imgu
 void NotificationManager::ProgressBarNotification::render_bar(
     ImGuiWrapper &imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y,const bool _new)
 {
-    ImVec4 orange_color = ImGuiWrapper::COL_AC_BLUE; 
+    ImVec4 orange_color = ImGuiWrapper::COL_AC_BLUE;
     ImVec4 gray_color   = ImGuiWrapper::COL_AC_BLUE_PROGRESSBAR;
     ImVec2 lineEnd      = ImVec2(win_pos_x, win_pos_y  + (m_multiline ? m_line_height / 2 : 0));
     ImVec2 lineStart    = ImVec2(win_pos_x - win_size_x,win_pos_y + (m_multiline ? m_line_height / 2 : 0));
@@ -2274,6 +2278,7 @@ bool NotificationManager::SlicingProgressNotification::set_progress_state(Notifi
 }
 void NotificationManager::SlicingProgressNotification::set_status_text(const std::string& text)
 {
+    setSlicerFinish(false);
 	switch (m_sp_state)
 	{
 	case Slic3r::GUI::NotificationManager::SlicingProgressNotification::SlicingProgressState::SP_NO_SLICING:
@@ -2298,6 +2303,7 @@ void NotificationManager::SlicingProgressNotification::set_status_text(const std
 		NotificationData data{ NotificationType::SlicingProgress, NotificationLevel::ProgressBarNotificationLevel, 0,  _u8L("Slicing finished."), m_is_fff ? _u8L("Export G-Code.") : _u8L("Export.") };
 		update(data);
 		m_state = EState::Shown;
+        setSlicerFinish(true);
 	}
 		break;
 	default:
@@ -2585,7 +2591,7 @@ void NotificationManager::SlicingProgressNotification::render_cancel_button(
     float h_gap = 4.0f;
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(11.0f, h_gap));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImGuiWrapper::COL_HOVER);   
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImGuiWrapper::COL_HOVER);
 	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.95f, 0.97f, 0.99f, 1.00f));
     ImGui::PushStyleColor(ImGuiCol_Border, ImGuiWrapper::COL_AC_BLUE);
     ImGui::PushStyleColor(ImGuiCol_Text, ImGuiWrapper::COL_AC_BLUE);
@@ -2595,6 +2601,8 @@ void NotificationManager::SlicingProgressNotification::render_cancel_button(
     ImGui::SetCursorPosY((win_size_y - text_size.y) / 2 - h_gap);
     if (ImGui::Button(btn_str.c_str())) {
         on_cancel_button();
+        if ((wxEvtHandler *) wxGetApp().plater()->canvas3D()->get_wxglcanvas() != nullptr)
+            wxPostEvent((wxEvtHandler *) wxGetApp().plater()->canvas3D()->get_wxglcanvas(), SimpleEvent(EVT_GLVIEWTOOLBAR_3D));
     }
     ImGui::PopStyleColor(4);
     ImGui::PopStyleVar(2);
@@ -2795,9 +2803,9 @@ void NotificationManager::push_slicing_error_notification(const std::string& tex
 	push_notification_data({ NotificationType::SlicingError, NotificationLevel::ErrorNotificationLevel, 0,  _u8L("ERROR:") + "\n" + text }, 0);
 	set_slicing_progress_hidden();
 }
-void NotificationManager::push_slicing_warning_notification(const std::string& text, bool gray, ObjectID oid, int warning_step)
+void NotificationManager::push_slicing_warning_notification(const std::string& text, bool gray, ObjectID oid, int warning_step, const std::string& hypertext, std::function<bool(wxEvtHandler*)> callback)
 {
-	NotificationData data { NotificationType::SlicingWarning, NotificationLevel::WarningNotificationLevel, 0,  _u8L("WARNING:") + "\n" + text };
+	NotificationData data { NotificationType::SlicingWarning, NotificationLevel::WarningNotificationLevel, 0,  _u8L("WARNING:") + "\n" + text ,  hypertext, callback};
 
 	auto notification = std::make_unique<NotificationManager::ObjectIDNotification>(data, m_id_provider, m_evt_handler);
 	notification->object_id = oid;
@@ -2905,7 +2913,6 @@ void NotificationManager::push_version_notification(NotificationType type, Notif
 
 	for (std::unique_ptr<PopNotification>& notification : m_pop_notifications) {
 		// NoNewReleaseAvailable must not show if alfa / beta is on.
-		NotificationType nttype = notification->get_type();
 		if (type == NotificationType::NoNewReleaseAvailable
 			&& (notification->get_type() == NotificationType::NewAlphaAvailable 
 				|| notification->get_type() == NotificationType::NewBetaAvailable)) {
@@ -3134,7 +3141,7 @@ void NotificationManager::push_download_URL_progress_notification(size_t id, con
 		}
 	}
 	// push new one
-	NotificationData data{ NotificationType::URLDownload, NotificationLevel::ProgressBarNotificationLevel, 5, _u8L("Download:") + " " + text };
+	NotificationData data{ NotificationType::URLDownload, NotificationLevel::ProgressBarNotificationLevel, 5, _u8L("Download") + ": " + text };
 	push_notification_data(std::make_unique<NotificationManager::URLDownloadNotification>(data, m_id_provider, m_evt_handler, id, user_action_callback), 0);
 }
 

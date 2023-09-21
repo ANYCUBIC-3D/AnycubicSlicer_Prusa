@@ -93,6 +93,7 @@ private:
 	bool 			 		m_initialized { false };
 	wxEvtHandler*			m_callback_evt_handler { nullptr };
 
+
 #ifndef REMOVABLE_DRIVE_MANAGER_OS_CALLBACKS
 	// Worker thread, worker thread synchronization and callbacks to the UI thread.
 	void 					thread_proc();

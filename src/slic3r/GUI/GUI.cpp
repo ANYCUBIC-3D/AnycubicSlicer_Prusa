@@ -27,6 +27,9 @@
 
 #include "libslic3r/Print.hpp"
 
+//#include "ACUpdateOnlineDialog.hpp"
+//#include "slic3r/GUI/Cloud/ACCloudLogin.hpp"
+
 namespace Slic3r {
 
 class AppConfig;
@@ -77,12 +80,12 @@ void break_to_debugger()
 
 const std::string& shortkey_ctrl_prefix()
 {
-	static const std::string str =
-#ifdef __APPLE__
-		"⌘"
-#else
-		"Ctrl+"
-#endif
+	static const std::string str ="Ctrl+"
+//#ifdef __APPLE__
+//		"⌘"
+//#else
+//		"Ctrl+"
+//#endif
 		;
 	return str;
 }
@@ -242,7 +245,7 @@ void show_error_id(int id, const std::string& message)
 void show_info(wxWindow* parent, const wxString& message, const wxString& title)
 {
 	//wxMessageDialog msg_wingow(parent, message, wxString(SLIC3R_APP_NAME " - ") + (title.empty() ? _L("Notice") : title), wxOK | wxICON_INFORMATION);
-	MessageDialog msg_wingow(parent, message, wxString(SLIC3R_APP_NAME " - ") + (title.empty() ? _L("Notice") : title), wxOK | wxICON_INFORMATION);
+	MessageDialog msg_wingow(parent, message, wxString::FromUTF8(wxGetApp().appName()) + " - " + (title.empty() ? _L("Notice") : title), wxOK | wxICON_INFORMATION);
 	msg_wingow.ShowModal();
 }
 
@@ -459,12 +462,21 @@ boost::filesystem::path into_path(const wxString &str)
 	return boost::filesystem::path(str.wx_str());
 }
 
-void about()
+void about(wxWindow *parent)
 {
-    AboutDialog dlg;
+    AboutDialog dlg(parent);
     dlg.ShowModal();
 }
 
+void update()
+{
+	/*UpdateOnlineDialog* dlg = new UpdateOnlineDialog;
+	dlg->ShowModal();
+	delete dlg;*/
+	/*ACCloudLoginDialog* dlg = new ACCloudLoginDialog(nullptr);
+	dlg->ShowModal();
+	delete dlg;*/
+}
 void desktop_open_datadir_folder()
 {
 	boost::filesystem::path path(data_dir());

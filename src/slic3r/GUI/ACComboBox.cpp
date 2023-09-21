@@ -131,10 +131,12 @@ void ACComboBox::SetLabel(const wxString &value)
 
 wxString ACComboBox::GetLabel() const
 {
+    wxString str = "";
     if (GetTextCtrl()->IsShown() || text_off)
-        return GetTextCtrl()->GetValue();
+        str = GetTextCtrl()->GetValue();
     else
-        return ACTextInput::GetLabel();
+        str = ACTextInput::GetLabel();
+    return str;
 }
 
 void ACComboBox::SetTextLabel(const wxString& label)
@@ -226,6 +228,14 @@ int ACComboBox::GetItemsWidth()
 }
 
 
+void ACComboBox::SetCornerRadius(int value)
+{
+	if (value < 0)
+		return;
+	drop.SetCornerRadius(value);
+	ACTextInput::SetCornerRadius(value);
+}
+
 int ACComboBox::DoInsertItems(const wxArrayStringsAdapter &items,
                             unsigned int                 pos,
                             void **                      clientData,
@@ -260,6 +270,9 @@ void ACComboBox::mouseDown(wxMouseEvent &event)
     } else if (drop.HasDismissLongTime()) {
         drop.autoPosition();
         drop_down = true;
+#ifdef __APPLE__
+        drop.SetWindowStyleFlag(wxPOPUP_WINDOW | wxBORDER_NONE | wxSTAY_ON_TOP);
+#endif
         drop.Popup();
         wxCommandEvent e(wxEVT_COMBOBOX_DROPDOWN);
         GetEventHandler()->ProcessEvent(e);

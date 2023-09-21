@@ -288,6 +288,10 @@ public:
 
     ExtrudersSequence m_extruders_sequence;
     float m_scale = 1.0;
+    float             spac_v  = 0.0f;
+    float             spac_h  = 0.0f;
+    void              SetSpacV(float newValue) { spac_v = newValue; }
+    void              SetSpacH(float newValue) { spac_h = newValue; }
     void set_scale(float scale = 1.0);
 protected:
     void correct_lower_value();

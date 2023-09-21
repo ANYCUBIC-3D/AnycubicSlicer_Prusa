@@ -1042,6 +1042,16 @@ int  ObjectDataViewModel::GetItemIdByLayerRange(const int obj_idx, const t_layer
     return GetLayerIdByItem(item);
 }
 
+wxString ObjectDataViewModel::GetItemName(const wxDataViewItem& item) const
+{
+    if (!item.IsOk())
+        return wxEmptyString;
+    ObjectDataViewModelNode* node = static_cast<ObjectDataViewModelNode*>(item.GetID());
+    if (!node)
+        return wxEmptyString;
+    return node->GetName();
+}
+
 int ObjectDataViewModel::GetIdByItem(const wxDataViewItem& item) const
 {
 	if(!item.IsOk())

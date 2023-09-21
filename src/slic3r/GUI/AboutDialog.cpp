@@ -40,10 +40,12 @@ void AboutDialogLogo::onRepaint(wxEvent &event)
 // -----------------------------------------
 // CopyrightsDialog
 // -----------------------------------------
-CopyrightsDialog::CopyrightsDialog()
-    : DPIDialog(static_cast<wxWindow*>(wxGetApp().mainframe), wxID_ANY, from_u8((boost::format("%1% - %2%")
-        % (wxGetApp().is_editor() ? SLIC3R_APP_NAME : GCODEVIEWER_APP_NAME)
-        % _utf8(L("Portions copyright"))).str()),
+CopyrightsDialog::CopyrightsDialog(wxWindow *parent)
+    : DPIDialog(parent?parent:static_cast<wxWindow *>(wxGetApp().mainframe),
+                wxID_ANY,
+                format_wxstr("%1% - %2%"
+        , wxGetApp().appName()
+        , _L("Portions copyright")),
         wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
 {
     this->SetFont(wxGetApp().normal_font());
@@ -72,14 +74,16 @@ CopyrightsDialog::CopyrightsDialog()
     sizer->Add(m_html, 1, wxEXPAND | wxALL, 15);
     m_html->Bind(wxEVT_HTML_LINK_CLICKED, &CopyrightsDialog::onLinkClicked, this);
 
-    wxStdDialogButtonSizer* buttons = this->CreateStdDialogButtonSizer(wxCLOSE);
+    //wxStdDialogButtonSizer* buttons = this->CreateStdDialogButtonSizer(wxCLOSE);
+    wxButton *              buttons = new wxButton(this, wxID_ANY, _L("Close"), wxDefaultPosition,wxDefaultSize);
     wxGetApp().UpdateDlgDarkUI(this, true);
     this->SetEscapeId(wxID_CLOSE);
-    this->Bind(wxEVT_BUTTON, &CopyrightsDialog::onCloseDialog, this, wxID_CLOSE);
-    sizer->Add(buttons, 0, wxEXPAND | wxRIGHT | wxBOTTOM, 3);
+    buttons->Bind(wxEVT_BUTTON, &CopyrightsDialog::onCloseDialog, this);
+    sizer->Add(buttons, 0,wxALIGN_RIGHT | wxRIGHT | wxBOTTOM, 3);
 
+	//SetMinSize(FromDIP(wxSize(370, 160)));
     SetSizer(sizer);
-    sizer->SetSizeHints(this);
+    //sizer->SetSizeHints(this);
     
 }
 
@@ -99,7 +103,7 @@ void CopyrightsDialog::fill_entries()
         { "Eigen"           , ""                                            , "http://eigen.tuxfamily.org" },
         { "Boost"           , "1998-2005 Beman Dawes, David Abrahams; "
                               "2004 - 2007 Rene Rivera"                     , "https://www.boost.org/" },
-        { "Clipper"         , "2010-2015 Angus Johnson "                    , "http://www.angusj.com " },
+        { "Clipper"         , "2010-2015 Angus Johnson"                    , "http://www.angusj.com" },
         { "GLEW (The OpenGL Extension Wrangler Library)", 
                               "2002 - 2007, Milan Ikits; "
                               "2002 - 2007, Marcelo E.Magallon; "
@@ -137,7 +141,6 @@ wxString CopyrightsDialog::get_html_text()
     const auto bgr_clr_str = encode_color(ColorRGB(bgr_clr.Red(), bgr_clr.Green(), bgr_clr.Blue()));
 
     const wxString copyright_str = _L("Copyright") + "&copy; ";
-    // TRN "Slic3r _is licensed under the_ License"
     const wxString header_str = _L("License agreements of all following programs (libraries) are part of application license agreement");
 
     wxString text = wxString::Format(
@@ -190,14 +193,15 @@ void CopyrightsDialog::on_dpi_changed(const wxRect &suggested_rect)
     m_html->Refresh();
 
     SetMinSize(size);
-    Fit();
+	Layout();
+    //Fit();
 
     Refresh();
 }
 
 void CopyrightsDialog::onLinkClicked(wxHtmlLinkEvent &event)
 {
-    wxGetApp().open_browser_with_warning_dialog(event.GetLinkInfo().GetHref());
+    wxGetApp().open_browser_with_warning_dialog(event.GetLinkInfo().GetHref(),this);
     event.Skip(false);
 }
 
@@ -206,13 +210,13 @@ void CopyrightsDialog::onCloseDialog(wxEvent &)
      this->EndModal(wxID_CLOSE);
 }
 
-AboutDialog::AboutDialog()
-    : DPIDialog(static_cast<wxWindow*>(wxGetApp().mainframe), wxID_ANY, from_u8((boost::format(_utf8(L("About %s"))) % (wxGetApp().is_editor() ? SLIC3R_APP_NAME : GCODEVIEWER_APP_NAME)).str()), wxDefaultPosition,
+AboutDialog::AboutDialog(wxWindow *parent)
+    : DPIDialog(parent, wxID_ANY, format_wxstr(_L("About %s"), wxGetApp().appName()), wxDefaultPosition,
         wxDefaultSize, /*wxCAPTION*/wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
 {
     SetFont(wxGetApp().normal_font());
 
-    wxColour bgr_clr = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
+    wxColour bgr_clr = wxGetApp().get_window_default_clr();//wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
 	SetBackgroundColour(bgr_clr);
     wxBoxSizer* hsizer = new wxBoxSizer(wxHORIZONTAL);
 
@@ -225,10 +229,9 @@ AboutDialog::AboutDialog()
     
     wxBoxSizer* vsizer = new wxBoxSizer(wxVERTICAL); 	
     hsizer->Add(vsizer, 2, wxEXPAND|wxLEFT, 20);
-
     // title
     {
-        wxStaticText* title = new wxStaticText(this, wxID_ANY, wxGetApp().is_editor() ? SLIC3R_APP_NAME : GCODEVIEWER_APP_NAME, wxDefaultPosition, wxDefaultSize);
+        wxStaticText* title = new wxStaticText(this, wxID_ANY, format_wxstr(("%1%"), wxGetApp().appName()), wxDefaultPosition, wxDefaultSize);
         wxFont title_font = GUI::wxGetApp().bold_font();
         title_font.SetFamily(wxFONTFAMILY_ROMAN);
         title_font.SetPointSize(24);
@@ -263,54 +266,62 @@ AboutDialog::AboutDialog()
         int size[] = {fs,fs,fs,fs,fs,fs,fs};
         m_html->SetFonts(font.GetFaceName(), font.GetFaceName(), size);
         m_html->SetBorders(2);
-        const std::string copyright_str = _utf8(L("Copyright"));
+        const wxString copyright_str = _L("Copyright");
         // TRN "Slic3r _is licensed under the_ License"
-        const std::string is_lecensed_str = _utf8(L("is licensed under the"));
-        const std::string license_str = _utf8(L("GNU Affero General Public License, version 3"));
-        const std::string based_on_str = _utf8(L("AnycubicSlicer is based on PrusaSlicer by Prusa Research, which is based on Slic3r by Alessandro Ranellucci and the RepRap community."));
-        const auto text = from_u8(
-            (boost::format(
+        const wxString is_lecensed_str = _L("is licensed under the");
+        const wxString license_str = _L("GNU Affero General Public License, version 3");
+        const wxString based_on_str = format_wxstr(_L("%1% is based on PrusaSlicer by Prusa Research, which is based on Slic3r by Alessandro Ranellucci and the RepRap community."), wxGetApp().appName());
+        const auto text = format_wxstr(
             "<html>"
             "<body bgcolor= %1% link= %2%>"
             "<font color=%3%>"
             "%4%"
             "<br /><br />"
-            "<a href=\"https://www.anycubic.com/\">AnycubicSlicer</a> %5% "
-            "<a href=\"http://www.gnu.org/licenses/agpl-3.0.html\">%6%</a>."
+            "<a href=\"https://www.anycubic.com/\">%5%</a>%6%"
+            "<a href=\"http://www.gnu.org/licenses/agpl-3.0.html\">%7%</a>."
             "<br /><br />"
             "</font>"
             "</body>"
-            "</html>") % bgr_clr_str % text_clr_str % text_clr_str
-            % based_on_str
-            % is_lecensed_str
-            % license_str
-            ).str());
+            "</html>", bgr_clr_str , text_clr_str , text_clr_str
+            , based_on_str
+            , wxString::FromUTF8(wxGetApp().appName())
+            , is_lecensed_str
+            , license_str
+            );
         m_html->SetPage(text);
         vsizer->Add(m_html, 1, wxEXPAND | wxBOTTOM, 10);
         m_html->Bind(wxEVT_HTML_LINK_CLICKED, &AboutDialog::onLinkClicked, this);
     }
 
-
-    wxStdDialogButtonSizer* buttons = this->CreateStdDialogButtonSizer(wxCLOSE);
+    wxBoxSizer* horLayout = new wxBoxSizer(wxHORIZONTAL);
 
     m_copy_rights_btn_id = NewControlId();
     auto copy_rights_btn = new wxButton(this, m_copy_rights_btn_id, _L("Portions copyright")+dots);
-    buttons->Insert(0, copy_rights_btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 5);
+    horLayout->Add(copy_rights_btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 5);
     copy_rights_btn->Bind(wxEVT_BUTTON, &AboutDialog::onCopyrightBtn, this);
 
     m_copy_version_btn_id = NewControlId();
     auto copy_version_btn = new wxButton(this, m_copy_version_btn_id, _L("Copy Version Info"));
-    buttons->Insert(1, copy_version_btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 5);
+    horLayout->Add(copy_version_btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 5);
     copy_version_btn->Bind(wxEVT_BUTTON, &AboutDialog::onCopyToClipboard, this);
+
+    horLayout->AddStretchSpacer();
+
+    auto close_btn = new wxButton(this, wxID_CLOSE, _L("Close"));
+    horLayout->Add(close_btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 5);
 
     wxGetApp().UpdateDlgDarkUI(this, true);
     
     this->SetEscapeId(wxID_CLOSE);
     this->Bind(wxEVT_BUTTON, &AboutDialog::onCloseDialog, this, wxID_CLOSE);
-    vsizer->Add(buttons, 0, wxEXPAND | wxRIGHT | wxBOTTOM, 3);
+    vsizer->Add(horLayout, 0, wxEXPAND | wxRIGHT | wxBOTTOM, 3);
 
+	SetMinSize(FromDIP(wxSize(620, 340)));
+	m_html->SetMinSize(FromDIP(wxSize(370, 160)));
+	SetSize(FromDIP(wxSize(620, 340)));
 	SetSizer(main_sizer);
 	main_sizer->SetSizeHints(this);
+	Layout();
 }
 
 void AboutDialog::on_dpi_changed(const wxRect &suggested_rect)
@@ -327,13 +338,16 @@ void AboutDialog::on_dpi_changed(const wxRect &suggested_rect)
 
     msw_buttons_rescale(this, em, { wxID_CLOSE, m_copy_rights_btn_id });
 
-    m_html->SetMinSize(wxSize(-1, 16 * em));
-    m_html->Refresh();
+    //m_html->SetMinSize(wxSize(-1, 16 * em));
+   // m_html->Refresh();
 
-    const wxSize& size = wxSize(65 * em, 30 * em);
+    /*const wxSize& size = wxSize(65 * em, 30 * em);
 
-    SetMinSize(size);
-    Fit();
+    SetMinSize(size);*/
+	m_html->SetMinSize(FromDIP(wxSize(370, 160)));
+	SetMinSize(FromDIP(wxSize(620, 340)));
+	Layout();
+    //Fit();
 
     Refresh();
 }
@@ -351,7 +365,7 @@ void AboutDialog::onCloseDialog(wxEvent &)
 
 void AboutDialog::onCopyrightBtn(wxEvent &)
 {
-    CopyrightsDialog dlg;
+    CopyrightsDialog dlg(this);
     dlg.ShowModal();
 }
 

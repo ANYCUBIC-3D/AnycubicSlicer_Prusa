@@ -134,15 +134,24 @@ public:
 	bool 				legacy_datadir() const { return m_legacy_datadir; }
 	void 				set_legacy_datadir(bool value) { m_legacy_datadir = value; }
 
+	bool 				hasAnonymousConfig() const { return m_hasAnonymousConfig; }
+	bool                set_canSendAnonymous(bool canSend);
+	bool                canSendAnonymous();
 	// Get the Slic3r version check url.
 	// This returns a hardcoded string unless it is overriden by "version_check_url" in the ini file.
 	std::string 		version_check_url() const;
+    std::string			ac_version_check_url() const;
+    std::string         ac_version_ini_name() const;
+    std::string         ac_version_env_name() const;
 	// Get the Slic3r url to vendor index archive zip.
 	std::string  		index_archive_url() const;
 	// Get the Slic3r url to folder with vendor profile files.
 	std::string 		profile_folder_url() const;
+    void				ac_setRegion_CN(bool index) { m_is_region_CN = index; }
+    void                ac_setZN_URL(std::string index) { m_zn_url = index; }
+    void                ac_setEN_URL(std::string index) { m_en_url = index; }
 
-
+	std::string getNetInfoEvent() const;
 	// Returns the original Slic3r version found in the ini file before it was overwritten
 	// by the current version
 	Semver 				orig_version() const { return m_orig_version; }
@@ -199,6 +208,11 @@ private:
 	Semver                                                      m_orig_version;
 	// Whether the existing version is before system profiles & configuration updating
 	bool                                                        m_legacy_datadir;
+
+	bool														m_is_region_CN;
+	bool                                                        m_hasAnonymousConfig;
+    std::string                                                 m_zn_url;
+    std::string                                                 m_en_url;
 };
 
 } // namespace Slic3r

@@ -64,6 +64,7 @@ void ACDialogTopbar::Init(wxWindow* parent)
     wxString btIconNameCloseHover = "software_close-hover";
 
     int buttonSize = 40;
+    int spacerIndex = 16;
     m_close_button = new ACButton(this, "", btIconNameCloseNor, btIconNameCloseHover, btIconNameCloseNor, wxBORDER_NONE,
                                   wxSize(buttonSize, buttonSize));
     m_close_button->SetPaddingSize(wxSize((0), (0)));
@@ -72,9 +73,9 @@ void ACDialogTopbar::Init(wxWindow* parent)
     //m_close_button->SetBackgroundColor(background_color);
 
     m_mainSizer = new wxBoxSizer(wxHORIZONTAL);
-    m_mainSizer->Add(m_title_item, 1, wxEXPAND);
+    m_mainSizer->Add(m_title_item, 1, wxLEFT| wxEXPAND, buttonSize + spacerIndex);
     m_mainSizer->Add(m_close_button, 0, wxALIGN_CENTER_VERTICAL);
-    m_mainSizer->AddSpacer(16);
+    m_mainSizer->AddSpacer(spacerIndex);
     SetSizer(m_mainSizer);
     Fit();
     msw_rescale();
@@ -91,9 +92,9 @@ void ACDialogTopbar::Init(wxWindow* parent)
     //m_mainSizer->Layout();
     //Layout();
 
-    m_title_item->Bind(wxEVT_LEFT_DOWN, &ACDialogTopbar::OnMouseLeftDown, this);
-    m_title_item->Bind(wxEVT_LEFT_UP, &ACDialogTopbar::OnMouseLeftUp, this);
-    m_title_item->Bind(wxEVT_MOTION, &ACDialogTopbar::OnMouseMotion, this);
+    //m_title_item->Bind(wxEVT_LEFT_DOWN, &ACDialogTopbar::OnMouseLeftDown, this);
+    //m_title_item->Bind(wxEVT_LEFT_UP, &ACDialogTopbar::OnMouseLeftUp, this);
+    //m_title_item->Bind(wxEVT_MOTION, &ACDialogTopbar::OnMouseMotion, this);
 
     Bind(wxEVT_LEFT_DOWN, &ACDialogTopbar::OnMouseLeftDown, this);
     Bind(wxEVT_LEFT_UP, &ACDialogTopbar::OnMouseLeftUp, this);
@@ -109,6 +110,38 @@ void ACDialogTopbar::msw_rescale()
     SetSize(wxSize(m_toolbar_w, m_toolbar_h));
     m_mainSizer->Layout();
     Layout();
+}
+ACButton* ACDialogTopbar::GetTextPtr()
+{
+	return m_title_item;
+}
+ACButton* ACDialogTopbar::GetButtonPtr()
+{
+	return m_close_button;
+}
+void ACDialogTopbar::LayoutLeft()
+{
+	wxCursor cursor(wxCURSOR_HAND);
+	m_close_button->SetCursor(cursor);
+	m_mainSizer->Clear();
+	m_mainSizer->AddSpacer(20);
+	m_mainSizer->Add(m_title_item, 0, wxEXPAND);
+	const int& em = em_unit(GetParent());
+	m_toolbar_h = 4.0 * em;
+	m_mainSizer->AddStretchSpacer(1);
+	m_mainSizer->Add(m_close_button, 0, wxALIGN_CENTER_VERTICAL);
+	m_close_button->SetIcon("icon-close_40-nor_black");
+	m_close_button->SetHoverIcon("icon-close_40-nor");
+	ACStateColor fgColor;
+	fgColor.append(wxColour(168, 168, 168), ACStateColor::Disabled);
+	fgColor.append(wxColour(255, 111, 111), ACStateColor::Hovered);
+	fgColor.append(wxColour(204, 224, 255), ACStateColor::Normal);
+	m_close_button->SetBackgroundColor(fgColor);
+	m_close_button->SetCornerRadius(0);
+	//m_mainSizer->AddSpacer(10);
+	SetSizer(m_mainSizer, false);
+	Fit();
+	msw_rescale();
 }
 void ACDialogTopbar::SetTitle(wxString title)
 {

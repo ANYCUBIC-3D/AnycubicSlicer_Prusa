@@ -344,7 +344,7 @@ void HintDatabase::load_hints_from_file(const boost::filesystem::path& path)
 			bool		was_displayed = is_used(id_string);
 			//unescape text1
 			unescape_string_cstyle(dict["text"], fulltext);
-			fulltext = _utf8(fulltext);
+			fulltext = into_u8(_(fulltext));
 #ifdef __APPLE__
 			boost::replace_all(fulltext, "Ctrl+", "⌘");
 #endif //__APPLE__
@@ -370,19 +370,19 @@ void HintDatabase::load_hints_from_file(const boost::filesystem::path& path)
 				fulltext.erase(hypertext_start, HYPERTEXT_MARKER_START.size());
 				if (fulltext.find(HYPERTEXT_MARKER_START) != std::string::npos) {
 					// This must not happen - only 1 hypertext allowed
-					BOOST_LOG_TRIVIAL(error) << "Hint notification with multiple hypertexts: " << _utf8(dict["text"]);
+					BOOST_LOG_TRIVIAL(error) << "Hint notification with multiple hypertexts: " << dict["text"];
 					continue;
 				}
 				size_t hypertext_end = fulltext.find(HYPERTEXT_MARKER_END);
 				if (hypertext_end == std::string::npos) {
 					// hypertext was not correctly ended
-					BOOST_LOG_TRIVIAL(error) << "Hint notification without hypertext end marker: " << _utf8(dict["text"]);
+					BOOST_LOG_TRIVIAL(error) << "Hint notification without hypertext end marker: " << dict["text"];
 					continue;
 				}
 				fulltext.erase(hypertext_end, HYPERTEXT_MARKER_END.size());
 				if (fulltext.find(HYPERTEXT_MARKER_END) != std::string::npos) {
 					// This must not happen - only 1 hypertext end allowed
-					BOOST_LOG_TRIVIAL(error) << "Hint notification with multiple hypertext end markers: " << _utf8(dict["text"]);
+					BOOST_LOG_TRIVIAL(error) << "Hint notification with multiple hypertext end markers: " << dict["text"];
 					continue;
 				}
 				
@@ -419,7 +419,7 @@ void HintDatabase::load_hints_from_file(const boost::filesystem::path& path)
 					std::string		opt = dict["hypertext_settings_opt"];
 					Preset::Type	type = static_cast<Preset::Type>(std::atoi(dict["hypertext_settings_type"].c_str()));
 					std::wstring	category = boost::nowide::widen(dict["hypertext_settings_category"]);
-					HintData		hint_data{ id_string, text1, weight, was_displayed, hypertext_text, follow_text, disabled_tags, enabled_tags, true, documentation_link, [opt, type, category]() { GUI::wxGetApp().sidebar().jump_to_option(opt, type, category); } };
+					HintData		hint_data{ id_string, text1, weight, was_displayed, hypertext_text, follow_text, disabled_tags, enabled_tags, true, documentation_link, [opt, type, category]() { GUI::wxGetApp().plater()->jump_to_option(opt, type, category); } };
 					m_loaded_hints.emplace_back(hint_data);
 				// open preferences
 				} else if(dict["hypertext_type"] == "preferences") {
@@ -427,10 +427,10 @@ void HintDatabase::load_hints_from_file(const boost::filesystem::path& path)
 					std::string	item = dict["hypertext_preferences_item"];
 					HintData	hint_data{ id_string, text1, weight, was_displayed, hypertext_text, follow_text, disabled_tags, enabled_tags, false, documentation_link, [page, item]() { wxGetApp().open_preferences(item, page); } };
 					m_loaded_hints.emplace_back(hint_data);
-				} else if (dict["hypertext_type"] == "plater") {
-					std::string	item = dict["hypertext_plater_item"];
-					HintData	hint_data{ id_string, text1, weight, was_displayed, hypertext_text, follow_text, disabled_tags, enabled_tags, true, documentation_link, [item]() { wxGetApp().plater()->canvas3D()->highlight_toolbar_item(item); } };
-					m_loaded_hints.emplace_back(hint_data);
+				//} else if (dict["hypertext_type"] == "plater") {
+				//	std::string	item = dict["hypertext_plater_item"];
+				//	HintData	hint_data{ id_string, text1, weight, was_displayed, hypertext_text, follow_text, disabled_tags, enabled_tags, true, documentation_link, [item]() { wxGetApp().plater()->canvas3D()->highlight_toolbar_item(item); } };
+				//	m_loaded_hints.emplace_back(hint_data);
 				} else if (dict["hypertext_type"] == "gizmo") {
 					std::string	item = dict["hypertext_gizmo_item"];
 					HintData	hint_data{ id_string, text1, weight, was_displayed, hypertext_text, follow_text, disabled_tags, enabled_tags, true, documentation_link, [item]() { wxGetApp().plater()->canvas3D()->highlight_gizmo(item); } };

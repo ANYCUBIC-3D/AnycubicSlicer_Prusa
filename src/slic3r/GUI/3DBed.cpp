@@ -25,57 +25,10 @@ static const Slic3r::ColorRGBA DEFAULT_MODEL_COLOR             = Slic3r::ColorRG
 static const Slic3r::ColorRGBA PICKING_MODEL_COLOR             = Slic3r::ColorRGBA::BLACK();
 static const Slic3r::ColorRGBA DEFAULT_SOLID_GRID_COLOR        = { 0.9f, 0.9f, 0.9f, 1.0f };
 static const Slic3r::ColorRGBA DEFAULT_TRANSPARENT_GRID_COLOR  = { 0.9f, 0.9f, 0.9f, 0.6f };
+static const Slic3r::ColorRGBA DEFAULT_BOX_COLOR  = {0.81f, 0.83f, 0.88f, 1.0f};
 
 namespace Slic3r {
 namespace GUI {
-
-#if !ENABLE_WORLD_COORDINATE
-const float Bed3D::Axes::DefaultStemRadius = 0.5f;
-const float Bed3D::Axes::DefaultStemLength = 25.0f;
-const float Bed3D::Axes::DefaultTipRadius = 2.5f * Bed3D::Axes::DefaultStemRadius;
-const float Bed3D::Axes::DefaultTipLength = 5.0f;
-
-void Bed3D::Axes::render()
-{
-    auto render_axis = [this](GLShaderProgram* shader, const Transform3d& transform) {
-        const Camera& camera = wxGetApp().plater()->get_camera();
-        const Transform3d& view_matrix = camera.get_view_matrix();
-        shader->set_uniform("view_model_matrix", view_matrix * transform);
-        shader->set_uniform("projection_matrix", camera.get_projection_matrix());
-        const Matrix3d view_normal_matrix = view_matrix.matrix().block(0, 0, 3, 3) * transform.matrix().block(0, 0, 3, 3).inverse().transpose();
-        shader->set_uniform("view_normal_matrix", view_normal_matrix);
-        m_arrow.render();
-    };
-
-    if (!m_arrow.is_initialized())
-        m_arrow.init_from(stilized_arrow(16, DefaultTipRadius, DefaultTipLength, DefaultStemRadius, m_stem_length));
-
-    GLShaderProgram* shader = wxGetApp().get_shader("gouraud_light");
-    if (shader == nullptr)
-        return;
-
-    glsafe(::glEnable(GL_DEPTH_TEST));
-
-    shader->start_using();
-    shader->set_uniform("emission_factor", 0.0f);
-
-    // x axis
-    m_arrow.set_color(ColorRGBA::X());
-    render_axis(shader, Geometry::assemble_transform(m_origin, { 0.0, 0.5 * M_PI, 0.0 }));
-
-    // y axis
-    m_arrow.set_color(ColorRGBA::Y());
-    render_axis(shader, Geometry::assemble_transform(m_origin, { -0.5 * M_PI, 0.0, 0.0 }));
-
-    // z axis
-    m_arrow.set_color(ColorRGBA::Z());
-    render_axis(shader, Geometry::assemble_transform(m_origin));
-
-    shader->stop_using();
-
-    glsafe(::glDisable(GL_DEPTH_TEST));
-}
-#endif // !ENABLE_WORLD_COORDINATE
 
 bool Bed3D::set_shape(const Pointfs& bed_shape, const double max_print_height, const std::string& custom_texture, const std::string& custom_model, bool force_as_custom)
 {
@@ -132,6 +85,7 @@ bool Bed3D::set_shape(const Pointfs& bed_shape, const double max_print_height, c
 
     m_triangles.reset();
     m_gridlines.reset();
+    m_boxlines.reset();
     m_contourlines.reset();
     m_texture.reset();
     m_model.reset();
@@ -157,25 +111,24 @@ Point Bed3D::point_projection(const Point& point) const
     return m_polygon.point_projection(point);
 }
 
-void Bed3D::render(GLCanvas3D& canvas, const Transform3d& view_matrix, const Transform3d& projection_matrix, bool bottom, float scale_factor, bool show_axes, bool show_texture)
+void Bed3D::render(GLCanvas3D& canvas, const Transform3d& view_matrix, const Transform3d& projection_matrix, bool bottom, float scale_factor, bool show_texture)
 {
-    render_internal(canvas, view_matrix, projection_matrix, bottom, scale_factor, show_axes, show_texture, false);
+    render_internal(canvas, view_matrix, projection_matrix, bottom, scale_factor, show_texture, false);
 }
 
 void Bed3D::render_for_picking(GLCanvas3D& canvas, const Transform3d& view_matrix, const Transform3d& projection_matrix, bool bottom, float scale_factor)
 {
-    render_internal(canvas, view_matrix, projection_matrix, bottom, scale_factor, false, false, true);
+    render_internal(canvas, view_matrix, projection_matrix, bottom, scale_factor, false, true);
 }
 
 void Bed3D::render_internal(GLCanvas3D& canvas, const Transform3d& view_matrix, const Transform3d& projection_matrix, bool bottom, float scale_factor,
-    bool show_axes, bool show_texture, bool picking)
+    bool show_texture, bool picking)
 {
     m_scale_factor = scale_factor;
 
-    if (show_axes)
-        render_axes();
-
     glsafe(::glEnable(GL_DEPTH_TEST));
+
+    //render_boxlines(view_matrix, projection_matrix);
 
     m_model.model.set_color(picking ? PICKING_MODEL_COLOR : DEFAULT_MODEL_COLOR);
 
@@ -204,11 +157,7 @@ BoundingBoxf3 Bed3D::calc_extended_bounding_box() const
     out.merge(m_axes.get_origin());
     // extend to contain axes
     out.merge(m_axes.get_origin() + m_axes.get_total_length() * Vec3d::Ones());
-#if ENABLE_WORLD_COORDINATE
     out.merge(out.min + Vec3d(-m_axes.get_tip_radius(), -m_axes.get_tip_radius(), out.max.z()));
-#else
-    out.merge(out.min + Vec3d(-Axes::DefaultTipRadius, -Axes::DefaultTipRadius, out.max.z()));
-#endif // ENABLE_WORLD_COORDINATE
     // extend to contain model, if any
     BoundingBoxf3 model_bb = m_model.model.get_bounding_box();
     if (model_bb.defined) {
@@ -266,6 +215,59 @@ void Bed3D::init_triangles()
     m_triangles.init_from(std::move(init_data));
     m_triangles.set_color(DEFAULT_MODEL_COLOR);
 }
+void Bed3D::init_boxlines()
+{
+    if (m_boxlines.is_initialized())
+        return;
+
+    if (m_contour.empty())
+        return;
+
+    const BoundingBox &bed_bbox = m_contour.contour.bounding_box();
+    const coord_t      step     = scale_(10.0);
+    
+    Polylines axes_lines;
+    for (coord_t x = bed_bbox.min.x(); x <= bed_bbox.max.x(); x += bed_bbox.max.x() - bed_bbox.min.x()) {
+        Polyline line, line_edge;
+        line.append(Point(x, bed_bbox.min.y()));
+        line.append(Point(x, bed_bbox.max.y()));
+        axes_lines.push_back(line);
+    }
+    for (coord_t y = bed_bbox.min.y(); y <= bed_bbox.max.y(); y += bed_bbox.max.y() - bed_bbox.min.y()) {
+        Polyline line;
+        line.append(Point(bed_bbox.min.x(), y));
+        line.append(Point(bed_bbox.max.x(), y));
+        axes_lines.push_back(line);
+    }
+
+    // clip with a slightly grown expolygon because our lines lay on the contours and may get erroneously clipped
+    Lines gridlines = to_lines(intersection_pl(axes_lines, offset(m_contour, float(SCALED_EPSILON))));
+
+    // append bed contours
+    Lines contour_lines = to_lines(m_contour);
+    std::copy(contour_lines.begin(), contour_lines.end(), std::back_inserter(gridlines));
+
+    GLModel::Geometry init_data;
+    init_data.format = {GLModel::Geometry::EPrimitiveType::Lines, GLModel::Geometry::EVertexLayout::P3};
+    init_data.reserve_vertices(4 * gridlines.size());
+    init_data.reserve_indices(4 * gridlines.size());
+
+    for (const Slic3r::Line &l : contour_lines) {
+        init_data.add_vertex(Vec3f(unscale<float>(l.a.x()), unscale<float>(l.a.y()), m_build_volume.max_print_height()));
+        init_data.add_vertex(Vec3f(unscale<float>(l.b.x()), unscale<float>(l.b.y()), m_build_volume.max_print_height()));
+        const unsigned int vertices_counter = (unsigned int) init_data.vertices_count();
+        init_data.add_line(vertices_counter - 2, vertices_counter - 1);
+    }
+    for (const Slic3r::Line &l : contour_lines) {
+        init_data.add_vertex(Vec3f(unscale<float>(l.a.x()), unscale<float>(l.a.y()), GROUND_Z));
+        init_data.add_vertex(Vec3f(unscale<float>(l.a.x()), unscale<float>(l.a.y()), m_build_volume.max_print_height()));
+        const unsigned int vertices_counter = (unsigned int) init_data.vertices_count();
+        init_data.add_line(vertices_counter - 2, vertices_counter - 1);
+    }
+
+    m_boxlines.init_from(std::move(init_data));
+}
+
 
 void Bed3D::init_gridlines()
 {
@@ -367,11 +369,7 @@ std::tuple<Bed3D::Type, std::string, std::string> Bed3D::detect_type(const Point
 void Bed3D::render_axes()
 {
     if (m_build_volume.valid())
-#if ENABLE_WORLD_COORDINATE
         m_axes.render(Transform3d::Identity(), 0.25f);
-#else
-        m_axes.render();
-#endif // ENABLE_WORLD_COORDINATE
 }
 
 void Bed3D::render_system(GLCanvas3D& canvas, const Transform3d& view_matrix, const Transform3d& projection_matrix, bool bottom, bool show_texture)
@@ -498,6 +496,14 @@ void Bed3D::render_model(const Transform3d& view_matrix, const Transform3d& proj
         m_model_offset = to_3d(m_build_volume.bounding_volume2d().center(), -0.03);
 
         // register for picking
+        const std::vector<std::shared_ptr<SceneRaycasterItem>>* const raycaster = wxGetApp().plater()->canvas3D()->get_raycasters_for_picking(SceneRaycaster::EType::Bed);
+        if (!raycaster->empty()) {
+            // The raycaster may have been set by the call to init_triangles() made from render_texture() if the printbed was
+            // changed while the camera was pointing upward.
+            // In this case we need to remove it before creating a new using the model geometry
+            wxGetApp().plater()->canvas3D()->remove_raycasters_for_picking(SceneRaycaster::EType::Bed);
+            m_model.mesh_raycaster.reset();
+        }
         register_raycasters_for_picking(m_model.model.get_geometry(), Geometry::translation_transform(m_model_offset));
 
         // update extended bounding box
@@ -535,12 +541,40 @@ void Bed3D::render_custom(GLCanvas3D& canvas, const Transform3d& view_matrix, co
     else if (bottom)
         render_contour(view_matrix, projection_matrix);
 }
+void Bed3D::render_boxlines( const Transform3d &view_matrix, const Transform3d &projection_matrix)
+{
+    init_boxlines();
+
+    GLShaderProgram *shader = wxGetApp().get_shader("flat");
+    if (shader != nullptr) {
+        shader->start_using();
+
+        shader->set_uniform("view_model_matrix", view_matrix);
+        shader->set_uniform("projection_matrix", projection_matrix);
+
+        glsafe(::glEnable(GL_DEPTH_TEST));
+        glsafe(::glEnable(GL_BLEND));
+        glsafe(::glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
+#if ENABLE_GL_CORE_PROFILE
+		if (!OpenGLManager::get_gl_info().is_core_profile())
+#endif // ENABLE_GL_CORE_PROFILE
+		glsafe(::glLineWidth(1.5f * m_scale_factor));
+        m_boxlines.set_color(DEFAULT_BOX_COLOR);
+        glsafe(::glEnable(GL_LINE_SMOOTH));
+        m_boxlines.render();
+        glsafe(::glDisable(GL_LINE_SMOOTH));
+        glsafe(::glDisable(GL_BLEND));
+
+        shader->stop_using();
+    }
+}
 
 void Bed3D::render_default(bool bottom, bool picking, bool show_texture, const Transform3d& view_matrix, const Transform3d& projection_matrix)
 {
     m_texture.reset();
 
     init_gridlines();
+    init_boxlines();
     init_triangles();
 
     GLShaderProgram* shader = wxGetApp().get_shader("flat");

@@ -15,3 +15,12 @@ endif()
 target_link_libraries(miniz INTERFACE miniz_static)
 target_include_directories(miniz INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 
+INSTALL(TARGETS miniz_static
+            RUNTIME DESTINATION bin/
+            LIBRARY DESTINATION lib/
+            ARCHIVE DESTINATION lib/
+    )
+
+    
+file(GLOB HDRS_G "${CMAKE_CURRENT_SOURCE_DIR}/*.h*")
+INSTALL(FILES ${HDRS_G} DESTINATION include/miniz) 

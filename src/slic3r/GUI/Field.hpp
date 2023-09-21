@@ -264,7 +264,8 @@ class TextCtrl : public Field {
 	bool	bChangedValueEvent = true;
     void    change_field_value(wxEvent& event);
 #endif //__WXGTK__
-
+    bool m_hasFoucs = false;
+	wxString m_lastValue = wxEmptyString;
 public:
 	TextCtrl(const ConfigOptionDef& opt, const t_config_option_key& id) : Field(opt,  id) {}
 	TextCtrl(wxWindow* parent, const ConfigOptionDef& opt, const t_config_option_key& id) : Field(parent, opt, id) {}
@@ -356,6 +357,7 @@ public:
 
 class Choice : public Field {
 	using Field::Field;
+    wxString m_lastValue = wxEmptyString;
 
 public:
 	Choice(const ConfigOptionDef& opt, const t_config_option_key& id) : Field(opt, id) {}
@@ -512,6 +514,16 @@ public:
 	wxSizer*		getSizer() override { return m_sizer; }
 	wxWindow*		getWindow() override { return dynamic_cast<wxWindow*>(m_slider); }
 };
+
+class FieldColourPickerCtrl : public wxColourPickerCtrl
+{
+public:
+	FieldColourPickerCtrl(wxWindow* parent, wxWindowID id, const wxColour& colour = *wxBLACK, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxDefaultSize, long style = wxCLRP_DEFAULT_STYLE);
+
+protected:
+	void OnPaint(wxPaintEvent& event);
+};
+
 
 } // GUI
 } // Slic3r

@@ -10,6 +10,12 @@
 #include <vector>
 #include <stdexcept>
 
+
+#include <iostream>
+#include <boost/filesystem.hpp> 
+#include <boost/dll/runtime_symbol_info.hpp>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/ini_parser.hpp>
 #include <boost/filesystem/path.hpp>
 #include <boost/filesystem/operations.hpp>
 #include <boost/nowide/cenv.hpp>
@@ -19,7 +25,6 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/format/format_fwd.hpp>
 #include <boost/log/trivial.hpp>
-
 #ifdef WIN32
 //FIXME replace the two following includes with <boost/md5.hpp> after it becomes mainstream.
 #include <boost/uuid/detail/md5.hpp>
@@ -35,15 +40,28 @@ static const std::string MODEL_PREFIX = "model:";
 // Thus we will let Anycubic Slicer 2.3.2 and couple of follow-up versions to download the version number from an alternate file until the Anycubic Slicer 2.3.0/2.3.1
 // are phased out, then we will revert to the original name.
 // For 2.6.0-alpha1 we have switched back to the original. The file should contain data for AppUpdater.cpp
-static const std::string VERSION_CHECK_URL = "https://files.xxxxxxx.com/";
-// Url to index archive zip that contains latest indicies
-static const std::string INDEX_ARCHIVE_URL= "https://files.xxxxxxx.com/";
-// Url to folder with vendor profile files. Used when downloading new profiles that are not in resources folder.
-static const std::string PROFILE_FOLDER_URL = "https://files.xxxxxxx.com/";
+static const std::string VERSION_CHECK_URL      = "https://anycubic-hk-1307326732.cos.ap-hongkong.myqcloud.com/acslicer/prod";
+static const std::string VERSION_CHECK_URL_CN =
+#ifdef _DEBUG
+    "https://anycubic-1307326732.cos.ap-guangzhou.myqcloud.com/acslicer/test";
+#else
+    "https://anycubic-1307326732.cos.ap-guangzhou.myqcloud.com/acslicer/prod";
+#endif
+static const std::string VERSION_CHECK_URL_EN   = 
+#ifdef _DEBUG 
+    "https://workbentch.s3.us-east-2.amazonaws.com/acslicer/test";
+#else
+    "https://workbentch.s3.us-east-2.amazonaws.com/acslicer/prod";
+#endif
+static const std::string VERSION_CHECK_ININAME  = "ac_update.ini";
+static const std::string VERSION_CHECK_ENVNAME  = "environment.ini";
+
 
 const std::string AppConfig::SECTION_FILAMENTS = "filaments";
 const std::string AppConfig::SECTION_MATERIALS = "sla_materials";
 const std::string AppConfig::SECTION_EMBOSS_STYLE = "font";
+
+
 
 void AppConfig::reset()
 {
@@ -59,6 +77,13 @@ void AppConfig::reset()
 void AppConfig::set_defaults()
 {
     if (m_mode == EAppMode::Editor) {
+        if (get("canSendAnonymous").empty()) {
+            set("canSendAnonymous", "1");
+            m_hasAnonymousConfig = false;
+        } else {
+            m_hasAnonymousConfig = true;
+        }
+
         // Reset the empty fields to defaults.
         if (get("autocenter").empty())
             set("autocenter", "0");
@@ -717,6 +742,15 @@ bool AppConfig::update_last_output_dir(const std::string& dir, const bool remova
 	return this->set("", (removable ? "last_output_path_removable" : "last_output_path"), dir);
 }
 
+bool AppConfig::set_canSendAnonymous(bool canSend)
+{
+    return this->set("canSendAnonymous", canSend ? "1" : "0");
+}
+
+bool AppConfig::canSendAnonymous()
+{
+    return this->get("canSendAnonymous") == "1";
+}
 
 void AppConfig::reset_selections()
 {
@@ -741,20 +775,29 @@ std::string AppConfig::config_path() const
     return path;
 }
 
+std::string AppConfig::getNetInfoEvent() const {
+
+    return m_is_region_CN ? m_zn_url.length() > 0 ? m_zn_url : VERSION_CHECK_URL_CN : m_en_url.length() > 0 ? m_en_url :  VERSION_CHECK_URL_EN;
+}
+
+
 std::string AppConfig::version_check_url() const
 {
     auto from_settings = get("version_check_url");
-    return from_settings.empty() ? VERSION_CHECK_URL : from_settings;
+    return from_settings.empty() ? m_is_region_CN ? m_zn_url.length() > 0 ? m_zn_url :  VERSION_CHECK_URL_CN :  m_en_url.length() > 0 ? m_en_url : VERSION_CHECK_URL_EN : from_settings;
 }
+std::string AppConfig::ac_version_check_url() const { return m_is_region_CN ? m_zn_url.length() > 0 ? m_zn_url :  VERSION_CHECK_URL_CN : m_en_url.length() > 0 ? m_en_url : VERSION_CHECK_URL_EN; }
+std::string AppConfig::ac_version_ini_name() const { return VERSION_CHECK_ININAME; }
+std::string AppConfig::ac_version_env_name() const { return VERSION_CHECK_ENVNAME; }
 
 std::string AppConfig::index_archive_url() const
 {
 #if 0  
     // this code is for debug & testing purposes only - changed url wont get trough inner checks anyway. 
     auto from_settings = get("index_archive_url");
-    return from_settings.empty() ? INDEX_ARCHIVE_URL : from_settings;
+    return from_settings.empty() ? VERSION_CHECK_URL : from_settings;
 #endif
-    return INDEX_ARCHIVE_URL;
+    return VERSION_CHECK_URL;
 }
 
 std::string AppConfig::profile_folder_url() const
@@ -762,9 +805,9 @@ std::string AppConfig::profile_folder_url() const
 #if 0   
     // this code is for debug & testing purposes only - changed url wont get trough inner checks anyway. 
     auto from_settings = get("profile_folder_url");
-    return from_settings.empty() ? PROFILE_FOLDER_URL : from_settings;
+    return from_settings.empty() ? VERSION_CHECK_URL : from_settings;
 #endif
-    return PROFILE_FOLDER_URL;
+    return VERSION_CHECK_URL;
 }
 
 bool AppConfig::exists() const

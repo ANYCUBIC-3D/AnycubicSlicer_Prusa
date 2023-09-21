@@ -1,4 +1,4 @@
-#include "ACDropDown.hpp"
+﻿#include "ACDropDown.hpp"
 #include "ACLabel.hpp"
 
 #include <wx/dcgraph.h>
@@ -101,7 +101,20 @@ wxString ACDropDown::GetValue() const { return selection >= 0 ? texts[selection]
 
 void ACDropDown::SetValue(const wxString &value)
 {
-    auto i    = std::find(texts.begin(), texts.end(), value);
+
+    /*int maxWidth = GetParent() ? GetParent()->GetSize().x - (texts.size() > m_maxRows ? m_scrollWidth : 0) : 0;
+    wxClientDC dc(this);
+    wxSize     t_size = dc.GetTextExtent(value);
+    wxSize     addInfoStrSize = dc.GetTextExtent(wxString("..."));
+    wxString   newStrValue(value);
+    for (int i = 0; i <= value.length(); i++) {
+        newStrValue.RemoveLast(); 
+        t_size = dc.GetTextExtent(newStrValue);
+        if (maxWidth >= t_size.x + addInfoStrSize.x + (m_iconExist ?  m_iconSize.x + m_spacing:m_spacing)) {
+            newStrValue += wxString("...");
+        }
+    }*/
+    auto i            = std::find(texts.begin(), texts.end(), value);
     selection = i == texts.end() ? -1 : std::distance(texts.begin(), i);
     m_sizeValid       = false;
     messureSize();
@@ -256,6 +269,7 @@ void ACDropDown::render(wxDC &dc)
     // rectRowContent.Deflate(m_padding*2, 0);
     //  draw texts & icons
     dc.SetTextForeground(text_color.colorForStates(states));
+
     for (int i = 0; i < texts.size(); ++i) {
         if (rectRowContent.GetBottom() < 0) {
             rectRowContent.y += m_rowSize.y;
@@ -283,7 +297,23 @@ void ACDropDown::render(wxDC &dc)
             // }
             pt.y = rectRowContent.y + (m_rowSize.y - m_textSize.y) / 2;
             dc.SetFont(GetFont());
-            dc.DrawText(text, pt);
+
+            wxSize   t_size         = dc.GetTextExtent(text);
+            wxSize   addInfoStrSize = dc.GetTextExtent(wxString("..."));
+            wxString newStrValue(text);
+            if (size.x < t_size.x + addInfoStrSize.x + pt.x) {
+                for (int i = 0; i <= text.length(); i++) {
+                    newStrValue.RemoveLast();
+                    t_size = dc.GetTextExtent(newStrValue);
+                    if (size.x >= t_size.x + addInfoStrSize.x + pt.x) {
+                        newStrValue += wxString("...");
+                        break;
+                    }
+                }
+            }
+
+
+            dc.DrawText(newStrValue, pt);
         }
 
         rectRowContent.y += m_rowSize.y;
@@ -318,7 +348,8 @@ void ACDropDown::messureSize()
         szRowContent += m_textSize;
     }
     m_rowSize   = szRowContent;
-    m_rowSize.x = std::max(m_rowSize.x, GetParent() ? GetParent()->GetSize().x - (texts.size() > m_maxRows ? m_scrollWidth : 0) : 0);
+    //m_rowSize.x = std::max(m_rowSize.x, GetParent() ? GetParent()->GetSize().x - (texts.size() > m_maxRows ? m_scrollWidth : 0) : 0);
+    m_rowSize.x = GetParent() ? GetParent()->GetSize().x - (texts.size() > m_maxRows ? m_scrollWidth : 0) : 0;
 
     wxSize szContent = m_rowSize;
 
@@ -403,7 +434,8 @@ void ACDropDown::mouseMove(wxMouseEvent &event)
             return;
         }
     }
-
+	if (hover_item >= 0 && &texts && hover_item < texts.size())//开启tooltips texts也必须判空处理
+		SetToolTip(texts[hover_item]);
     //
     if (!pressedDown || hover_item >= 0) {
         int hoverIdx = (pt.y - m_padding - m_offsetY) / m_rowSize.y;
@@ -443,6 +475,8 @@ void ACDropDown::mouseWheelMoved(wxMouseEvent &event)
         hover_item = hover;
         // if (hover >= 0) SetToolTip(texts[hover]);
     }
+	if (hover_item >= 0 && &texts && hover_item < texts.size())//开启tooltips texts也必须判空处理
+		SetToolTip(texts[hover_item]);
     Refresh();
 }
 

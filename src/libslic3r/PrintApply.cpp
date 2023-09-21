@@ -791,13 +791,8 @@ void update_volume_bboxes(
                     if (it != volumes_old.end() && it->volume_id == model_volume->id())
                         layer_range.volumes.emplace_back(*it);
                 } else
-#if ENABLE_WORLD_COORDINATE
                     layer_range.volumes.push_back({ model_volume->id(),
                         transformed_its_bbox2d(model_volume->mesh().its, trafo_for_bbox(object_trafo, model_volume->get_matrix()), offset) });
-#else
-                    layer_range.volumes.push_back({ model_volume->id(),
-                        transformed_its_bbox2d(model_volume->mesh().its, trafo_for_bbox(object_trafo, model_volume->get_matrix(false)), offset) });
-#endif // ENABLE_WORLD_COORDINATE
             }
     } else {
         std::vector<std::vector<PrintObjectRegions::VolumeExtents>> volumes_old;
@@ -829,11 +824,7 @@ void update_volume_bboxes(
                             layer_range.volumes.emplace_back(*it);
                     }
                 } else {
-#if ENABLE_WORLD_COORDINATE
                     transformed_its_bboxes_in_z_ranges(model_volume->mesh().its, trafo_for_bbox(object_trafo, model_volume->get_matrix()), ranges, bboxes, offset);
-#else
-                    transformed_its_bboxes_in_z_ranges(model_volume->mesh().its, trafo_for_bbox(object_trafo, model_volume->get_matrix(false)), ranges, bboxes, offset);
-#endif // ENABLE_WORLD_COORDINATE
                     for (PrintObjectRegions::LayerRangeRegions &layer_range : layer_ranges)
                         if (auto &bbox = bboxes[&layer_range - layer_ranges.data()]; bbox.second)
                             layer_range.volumes.push_back({ model_volume->id(), bbox.first });

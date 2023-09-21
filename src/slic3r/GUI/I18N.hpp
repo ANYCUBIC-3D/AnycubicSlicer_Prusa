@@ -1,7 +1,6 @@
 #ifndef _
 #define _(s)    	Slic3r::GUI::I18N::translate((s))
 #define _L(s)    	Slic3r::GUI::I18N::translate((s))
-#define _utf8(s)    Slic3r::GUI::I18N::translate_utf8((s))
 #define _u8L(s)     Slic3r::GUI::I18N::translate_utf8((s))
 #endif /* _ */
 

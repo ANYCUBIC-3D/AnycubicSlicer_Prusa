@@ -31,9 +31,25 @@ public:
     {
         Create(parent, label, id, pos, size, style);
     }
-
+    ACGroupBox(wxWindow *parent, 
+        const wxString &label,
+        bool createIndex,
+        wxWindowID      id    = wxID_ANY,
+        const wxPoint & pos   = wxDefaultPosition,
+        const wxSize &  size  = wxDefaultSize,
+        long            style = 0)
+        : ACStaticBox(parent, id, pos, size, style), m_createIndex(createIndex)
+    {
+        Create(parent, label, id, createIndex, pos, size, style);
+    }
     ~ACGroupBox();
-
+    bool Create(wxWindow *      parent,
+                const wxString &label,
+                wxWindowID      id,
+                bool createIndex,
+                const wxPoint & pos   = wxDefaultPosition,
+                const wxSize &  size  = wxDefaultSize,
+                long            style = 0);
     bool Create(wxWindow *parent
                 , const wxString& label
                 , wxWindowID id,
@@ -50,12 +66,16 @@ public:
     //virtual bool CanApplyThemeBorder() const wxOVERRIDE { return false; }
 
     void PositionLabelWindow();
+    ACButton *getCircleBackButton() { return m_circleBack; }
+    bool            m_createIndex = false;
+
 protected:
     virtual wxSize DoGetBestSize() const;
 
 private:
 
     ACButton* m_labelWin = nullptr;
+    ACButton *m_circleBack = nullptr;
 
     int m_padding = 12;
     int m_spacing = 12;

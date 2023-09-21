@@ -1,3 +1,6 @@
+if(POLICY CMP0072)
+    set(OpenGL_GL_PREFERENCE LEGACY)
+endif()
 find_package(OpenGL QUIET REQUIRED)
 
 prusaslicer_add_cmake_project(TIFF

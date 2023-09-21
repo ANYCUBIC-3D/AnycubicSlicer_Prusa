@@ -7,6 +7,7 @@
 #include <utility>
 #include <unordered_map>
 #include <stdexcept>
+#include <cstdlib>
 #include <boost/format.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/algorithm/string/predicate.hpp>
@@ -50,7 +51,7 @@
 #include "GUI.hpp"
 #include "GUI_App.hpp"
 #include "GUI_Utils.hpp"
-#include "GUI_ObjectManipulation.hpp"
+//#include "GUI_ObjectManipulation.hpp"
 #include "Field.hpp"
 #include "DesktopIntegrationDialog.hpp"
 #include "slic3r/Config/Snapshot.hpp"
@@ -243,7 +244,7 @@ PrinterPicker::PrinterPicker(wxWindow *parent, const VendorProfile &vendor, wxSt
 {
     wxGetApp().UpdateDarkUI(this);
     const auto &models = vendor.models;
-
+    this->SetBackgroundColour(AC_COLOR_WHITE);
     const auto font_title      = GetFont().MakeBold().Scaled(1.3f);
     const auto font_name       = GetFont().MakeBold();
     const auto font_alt_nozzle = GetFont().Scaled(0.9f);
@@ -258,8 +259,15 @@ PrinterPicker::PrinterPicker(wxWindow *parent, const VendorProfile &vendor, wxSt
     const fs::path rsrc_dir_path = (fs::path(resources_dir()) / "profiles").make_preferred();
 
     int activedModelsNum = 0;
+    int max_width        = 0;
+    wxClientDC dc(this);
     for (const auto &model : models) {
-        if (! filter(model)) { continue; }
+        wxString label          = from_u8(model.name);
+        if (dc.GetTextExtent(label).x > max_width)
+            max_width             = dc.GetTextExtent(label).x;
+    }
+    for (const auto &model : models) {
+        //if (! filter(model)) { continue; }
 
         activedModelsNum++;
 
@@ -292,9 +300,15 @@ PrinterPicker::PrinterPicker(wxWindow *parent, const VendorProfile &vendor, wxSt
             const auto &variant = model.variants[0];
 
             wxString label = from_u8(model.name);
-
+            size_t    secondSpacePos = label.find(' ', label.find(' ') + 1);
+            if (secondSpacePos != wxString::npos && secondSpacePos < label.length() - 1) {
+                wxString firstPart  = label.substr(0, secondSpacePos);
+                wxString secondPart = label.substr(secondSpacePos + 1);
+                label      = firstPart + "\n" + secondPart;
+            }
             Checkbox* cbox = new Checkbox(this, label, model_id, variant.name);
 
+            cbox->setFixedSizePar(max_width);
             const bool enabled = appconfig.get_variant(vendor.id, model_id, variant.name);
             cbox->SetChecked(enabled);
             cbox->SetIcon(imgName);
@@ -320,9 +334,15 @@ PrinterPicker::PrinterPicker(wxWindow *parent, const VendorProfile &vendor, wxSt
     {
         for (size_t i = 0; i < activedModelsNum; i += cols) 
         {
-            for (size_t j = i; j < i + cols; j++) 
+            size_t yIndex = 0;
+            if (i > 0 && i + cols > activedModelsNum) {
+                yIndex = activedModelsNum;
+            } else {
+                yIndex = i + cols;
+            }
+            for (size_t j = i; j < yIndex; j++) 
             { 
-                printer_grid->Add(cboxes[j]); 
+                printer_grid->Add(cboxes[j],0,wxALL,1); 
             }
         }
     }
@@ -449,13 +469,13 @@ void ConfigWizardPage::append_spacer(int space)
 // Wizard pages
 
 PageWelcome::PageWelcome(ACConfigWizard *parent)
-    : ConfigWizardPage(parent, from_u8((boost::format(
+    : ConfigWizardPage(parent, format_wxstr(
 #ifdef __APPLE__
-            _utf8(L("Welcome to the %s Configuration Assistant"))
+            _L("Welcome to the %1% Configuration Assistant")
 #else
-            _utf8(L("Welcome to the %s Configuration Wizard"))
+            _L("Welcome to the %1% Configuration Wizard")
 #endif
-            ) % SLIC3R_APP_NAME).str()), _L("Welcome"))
+            , wxGetApp().appName()), _L("Welcome"))
     //, welcome_text(append_text(from_u8((boost::format(
     //    _utf8(L("Hello, welcome to %s! This %s helps you with the initial configuration; just a few settings and you will be ready to print.")))
     //    % SLIC3R_APP_NAME
@@ -468,74 +488,81 @@ PageWelcome::PageWelcome(ACConfigWizard *parent)
     //    new wxCheckBox(this, wxID_ANY, _L("Perform desktop integration (Sets this binary to be searchable by the system)."))
     //))
 {
-    //welcome_text->Hide();
-    //cbox_reset->Hide();
-    //cbox_integrate->Hide();
-//#include "ACStaticBox.hpp"
-
-    //wxStaticBox();
-
-    // SetMinSize(wxSize(460, 260));
-
-    ACButton* logo = new ACButton(this, "", "AnycubicSlicer", "AnycubicSlicer", "AnycubicSlicer", wxBORDER_NONE, wxSize(60,60));
-    ACLabel* title = new ACLabel(this, _L("Welcome to AnycubicSlicer"));
-    ACLabel* info_0 = new ACLabel(this, _L("Please follow these steps to set up you AnycubicSlicer"));
-    ACLabel* info_1 = new ACLabel(this, _L("This will only take a few moments"));
+    
+    this->SetBackgroundColour(AC_COLOR_WHITE);
+    ACButton* logo  = new ACButton(this, "", "AnycubicSlicer", "AnycubicSlicer", "AnycubicSlicer", wxBORDER_NONE, wxSize(60,60));
+	wxStaticText* title  = new wxStaticText(this, wxID_ANY, format_wxstr(_L("Welcome to %1%"), wxGetApp().appName()));
+	wxStaticText* info_0 = new wxStaticText(this, wxID_ANY, format_wxstr(_L("Please follow these steps to set up you %1%"), wxGetApp().appName()));
+	wxStaticText* info_1 = new wxStaticText(this, wxID_ANY, _L("This will only take a few moments"));
 
     //ACButton* getStart = new ACButton(this, _L("Get Started"), "", "", "", wxBORDER_NONE, wxSize(40, 40));
 
     const auto titlefont = title->GetFont().MakeBold().Scaled(1.5);
     title->SetFont(titlefont);
+    title->SetForegroundColour(AC_COLOR_BLACK);
+    info_0->SetForegroundColour(AC_COLOR_BLACK);
+    info_1->SetForegroundColour(AC_COLOR_BLACK);
+
+	wxFont font = ACLabel::sysFont(14, false);
+	info_0->SetFont(font);
+	info_1->SetFont(font);
 
     logo->SetPaddingSize(wxSize(0,0));
     logo->Enable(false);
+    this->SetName("PageWelcome");
 
-    wxBoxSizer* lineSizer_logo = new wxBoxSizer(wxHORIZONTAL);
-    lineSizer_logo->AddStretchSpacer(1);
-    lineSizer_logo->Add(logo);
-    lineSizer_logo->AddStretchSpacer(1);
+	//title->SetMinSize(FromDIP(wxSize(460, 32)));
+	//info_0->SetMinSize(FromDIP(wxSize(160, 20)));
+	//info_1->SetMinSize(FromDIP(wxSize(160, 20)));
 
-    wxBoxSizer* lineSizer_Title = new wxBoxSizer(wxHORIZONTAL);
-    lineSizer_Title->AddStretchSpacer(1);
-    lineSizer_Title->Add(title);
-    lineSizer_Title->AddStretchSpacer(1);
+	
 
-    wxBoxSizer* lineSizer_Line0 = new wxBoxSizer(wxHORIZONTAL);
-    lineSizer_Line0->AddStretchSpacer(1);
-    lineSizer_Line0->Add(info_0);
-    lineSizer_Line0->AddStretchSpacer(1);
+	wxBoxSizer* sizer       = new wxBoxSizer(wxVERTICAL);
+	wxBoxSizer* centerTitle = new wxBoxSizer(wxHORIZONTAL);
+	wxBoxSizer* center0     = new wxBoxSizer(wxHORIZONTAL);
+	wxBoxSizer* center1     = new wxBoxSizer(wxHORIZONTAL);
 
-    wxBoxSizer* lineSizer_Line1 = new wxBoxSizer(wxHORIZONTAL);
-    lineSizer_Line1->AddStretchSpacer();
-    lineSizer_Line1->Add(info_1);
-    lineSizer_Line1->AddStretchSpacer();
+	sizer->AddSpacer(FromDIP(27));
+	sizer->Add(logo, 0, wxALIGN_CENTER | wxALL, 0);
+	sizer->AddSpacer(FromDIP(12));
 
-    //wxBoxSizer* lineSizer_next = new wxBoxSizer(wxHORIZONTAL);
-    //lineSizer_next->AddStretchSpacer();
-    //lineSizer_next->Add(getStart);
-    //lineSizer_next->AddStretchSpacer();
 
-    wxBoxSizer* vSizer = new wxBoxSizer(wxVERTICAL);
+	centerTitle->AddStretchSpacer(1);
+	centerTitle->Add(title, 0, wxALIGN_CENTER | wxALL, 0);
+	centerTitle->AddStretchSpacer(1);
 
-    vSizer->AddSpacer(20);
-    vSizer->Add(lineSizer_logo, 0, wxEXPAND);
-    vSizer->AddSpacer(5);
-    vSizer->Add(lineSizer_Title, 0, wxEXPAND);
-    vSizer->AddSpacer(5);
-    vSizer->Add(lineSizer_Line0, 0, wxEXPAND);
-    vSizer->Add(lineSizer_Line1, 0, wxEXPAND);
-    vSizer->AddSpacer(50);
-    //vSizer->Add(lineSizer_next, 0, wxEXPAND);
-    //vSizer->AddSpacer(10);
+	sizer->Add(centerTitle, 0, wxALIGN_CENTER | wxALL, 0);
+	sizer->AddSpacer(FromDIP(14));
 
+	center0->AddStretchSpacer(1);
+	center0->Add(info_0, 0, wxALIGN_CENTER | wxALL, 0);
+	center0->AddStretchSpacer(1);
+
+	sizer->AddSpacer(FromDIP(5));
+
+	center1->AddStretchSpacer(1);
+	center1->Add(info_1, 0, wxALIGN_CENTER | wxALL, 0);
+	center1->AddStretchSpacer(1);
+
+	sizer->Add(center0, 0, wxALIGN_CENTER | wxALL, 0);
+	sizer->Add(center1, 0, wxALIGN_CENTER | wxALL, 0);
+	
+	sizer->AddStretchSpacer(1);
+	
     parent->setButtonVisiable(ACConfigWizard::BT_ALL, false);
     parent->setButtonVisiable(ACConfigWizard::BT_NEXT, true);
 
-    append(vSizer, 1, wxEXPAND | wxLEFT |wxRIGHT, 50);
-
-    wxSize pageMin = page_sizer->CalcMin();
-    this->SetMinSize(pageMin);
+	append(sizer, 1, wxEXPAND | wxALL, 0);
+	SetMinSize(FromDIP(wxSize(460, 260)));
 }
+
+//PageWelcome::~PageWelcome()
+//{
+//	wxDELETE(logo);
+//	wxDELETE(title);
+//	wxDELETE(info_0);
+//	wxDELETE(info_1);
+//}
 
 void PageWelcome::set_run_reason(ACConfigWizard::RunReason run_reason)
 {
@@ -554,6 +581,86 @@ void PageWelcome::set_run_reason(ACConfigWizard::RunReason run_reason)
 
 }
 
+PageDataReq::PageDataReq(ACConfigWizard* parent)
+	: ConfigWizardPage(parent, format_wxstr(_L("Help us to improve %1%"), wxGetApp().appName()), _L("Anonymous data request"))
+{
+	this->SetName("Anonymous data request");
+	int padding = 30;
+	int spacing = 20;
+	wxSize iconSize = wxSize(90, 90);
+	//ACButton* logo = new ACButton(this, "", "AnycubicSlicer", "AnycubicSlicer", "AnycubicSlicer", wxBORDER_NONE, iconSize);
+	wxStaticText* title = new wxStaticText(this, -1,  format_wxstr(_L("Help us to improve %1%"), wxGetApp().appName()));
+	wxString strInfos = format_wxstr(_L("%1% collects anonymous data in order to continuously improve our 3D printing technology, enhance user experience, and ensure printing quality and stability."), wxGetApp().appName()) 
+		+ "\n\n" + _L("As valued users. your experiences and feedback are crucial to us. If we know your hardware, operation system, etc., we will gain a better understanding of your needs and challenges, allowing us to make corresponding improvements and optimizations.")
+		+ "\n\n" + format_wxstr(_L("Data collected by %1% will not contain any personal information."), wxGetApp().appName());
+
+	ACButton* ckAllow = new ACButton(this, _L("Allow sending anonymous data"), "", "", "", 0);
+	ckAllow->SetButtonType(ACButton::AC_BUTTON_LV3);
+	ckAllow->SetCheckStyle(ACButton::CHECKSTYLE_ON_BOX);
+	ckAllow->SetTextAtLeft(false);
+	ckAllow->Bind(wxEVT_CHECKBOX, [ckAllow, this](wxCommandEvent& event)
+		{
+			m_canSendAnonymous = ckAllow->GetChecked();
+			//wxGetApp().app_config->set_canSendAnonymous(m_canSendAnonymous);
+		});
+	wxCursor cursor(wxCURSOR_HAND);
+	ckAllow->SetCursor(cursor);
+
+	const auto titlefont = ACLabel::Head_20;
+	title->SetFont(titlefont);
+	title->SetForegroundColour(AC_COLOR_BLACK);
+
+	//logo->SetPaddingSize(wxSize(0,0));
+	//logo->Enable(false);
+
+	GUI_App& app = wxGetApp();
+
+	bool curAllow = app.app_config->canSendAnonymous(); // from app config
+	ckAllow->SetChecked(curAllow);
+    m_canSendAnonymous = ckAllow->GetChecked();
+	this->SetName("Anonymous data request");
+    this->SetBackgroundColour(AC_COLOR_WHITE);
+	ACStaticBox *pagePanel = new ACStaticBox(this, wxID_ANY, wxDefaultPosition, wxSize(FromDIP(600), FromDIP(180)), wxNO_BORDER);
+	pagePanel->SetCornerRadius(14);
+	pagePanel->SetBackgroundColour(AC_COLOR_PANEL_BG);
+
+	wxTextCtrl* info = new wxTextCtrl(pagePanel, wxID_ANY, strInfos, wxDefaultPosition, wxDefaultSize, wxNO_BORDER|wxTE_NO_VSCROLL|wxTE_READONLY|wxTE_MULTILINE);
+    
+	//info->Wrap(500);
+    info->SetBackgroundColour(AC_COLOR_PANEL_BG);
+    info->SetForegroundColour(AC_COLOR_BLACK);
+	wxBoxSizer* panelSizer = new wxBoxSizer(wxVERTICAL);
+    panelSizer->Add(info, 1, wxEXPAND | wxALL, spacing);
+
+	pagePanel->SetSizer/*AndFit*/(panelSizer);
+	//pagePanel ->SetMinSize(panelSizer->CalcMin());
+	//pagePanel->Layout();
+
+	wxBoxSizer* titleSizer = new wxBoxSizer(wxHORIZONTAL);
+	titleSizer->AddStretchSpacer();
+	titleSizer->Add(title);
+	titleSizer->AddStretchSpacer();
+
+	wxBoxSizer* infoSizer = new wxBoxSizer(wxVERTICAL);
+
+	infoSizer->Add(titleSizer, 0, wxEXPAND);
+	infoSizer->AddSpacer(spacing);
+	infoSizer->Add(pagePanel);
+	//infoSizer->AddSpacer(spacing);
+	infoSizer->AddSpacer(FromDIP(14));
+	infoSizer->Add(ckAllow);
+	infoSizer->AddStretchSpacer(1);
+
+	append(infoSizer, 1, wxEXPAND | wxTOP | wxLEFT | wxRIGHT, padding);
+
+    wxSize pageMin = page_sizer->CalcMin();
+    this->SetMinSize(pageMin);
+}
+
+void PageDataReq::set_run_reason(ACConfigWizard::RunReason run_reason)
+{
+
+}
 
 PagePrinters::PagePrinters(ACConfigWizard *parent,
     wxString title,
@@ -565,10 +672,7 @@ PagePrinters::PagePrinters(ACConfigWizard *parent,
     , technology(technology)
     , install(false)   // only used for 3rd party vendors
 {
-    enum {
-        COL_SIZE = 200,
-    };
-
+    this->SetName("PagePrinters");
     AppConfig *appconfig = &this->wizard_p()->appconfig_new;
     wxBoxSizer* vSizer = new wxBoxSizer(wxVERTICAL);
 
@@ -584,7 +688,7 @@ PagePrinters::PagePrinters(ACConfigWizard *parent,
             continue;
         }
 
-        const auto picker_title = family.empty() ? wxString() : from_u8((boost::format(_utf8(L("%s Family"))) % family).str());
+        const auto picker_title = family.empty() ? wxString() : from_u8((boost::format(_u8L(L("%s Family"))) % family).str());
         auto *picker = new PrinterPicker(this, vendor, picker_title, MAX_COLS, *appconfig, filter);
 
         picker->Bind(EVT_PRINTER_PICK, [this, appconfig](const PrinterPickerEvent &evt) {
@@ -597,12 +701,14 @@ PagePrinters::PagePrinters(ACConfigWizard *parent,
 
         printer_pickers.push_back(picker);
         has_printers = true;
+        break;
     }
     vSizer->AddSpacer(20);
     vSizer->Layout();
 
     append(vSizer, 1, wxEXPAND|wxLEFT|wxRIGHT, 20);
     wxSize pageMin = page_sizer->CalcMin();
+    pageMin.IncBy(FromDIP(1), 0);
     this->SetMinSize(pageMin);
 
     parent->setButtonVisiable(ACConfigWizard::BT_ALL, false);
@@ -677,7 +783,8 @@ PageMaterials::PageMaterials(ACConfigWizard *parent, Materials *materials, wxStr
     , materials(materials)
 {
     //this->SetMinSize(wxSize(1000, 680));
-
+    this->SetName("PageMaterials");
+    this->SetBackgroundColour(AC_COLOR_WHITE);
     wxBoxSizer *panelSizer = new wxBoxSizer(wxHORIZONTAL);
 
     ACStaticBox* pagePanel  = new ACStaticBox(this , wxID_ANY, wxDefaultPosition, wxDefaultSize, wxNO_BORDER);
@@ -1344,20 +1451,20 @@ PageUpdate::PageUpdate(ACConfigWizard *parent)
     auto *box_slic3r = new wxCheckBox(this, wxID_ANY, _L("Check for application updates"));
     box_slic3r->SetValue(app_config->get("notify_release") != "none");
     append(box_slic3r);
-    append_text(wxString::Format(_L(
-        "If enabled, %s checks for new application versions online. When a new version becomes available, "
+    append_text(format_wxstr(_L(
+        "If enabled, %1% checks for new application versions online. When a new version becomes available, "
          "a notification is displayed at the next application startup (never during program usage). "
-         "This is only a notification mechanisms, no automatic installation is done."), SLIC3R_APP_NAME));
+         "This is only a notification mechanisms, no automatic installation is done."), wxGetApp().appName()));
 
     append_spacer(VERTICAL_SPACING);
 
     auto *box_presets = new wxCheckBox(this, wxID_ANY, _L("Update built-in Presets automatically"));
     box_presets->SetValue(app_config->get_bool("preset_update"));
     append(box_presets);
-    append_text(wxString::Format(_L(
-        "If enabled, %s downloads updates of built-in system presets in the background."
+    append_text(format_wxstr(_L(
+        "If enabled, %1% downloads updates of built-in system presets in the background."
         "These updates are downloaded into a separate temporary location."
-        "When a new preset version becomes available it is offered at application startup."), SLIC3R_APP_NAME));
+        "When a new preset version becomes available it is offered at application startup."), wxGetApp().appName()));
     const auto text_bold = _L("Updates are never applied without user's consent and never overwrite user's customized settings.");
     auto *label_bold = new wxStaticText(this, wxID_ANY, text_bold);
     label_bold->SetFont(boldfont);
@@ -1474,11 +1581,11 @@ PageDownloader::PageDownloader(ACConfigWizard* parent)
     box_allow_downloads->SetValue(box_allow_value);
     append(box_allow_downloads);
 
-    append_text(wxString::Format(_L(
-        "If enabled, %s registers to start on custom URL on www.printables.com."
+    append_text(format_wxstr(_L(
+        "If enabled, %s registers to start on custom URL on www.anycubic.com."
         " You will be able to use button with %s logo to open models in this %s."
         " The model will be downloaded into folder you choose bellow."
-    ), SLIC3R_APP_NAME, SLIC3R_APP_NAME, SLIC3R_APP_NAME));
+    ), wxGetApp().appName(), wxGetApp().appName(), wxGetApp().appName()));
 
 #ifdef __linux__
     append_text(wxString::Format(_L(
@@ -1614,8 +1721,8 @@ PageReloadFromDisk::PageReloadFromDisk(ACConfigWizard* parent)
 PageFilesAssociation::PageFilesAssociation(ACConfigWizard* parent)
     : ConfigWizardPage(parent, _L("Files association"), _L("Files association"))
 {
-    cb_3mf = new wxCheckBox(this, wxID_ANY, _L("Associate .3mf files to AnycubicSlicer"));
-    cb_stl = new wxCheckBox(this, wxID_ANY, _L("Associate .stl files to AnycubicSlicer"));
+    cb_3mf = new wxCheckBox(this, wxID_ANY, format_wxstr(_L("Associate .3mf files to %1%"), wxGetApp().appName()));
+    cb_stl = new wxCheckBox(this, wxID_ANY, format_wxstr(_L("Associate .stl files to %1%"), wxGetApp().appName()));
 //    cb_gcode = new wxCheckBox(this, wxID_ANY, _L("Associate .gcode files to Anycubic Slicer G-code Viewer"));
 
     append(cb_3mf);
@@ -1627,10 +1734,10 @@ PageFilesAssociation::PageFilesAssociation(ACConfigWizard* parent)
 PageMode::PageMode(ACConfigWizard *parent)
     : ConfigWizardPage(parent, _L("View mode"), _L("View mode"))
 {
-    append_text(_L("AnycubicSlicer's user interfaces comes in three variants:\nSimple, Advanced, and Expert.\n"
+    append_text(format_wxstr(_L("%1%'s user interfaces comes in three variants:\nSimple, Advanced, and Expert.\n"
         "The Simple mode shows only the most frequently used settings relevant for regular 3D printing. "
         "The other two offer progressively more sophisticated fine-tuning, "
-        "they are suitable for advanced and expert users, respectively."));
+        "they are suitable for advanced and expert users, respectively."), wxGetApp().appName()));
 
     radio_simple = new wxRadioButton(this, wxID_ANY, _L("Simple mode"));
     radio_advanced = new wxRadioButton(this, wxID_ANY, _L("Advanced mode"));
@@ -1672,7 +1779,7 @@ PageVendors::PageVendors(ACConfigWizard *parent)
 {
     const AppConfig &appconfig = this->wizard_p()->appconfig_new;
 
-    append_text(wxString::Format(_L("Pick another vendor supported by %s"), SLIC3R_APP_NAME) + ":");
+    append_text(format_wxstr(_L("Pick another vendor supported by %1%"), wxGetApp().appName()) + ":");
 
     auto boldfont = wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT);
     boldfont.SetWeight(wxFONTWEIGHT_BOLD);
@@ -2116,6 +2223,31 @@ void ConfigWizardIndex::go_to(size_t i)
         }
 
         item_active = i;
+        auto _p     = new_active->wizard_p();
+        auto topbar = _p->m_topbar;
+        if (!topbar->IsShown()) {
+            topbar->Show();
+        }
+        if (_p->all_pages[i]->GetName() == "PageWelcome") {
+            topbar->Hide();
+			_p->btn_next->SetButtonType(ACButton::AC_BUTTON_LV0);// * key button blue
+			_p->btn_finish->SetButtonType(ACButton::AC_BUTTON_LV1);
+        } else if (_p->all_pages[i]->GetName() == "Anonymous data request"){
+            topbar->SetTitle(_(L("Anonymous Data Request")));
+			_p->btn_next->SetButtonType(ACButton::AC_BUTTON_LV0);// * key button blue
+			_p->btn_finish->SetButtonType(ACButton::AC_BUTTON_LV1);
+        } else if (_p->all_pages[i]->GetName() == "PagePrinters"){
+            topbar->SetTitle(_(L("Select Your Printer")));
+			_p->btn_next->SetButtonType(ACButton::AC_BUTTON_LV1);
+			_p->btn_finish->SetButtonType(ACButton::AC_BUTTON_LV0);// * key button blue
+        } else if (_p->all_pages[i]->GetName() == "PageMaterials") {
+            topbar->SetTitle(_(L("Select Filament")));
+			_p->btn_next->SetButtonType(ACButton::AC_BUTTON_LV1);
+			_p->btn_finish->SetButtonType(ACButton::AC_BUTTON_LV0);// * key button blue
+        } else {
+            topbar->SetTitle(_p->q->GetTitle());
+        }
+
         new_active->Show();
 
         wxCommandEvent evt(EVT_INDEX_PAGE, GetId());
@@ -2320,6 +2452,7 @@ void ACConfigWizard::priv::load_pages()
 
     index->add_page(page_welcome);
 
+    index->add_page(page_dataReq);
     // Printers
     //if (!only_sla_mode)
 
@@ -2388,11 +2521,19 @@ void ACConfigWizard::priv::init_dialog_size()
     wxSize minPageSize = h_page_sizer->CalcMin();
     wxSize dialogMinSize (minPageSize.x, minPageSize.y + titleHeight + btSizerHeight );
 
-    q->SetSize(dialogMinSize);
+	if (former_active == q->p->page_welcome)
+		q->SetSize(q->FromDIP(wxSize(460, 260)));
+	else
+		q->SetSize(dialogMinSize);
     q->CenterOnScreen();
 
     q->Layout();
     q->Refresh();
+}
+
+bool ACConfigWizard::priv::canSendAnonymous()
+{
+    return page_dataReq && page_dataReq->canSendAnonymous();
 }
 
 void ACConfigWizard::priv::load_vendors()
@@ -2785,6 +2926,7 @@ void ACConfigWizard::priv::select_default_materials_for_printer_models(Technolog
     update_materials(technology);
     //((technology & T_FFF) ? page_filaments : page_sla_materials)->reload_presets();
     page_filaments->reload_presets();
+    q->Layout();
 }
 
 void ACConfigWizard::priv::on_3rdparty_install(const VendorProfile *vendor, bool install)
@@ -2920,6 +3062,7 @@ bool ACConfigWizard::priv::check_and_install_missing_materials(Technology techno
     {
         //wxMessageDialog msg(q, message, _L("Notice"), wxYES_NO);
         MessageDialog msg(q, message, _L("Notice"), wxYES_NO);
+        q->Layout();
         if (msg.ShowModal() == wxID_YES)
             select_default_materials_for_printer_models(technology, printer_models);
     };
@@ -3249,6 +3392,9 @@ bool ACConfigWizard::priv::apply_config(AppConfig *app_config, PresetBundle *pre
 
     app_config->set_vendors(appconfig_new);
 
+    //app_config->set_canSendAnonymous(canSendAnonymous());
+
+
     //app_config->set("notify_release", /*page_update->version_check ? "all" :*/ "none");
     //app_config->set("preset_update", /*page_update->preset_update ? "1" :*/ "0");
     //app_config->set("export_sources_full_pathnames", /*page_reload_from_disk->full_pathnames ? "1" :*/ "0");
@@ -3346,136 +3492,187 @@ bool ACConfigWizard::priv::check_sla_selected()
     return ret;
 }
 
+void ACConfigWizard::priv::init_button(ACButton* button)
+{
+	button->SetPaddingSize(wxSize(0, 0));
+	button->SetMinSize(wxSize(110, 30));
+	button->SetSize(wxSize(110, 30));
+	button->SetSpacing(0);
+	button->SetCornerRadius(4);
+}
+
 
 // Public
 #include "ACButton.hpp"
 
-ACConfigWizard::ACConfigWizard(wxWindow *parent)
-    : DPIDialog(parent, wxID_ANY, wxString(SLIC3R_APP_NAME) + " - " + _(name()), wxDefaultPosition, wxDefaultSize, wxNO_BORDER /*| wxRESIZE_BORDER*/)
-    , p(new priv(this))
+ACConfigWizard::ACConfigWizard(wxWindow* parent)
+	: DPIDialog(parent, wxID_ANY, wxString(wxGetApp().appName()) + " - " + _(name()), wxDefaultPosition, wxDefaultSize, wxNO_BORDER /*| wxRESIZE_BORDER*/)
+	, p(new priv(this))
 {
-    this->SetFont(wxGetApp().normal_font());
+	this->SetFont(wxGetApp().normal_font());
+	AddWindowDrakEdg(this);
 
-    p->load_vendors();
-    p->custom_config.reset(DynamicPrintConfig::new_from_defaults_keys({
-        "gcode_flavor", "bed_shape", "bed_custom_texture", "bed_custom_model", "nozzle_diameter", "filament_diameter", "temperature", "bed_temperature",
-    }));
+	/*setMarkWindow(wxGetApp().mainframe->m_settings_dialog.IsVisible() ? &(wxGetApp().mainframe->m_settings_dialog) :
+				  parent                                              ? parent :
+																		dynamic_cast<wxWindow *>(wxGetApp().mainframe),
+				  this,true,true);*/
+	p->load_vendors();
+	p->custom_config.reset(DynamicPrintConfig::new_from_defaults_keys({
+		"gcode_flavor", "bed_shape", "bed_custom_texture", "bed_custom_model", "nozzle_diameter", "filament_diameter", "temperature", "bed_temperature",
+		}));
 
-    p->index = new ConfigWizardIndex(this);
-    p->index->Hide();
+	p->index = new ConfigWizardIndex(this);
+	p->index->Hide();
 
-    p->btnsizer = new wxBoxSizer(wxHORIZONTAL);
+	p->btnsizer = new wxBoxSizer(wxHORIZONTAL);
 
-    p->h_page_sizer = new wxBoxSizer(wxHORIZONTAL);
+	p->h_page_sizer = new wxBoxSizer(wxHORIZONTAL);
 
-    p->btn_prev   = new ACButton(this, _L("Back"));
-    p->btn_next   = new ACButton(this, _L("Next"));
-    p->btn_finish = new ACButton(this, _L("Finish"));
+	p->btn_prev   = new ACButton(this, _L("Back"));
+	p->btn_next   = new ACButton(this, _L("Next"));
+	p->btn_finish = new ACButton(this, _L("Finish"));
 
-    p->btn_prev  ->SetButtonType(ACButton::AC_BUTTON_LV1);
-    p->btn_next  ->SetButtonType(ACButton::AC_BUTTON_LV1);
-    p->btn_finish->SetButtonType(ACButton::AC_BUTTON_LV0);
+	p->btn_prev  ->SetButtonType(ACButton::AC_BUTTON_LV1);
+	p->btn_next  ->SetButtonType(ACButton::AC_BUTTON_LV1);
+	p->btn_finish->SetButtonType(ACButton::AC_BUTTON_LV0);
 
-    p->btnsizer->AddStretchSpacer(); p->btnsizer->Add(p->btn_prev  , 0, wxEXPAND|wxTOP|wxBOTTOM, 20);
-    p->btnsizer->AddSpacer(10);      p->btnsizer->Add(p->btn_next  , 0, wxEXPAND|wxTOP|wxBOTTOM, 20);
-    p->btnsizer->AddSpacer(10);      p->btnsizer->Add(p->btn_finish, 0, wxEXPAND|wxTOP|wxBOTTOM, 20);
-    p->btnsizer->AddSpacer(20);      
+	p->init_button(p->btn_prev);
+	p->init_button(p->btn_next);
+	p->init_button(p->btn_finish);
+	
 
-    const auto prusa_it = p->bundles.find("Anycubic");
-    wxCHECK_RET(prusa_it != p->bundles.cend(), "Vendor Anycubic not found");
-    const VendorProfile *vendor_prusa = prusa_it->second.vendor_profile;
+	wxCursor cursor(wxCURSOR_HAND);
+	p->btn_prev  ->SetCursor(cursor);
+	p->btn_next  ->SetCursor(cursor);
+	p->btn_finish->SetCursor(cursor);
 
-    p->add_page(p->page_welcome = new PageWelcome(this));
+	p->btnsizer->AddStretchSpacer(1);
+	p->btnsizer->Add(p->btn_prev, 0, wxEXPAND | wxBOTTOM, FromDIP(20));
+	p->btnsizer->AddSpacer(FromDIP(10));
+	p->btnsizer->Add(p->btn_next, 0, wxEXPAND | wxBOTTOM, FromDIP(20));
+	p->btnsizer->AddSpacer(FromDIP(10));
+	p->btnsizer->Add(p->btn_finish, 0, wxEXPAND | wxBOTTOM, FromDIP(20));
+	p->btnsizer->AddSpacer(FromDIP(20));
 
-    p->page_fff = new PagePrinters(this, _L("Anycubic FFF Technology Printers"), "Anycubic FFF", *vendor_prusa, 0, T_FFF);
-    //p->only_sla_mode = !p->page_fff->has_printers;
-    //if (!p->only_sla_mode) {
-        p->add_page(p->page_fff);
-        p->page_fff->is_primary_printer_page = true;
-    //}
+	const auto prusa_it = p->bundles.find("Anycubic");
+	wxCHECK_RET(prusa_it != p->bundles.cend(), "Vendor Anycubic not found");
+	const VendorProfile* vendor_prusa = prusa_it->second.vendor_profile;
 
-    p->any_sla_selected = p->check_sla_selected();
-    p->any_fff_selected =/* ! p->only_sla_mode &&*/ p->check_fff_selected();
+	p->add_page(p->page_welcome = new PageWelcome(this));
 
-    p->update_materials(T_ANY);
-    //if (!p->only_sla_mode)
-        p->add_page(p->page_filaments = new PageMaterials(this, &p->filaments,
-            _L("Filament Profiles Selection"), _L("Filaments"), _L("Type:") ));
+	p->add_page(p->page_dataReq = new PageDataReq(this));
 
-    const int &em = em_unit();
-    p->m_topbar   = new ACDialogTopbar(this, this->GetTitle(), int(this->GetSize().x / em));
+	p->page_fff = new PagePrinters(this, _L("Anycubic FFF Technology Printers"), "Anycubic FFF", *vendor_prusa, 0, T_FFF);
+	//p->only_sla_mode = !p->page_fff->has_printers;
+	//if (!p->only_sla_mode) {
+	p->add_page(p->page_fff);
+	p->page_fff->is_primary_printer_page = true;
+	//}
 
-    p->m_main_sizer = new wxBoxSizer(wxVERTICAL);
-    p->m_main_sizer->Add(p->m_topbar, 0, wxEXPAND );
-    p->m_main_sizer->Add(p->h_page_sizer, 1, wxEXPAND);
-    p->m_main_sizer->Add(p->btnsizer, 0, wxEXPAND);
+	p->any_sla_selected = p->check_sla_selected();
+	p->any_fff_selected =/* ! p->only_sla_mode &&*/ p->check_fff_selected();
 
-    SetSizer(p->m_main_sizer);
+	p->update_materials(T_ANY);
+	//if (!p->only_sla_mode)
+	p->add_page(p->page_filaments = new PageMaterials(this, &p->filaments,
+		_L("Filament Profiles Selection"), _L("Filaments"), _L("Type:")));
 
-    on_window_geometry(this, [this]() {
-        p->init_dialog_size();
-    });
+	const int& em = em_unit();
+	p->m_topbar = new ACDialogTopbar(this, this->GetTitle(), int(this->GetSize().x / em));
 
-    p->btn_prev->Bind(wxEVT_BUTTON, [this](const wxCommandEvent &) { this->p->index->go_prev(); });
+	p->m_main_sizer = new wxBoxSizer(wxVERTICAL);
+	p->m_main_sizer->Add(p->m_topbar, 0, wxEXPAND | wxTOP | wxLEFT | wxRIGHT, 1);
+	p->m_main_sizer->Add(p->h_page_sizer, 1, wxEXPAND | wxTOP | wxLEFT | wxRIGHT, 1);
+	p->m_main_sizer->Add(p->btnsizer, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 1);
 
-    p->btn_next->Bind(wxEVT_BUTTON, [this](const wxCommandEvent &)
-    {
-        // check, that there is selected at least one filament/material
-        ConfigWizardPage* active_page = this->p->index->active_page();
-        if (// Leaving the filaments or SLA materials page and 
-        	(active_page == p->page_filaments || active_page == p->page_sla_materials) && 
-        	// some Printer models had no filament or SLA material selected.
-        	! p->check_and_install_missing_materials(dynamic_cast<PageMaterials*>(active_page)->materials->technology))
-        	// In that case don't leave the page and the function above queried the user whether to install default materials.
-            return;
-        this->p->index->go_next();
-    });
+	SetSizer(p->m_main_sizer);
+	on_window_geometry(this, [this]() {
+			p->init_dialog_size();
+		});
 
-    p->btn_finish->Bind(wxEVT_BUTTON, [this](const wxCommandEvent &)
-    {
-        if (p->on_bnt_finish())
-            this->EndModal(wxID_OK);
-    });
+	p->btn_prev->Bind(wxEVT_BUTTON, [this](const wxCommandEvent&) {
+			this->p->index->go_prev();
+			BOOST_LOG_TRIVIAL(info) << "ACConfigWizard cancelled";
+		});
 
-    p->index->Bind(EVT_INDEX_PAGE, [this](const wxCommandEvent &) {
-        // update best size for the dialog after hiding of the non-active pages
-        //p->m_main_sizer->SetSizeHints(this);
-        // set initial dialog size
-        p->init_dialog_size();
+	p->btn_next->Bind(wxEVT_BUTTON, [this](const wxCommandEvent&){
+			// check, that there is selected at least one filament/material
+			ConfigWizardPage* active_page = this->p->index->active_page();
+			if (// Leaving the filaments or SLA materials page and 
+				(active_page == p->page_filaments || active_page == p->page_sla_materials) &&
+				// some Printer models had no filament or SLA material selected.
+				!p->check_and_install_missing_materials(dynamic_cast<PageMaterials*>(active_page)->materials->technology))
+				// In that case don't leave the page and the function above queried the user whether to install default materials.
+				return;
+			this->p->index->go_next();
+		});
 
-        p->btn_prev->Show(! p->index->active_is_first());
-        const bool is_last = p->index->active_is_last();
-        p->btn_next->Show(! is_last);
-        if (is_last)
-            p->btn_finish->SetFocus();
-        else
-            p->btn_next->SetFocus();
+	p->btn_finish->Bind(wxEVT_BUTTON, [this](const wxCommandEvent&) {
+			if (p->on_bnt_finish())
+			{
+				this->EndModal(wxID_OK);
+                //GUI_App &app = wxGetApp();
+				//bool apply_keeped_changes = false;
+				//if (!p->apply_config(app.app_config, app.preset_bundle, app.preset_updater, apply_keeped_changes))
+				//	return;
 
-        Layout();
-        Refresh();
-    });
+				//if (apply_keeped_changes)
+				//	app.apply_keeped_preset_modifications();
+    //            app.app_config->set_canSendAnonymous(p->canSendAnonymous());
+				//app.app_config->set_legacy_datadir(false);
+				//app.update_mode();
+				////app.obj_manipul()->update_ui_from_settings();
+				//app.change_wizardInfo();
+				//BOOST_LOG_TRIVIAL(info) << "ACConfigWizard applied";
+			}
+		});
 
-    if (wxLinux_gtk3)
-        this->Bind(wxEVT_SHOW, [this](const wxShowEvent& e) {
-            ConfigWizardPage* active_page = p->index->active_page();
-            if (!active_page)
-                return;
-            for (auto page : p->all_pages)
-                if (page != active_page)
-                    page->Hide();
-            // update best size for the dialog after hiding of the non-active pages
-            //p->m_main_sizer->SetSizeHints(this);
-            // set initial dialog size
-            p->init_dialog_size();
-        });
+	p->index->Bind(EVT_INDEX_PAGE, [this](const wxCommandEvent&) {
+			// update best size for the dialog after hiding of the non-active pages
+			//p->m_main_sizer->SetSizeHints(this);
+			// set initial dialog size
+			p->init_dialog_size();
 
-    
-    p->load_pages();
-    p->index->go_to(size_t{0});
+			p->btn_prev->Show(!p->index->active_is_first());
+			const bool is_last = p->index->active_is_last();
+			p->btn_next->Show(!is_last);
+			if (is_last)
+				p->btn_finish->SetFocus();
+			else
+				p->btn_next->SetFocus();
 
+			Layout();
+			Refresh();
+		});
+
+	if (wxLinux_gtk3)
+		this->Bind(wxEVT_SHOW, [this](const wxShowEvent& e) {
+				ConfigWizardPage* active_page = p->index->active_page();
+				if (!active_page)
+					return;
+				for (auto page : p->all_pages)
+					if (page != active_page)
+						page->Hide();
+				// update best size for the dialog after hiding of the non-active pages
+				//p->m_main_sizer->SetSizeHints(this);
+				// set initial dialog size
+				p->init_dialog_size();
+			});
+
+
+	p->load_pages();
+	p->index->go_to(size_t{ 0 });
+	this->Bind(wxEVT_CLOSE_WINDOW, &ACConfigWizard::On_Close, this);
+	Layout();
 }
 
 ACConfigWizard::~ACConfigWizard() {}
+
+void ACConfigWizard::On_Close(wxCloseEvent &event)
+{ 
+    wxGetApp().ChangeWizardObj(); 
+    event.Skip();
+}
 
 bool ACConfigWizard::run(RunReason reason, StartPage start_page)
 {
@@ -3485,6 +3682,25 @@ bool ACConfigWizard::run(RunReason reason, StartPage start_page)
 
     p->set_run_reason(reason);
     p->set_start_page(start_page);
+    //Show();
+	app.Yield(true);
+    /*BOOST_LOG_TRIVIAL(info) << "ACConfigWizard Show UI";
+    return true;*/
+
+
+    // GUI_App &app = wxGetApp();
+    // bool apply_keeped_changes = false;
+    // if (!p->apply_config(app.app_config, app.preset_bundle, app.preset_updater, apply_keeped_changes))
+    //	return;
+
+    // if (apply_keeped_changes)
+    //	app.apply_keeped_preset_modifications();
+    //            app.app_config->set_canSendAnonymous(p->canSendAnonymous());
+    // app.app_config->set_legacy_datadir(false);
+    // app.update_mode();
+    ////app.obj_manipul()->update_ui_from_settings();
+    // app.change_wizardInfo();
+    // BOOST_LOG_TRIVIAL(info) << "ACConfigWizard applied";
 
     if (ShowModal() == wxID_OK) {
         bool apply_keeped_changes = false;
@@ -3494,9 +3710,11 @@ bool ACConfigWizard::run(RunReason reason, StartPage start_page)
         if (apply_keeped_changes)
             app.apply_keeped_preset_modifications();
 
+        app.app_config->set_canSendAnonymous(p->canSendAnonymous());
         app.app_config->set_legacy_datadir(false);
         app.update_mode();
-        app.obj_manipul()->update_ui_from_settings();
+        //app.obj_manipul()->update_ui_from_settings();
+        app.change_wizardInfo();
         BOOST_LOG_TRIVIAL(info) << "ACConfigWizard applied";
         return true;
     } else {
@@ -3563,6 +3781,7 @@ void ACConfigWizard::setButtonVisiable(int btID, bool visiable)
 
     this->Layout();
 }
+
 
 
 } // GUI

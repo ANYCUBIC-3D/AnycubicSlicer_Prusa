@@ -1736,7 +1736,7 @@ private:
     void set_values(const std::initializer_list<std::string_view> il) {
         m_values.clear();
         m_values.reserve(il.size());
-        for (const std::string_view p : il)
+        for (const std::string_view& p : il)
             m_values.emplace_back(p);
         assert(m_labels.empty() || m_labels.size() == m_values.size());
     }
@@ -1745,7 +1745,7 @@ private:
         m_values.reserve(il.size());
         m_labels.clear();
         m_labels.reserve(il.size());
-        for (const std::pair<std::string_view, std::string_view> p : il) {
+        for (const std::pair<std::string_view, std::string_view>& p : il) {
             m_values.emplace_back(p.first);
             m_labels.emplace_back(p.second);
         }
@@ -1753,7 +1753,7 @@ private:
     void set_labels(const std::initializer_list<std::string_view> il) {
         m_labels.clear();
         m_labels.reserve(il.size());
-        for (const std::string_view p : il)
+        for (const std::string_view& p : il)
             m_labels.emplace_back(p);
         assert(m_values.empty() || m_labels.size() == m_values.size());
     }
@@ -1762,9 +1762,9 @@ private:
         // Check whether def.enum_values contains all the values of def.enum_keys_map and
         // that they are sorted by their ordinary values.
         m_values_ordinary = true;
-        for (const std::pair<std::string, int>& key : *m_enum_keys_map) {
-            assert(key.second >= 0);
-            if (key.second >= this->values().size() || this->value(key.second) != key.first) {
+        for (const auto& [enum_name, enum_int] : *m_enum_keys_map) {
+            assert(enum_int >= 0);
+            if (enum_int >= int(this->values().size()) || this->value(enum_int) != enum_name) {
                 m_values_ordinary = false;
                 break;
             }
@@ -1965,14 +1965,14 @@ public:
 
     void set_enum_values(GUIType gui_type, const std::initializer_list<std::string_view> il) {
         this->enum_def_new();
-        assert(gui_type == GUIType::i_enum_open || gui_type == GUIType::f_enum_open || gui_type == GUIType::select_open);
+        //assert(gui_type == GUIType::i_enum_open || gui_type == GUIType::f_enum_open || gui_type == GUIType::select_open);
         this->gui_type = gui_type;
         enum_def->set_values(il);
     }
 
     void set_enum_values(GUIType gui_type, const std::vector<std::string> &v) {
         this->enum_def_new();
-        assert(gui_type == GUIType::i_enum_open || gui_type == GUIType::f_enum_open || gui_type == GUIType::select_open);
+        //assert(gui_type == GUIType::i_enum_open || gui_type == GUIType::f_enum_open || gui_type == GUIType::select_open);
         this->gui_type = gui_type;
         enum_def->set_values(v);
     }
@@ -1998,7 +1998,7 @@ public:
 
     void set_enum_labels(GUIType gui_type, const std::initializer_list<std::string_view> il) {
         this->enum_def_new();
-        assert(gui_type == GUIType::i_enum_open || gui_type == GUIType::f_enum_open || gui_type == ConfigOptionDef::GUIType::select_open);
+        assert(gui_type == GUIType::i_enum_open || gui_type == GUIType::f_enum_open || gui_type == ConfigOptionDef::GUIType::select_close);
         this->gui_type = gui_type;
         enum_def->set_labels(il);
     }
@@ -2311,6 +2311,10 @@ public:
     // Accepts the same data as load_from_ini_string(), only with each configuration line possibly prefixed with a semicolon (G-code comment).
     ConfigSubstitutions load_from_ini_string_commented(std::string &&data, ForwardCompatibilitySubstitutionRule compatibility_rule);
     ConfigSubstitutions load_from_gcode_file(const std::string &file, ForwardCompatibilitySubstitutionRule compatibility_rule);
+    ConfigSubstitutions load_from_gcode_file(bool isACLoad,std::function<void(double, double,std::string)> setPrintStatistics_callback,const std::string &file, ForwardCompatibilitySubstitutionRule compatibility_rule);
+    ConfigSubstitutions load_from_gcode_file(const std::string &file, ForwardCompatibilitySubstitutionRule compatibility_rule,std::vector<std::string> &infoList);
+    ConfigSubstitutions load_from_gcode_stream(std::istream &stream, ForwardCompatibilitySubstitutionRule compatibility_rule);
+    ConfigSubstitutions load_from_gcode_file(bool isACLoad,const std::string &file, ForwardCompatibilitySubstitutionRule compatibility_rule,std::vector<std::string> &infoList);
     ConfigSubstitutions load(const boost::property_tree::ptree &tree, ForwardCompatibilitySubstitutionRule compatibility_rule);
     void                save(const std::string &file) const;
 

@@ -17,7 +17,6 @@
 #include "libslic3r/Color.hpp"
 #include "GUI.hpp"
 #include "format.hpp"
-#include "I18N.hpp"
 #include "ACConfigWizard.hpp"
 #include "wxExtensions.hpp"
 #include "slic3r/GUI/MainFrame.hpp"
@@ -30,7 +29,7 @@ constexpr auto PRESRT_BTN_WIDTH  = 75;
 
 MsgDialog::MsgDialog(wxWindow *parent, const wxString &title, const wxString &headline, long style, wxBitmap bitmap)
 	//: wxDialog(parent ? parent : dynamic_cast<wxWindow*>(wxGetApp().mainframe), wxID_ANY, title, wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
-    : wxDialog( wxGetApp().mainframe->m_settings_dialog.IsVisible() ?  &(wxGetApp().mainframe->m_settings_dialog) : parent ? parent : dynamic_cast<wxWindow *>(wxGetApp().mainframe),
+    : wxDialog( wxGetApp().mainframe->m_settings_dialog.IsShown() ?  &(wxGetApp().mainframe->m_settings_dialog) : parent ? parent : dynamic_cast<wxWindow *>(wxGetApp().mainframe),
                wxID_ANY,
                title,
                wxDefaultPosition,
@@ -38,11 +37,12 @@ MsgDialog::MsgDialog(wxWindow *parent, const wxString &title, const wxString &he
                wxNO_BORDER)
 	, boldfont(wxGetApp().normal_font())
 	, content_sizer(new wxBoxSizer(wxVERTICAL))
-	, btn_sizer(new wxBoxSizer(wxHORIZONTAL))
+    , btn_sizer(new wxBoxSizer(wxHORIZONTAL))
 {
 
 #if defined(__WXMSW__)
     this->SetFont(wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT));
+    this->SetBackgroundColour(AC_COLOR_WHITE);
 #else
     SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
 #endif // __WXMSW__
@@ -51,6 +51,14 @@ MsgDialog::MsgDialog(wxWindow *parent, const wxString &title, const wxString &he
     //this->SetFont(wxGetApp().normal_font());
     this->CenterOnParent();
 
+    /*setMarkWindow(wxGetApp().mainframe->m_settings_dialog.IsVisible() ? &(wxGetApp().mainframe->m_settings_dialog) :
+                  parent ? (parent->GetName() == "settings_dialog" || parent->GetName() == "ACPreferencesDialog" ||
+                            parent->GetName() == "mainframe") ?
+                           parent :
+                           dynamic_cast<wxWindow *>(wxGetApp().mainframe) :
+                           dynamic_cast<wxWindow *>(wxGetApp().mainframe),
+                  this);*/
+    AddWindowDrakEdg(this);
     ACDialogTopbar *m_dialog_msg = new ACDialogTopbar(this, title, 47);
 
     auto *main_sizer = new wxBoxSizer(wxVERTICAL);
@@ -72,14 +80,14 @@ MsgDialog::MsgDialog(wxWindow *parent, const wxString &title, const wxString &he
 	topsizer->Add(logo, 0, wxALL, BORDER);
 	topsizer->Add(rightsizer, 1,  wxRIGHT | wxEXPAND, BORDER);
 
-    main_sizer->Add(m_dialog_msg, 0, wxEXPAND);
-    main_sizer->Add(topsizer, 1, wxEXPAND);
-    main_sizer->Add(new StaticLine(this), 0, wxEXPAND | wxLEFT | wxRIGHT, HORIZ_SPACING);
+    main_sizer->Add(m_dialog_msg, 0, wxEXPAND | wxTOP | wxLEFT | wxRIGHT, 1);
+    main_sizer->Add(topsizer, 1, wxEXPAND | wxLEFT | wxRIGHT, 1);
+    //main_sizer->Add(new StaticLine(this), 0, wxEXPAND | wxLEFT | wxRIGHT, HORIZ_SPACING);
     main_sizer->Add(btn_sizer, 0, wxALL | wxEXPAND, VERT_SPACING);
 
     apply_style(style);
-
 	SetSizerAndFit(main_sizer);
+	Refresh();//ˢ�»���
 }
 
 void MsgDialog::SetButtonLabel(wxWindowID btn_id, const wxString& label, bool set_focus/* = false*/) 
@@ -132,14 +140,26 @@ ACButton *MsgDialog::get_button(wxWindowID btn_id) { return static_cast<ACButton
 
 void MsgDialog::apply_style(long style)
 {
-    if (style & wxOK)
-        ok_button=add_button(wxID_OK, true);
-    if (style & wxYES)      
-        yes_button=add_button(wxID_YES, !(style & wxNO_DEFAULT));
-    if (style & wxNO)
-        no_button=add_button(wxID_NO, (style & wxNO_DEFAULT));
-    if (style & wxCANCEL)
-        cancel_button=add_button(wxID_CANCEL, (style & wxCANCEL_DEFAULT));
+	if (style & wxOK)
+	{
+		ok_button = add_button(wxID_OK, true);
+		SetOkBtnLabel(_L("OK"));
+	}
+	if (style & wxYES)
+	{
+		yes_button = add_button(wxID_YES, !(style & wxNO_DEFAULT));
+		SetYesBtnLabel(_L("YES"));
+	}
+	if (style & wxNO)
+	{
+		no_button = add_button(wxID_NO, (style & wxNO_DEFAULT));
+		SetNoBtnLabel(_L("NO"));
+	}
+	if (style & wxCANCEL)
+	{
+		cancel_button = add_button(wxID_CANCEL, (style & wxCANCEL_DEFAULT));
+		SetCancelBtnLabel(_L("Cancel"));
+	}
 
     /*std::string icon_name = style & wxICON_WARNING        ? "ACEmpty" :
                             style & wxICON_INFORMATION    ? "ACEmpty"        :
@@ -179,7 +199,7 @@ static void add_msg_content(wxWindow* parent, wxBoxSizer* content_sizer, wxStrin
         msg_lines++;
     }
 
-    wxFont      font = wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT);
+    wxFont      font = wxGetApp().normal_font();//wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT);
     wxFont      monospace = wxGetApp().code_font();
     wxColour    text_clr = wxGetApp().get_label_clr_default();
     wxColour    bgr_clr = parent->GetBackgroundColour();
@@ -267,8 +287,8 @@ static void add_msg_content(wxWindow* parent, wxBoxSizer* content_sizer, wxStrin
 // ErrorDialog
 
 ErrorDialog::ErrorDialog(wxWindow *parent, const wxString &msg, bool monospaced_font)
-    : MsgDialog(parent, wxString::Format(_(L("%s error")), SLIC3R_APP_NAME), 
-                        wxString::Format(_(L("%s has encountered an error")), SLIC3R_APP_NAME), wxOK)
+    : MsgDialog(parent, format_wxstr(_(L("%s error")), wxGetApp().appName()), 
+                        format_wxstr(_(L("%s has encountered an error")), wxGetApp().appName()), wxOK)
 	, msg(msg)
 {
     add_msg_content(this, content_sizer, msg, monospaced_font);
@@ -287,8 +307,8 @@ WarningDialog::WarningDialog(wxWindow *parent,
                              const wxString& message,
                              const wxString& caption/* = wxEmptyString*/,
                              long style/* = wxOK*/)
-    : MsgDialog(parent, caption.IsEmpty() ? wxString::Format(_L("%s warning"), SLIC3R_APP_NAME) : caption, 
-                        wxString::Format(_L("%s has a warning")+":", SLIC3R_APP_NAME), style)
+    : MsgDialog(parent, caption.IsEmpty() ? format_wxstr(_L("%s warning"), wxGetApp().appName()) : caption, 
+                        format_wxstr(_L("%s has a warning")+":", wxGetApp().appName()), style)
 {
     add_msg_content(this, content_sizer, message);
     finalize();
@@ -301,7 +321,7 @@ MessageDialog::MessageDialog(wxWindow* parent,
     const wxString& message,
     const wxString& caption/* = wxEmptyString*/,
     long style/* = wxOK*/)
-    : MsgDialog(parent, caption.IsEmpty() ? wxString::Format(_L("%s info"), SLIC3R_APP_NAME) : caption, wxEmptyString, style)
+    : MsgDialog(parent, caption.IsEmpty() ? format_wxstr(_L("%s info"), wxGetApp().appName()) : caption, wxEmptyString, style)
 {
     add_msg_content(this, content_sizer, get_wraped_wxString(message));
     finalize();
@@ -314,7 +334,7 @@ RichMessageDialog::RichMessageDialog(wxWindow* parent,
     const wxString& message,
     const wxString& caption/* = wxEmptyString*/,
     long style/* = wxOK*/)
-    : MsgDialog(parent, caption.IsEmpty() ? wxString::Format(_L("%s info"), SLIC3R_APP_NAME) : caption, wxEmptyString, style)
+    : MsgDialog(parent, caption.IsEmpty() ? format_wxstr(_L("%s info"), wxGetApp().appName()) : caption, wxEmptyString, style)
 {
     add_msg_content(this, content_sizer, get_wraped_wxString(message));
 
@@ -342,7 +362,7 @@ int RichMessageDialog::ShowModal()
 // InfoDialog
 
 InfoDialog::InfoDialog(wxWindow* parent, const wxString &title, const wxString& msg, bool is_marked_msg/* = false*/, long style/* = wxOK | wxICON_INFORMATION*/)
-	: MsgDialog(parent, wxString::Format(_L("%s information"), SLIC3R_APP_NAME), title, style)
+	: MsgDialog(parent, format_wxstr(_L("%s information"), wxGetApp().appName()), title, style)
 	, msg(msg)
 {
     add_msg_content(this, content_sizer, msg, false, is_marked_msg);

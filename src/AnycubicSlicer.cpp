@@ -761,6 +761,7 @@ bool CLI::setup(int argc, char **argv)
     set_var_dir((path_resources / "icons").string());
     set_local_dir((path_resources / "localization").string());
     set_sys_shapes_dir((path_resources / "shapes").string());
+	set_profiles_anycubic_dir((path_resources / "profiles" / "Anycubic").string());
 
     // Parse all command line options into a DynamicConfig.
     // If any option is unsupported, print usage and abort immediately.

@@ -116,15 +116,21 @@ public:
     const ImFontAtlas &get_atlas() const     { return m_style_cache.atlas; } 
     const FontProp    &get_font_prop() const { return get_style().prop; }
           FontProp    &get_font_prop()       { return get_style().prop; }
-    const std::optional<wxFont> &get_wx_font()        const { return m_style_cache.wx_font; }
-    const std::optional<wxFont> &get_stored_wx_font() const { return m_style_cache.stored_wx_font; }
+    const wxFont &get_wx_font()        const { return m_style_cache.wx_font; }
+    const wxFont &get_stored_wx_font() const { return m_style_cache.stored_wx_font; }
     Slic3r::Emboss::FontFileWithCache &get_font_file_with_cache()   { return m_style_cache.font_file; }
     bool has_collections() const { return m_style_cache.font_file.font_file != nullptr && 
                                           m_style_cache.font_file.font_file->infos.size() > 1; }
 
     // True when activ style has same name as some of stored style
     bool exist_stored_style() const { return m_style_cache.style_index != std::numeric_limits<size_t>::max(); }
-        
+    
+    /// <summary>
+    /// check whether current style differ to selected
+    /// </summary>
+    /// <returns></returns>
+    bool is_font_changed() const;
+
     /// <summary>
     /// Setter on wx_font when changed
     /// </summary>
@@ -221,7 +227,7 @@ private:
         ImFontAtlas atlas = {};
 
         // wx widget font
-        std::optional<wxFont> wx_font = {};
+        wxFont wx_font = {};
 
         // cache for view font name with maximal width in imgui
         std::string truncated_name; 
@@ -230,7 +236,7 @@ private:
         EmbossStyle style = {};
 
         // cache for stored wx font to not create every frame
-        std::optional<wxFont> stored_wx_font;
+        wxFont stored_wx_font = {};
 
         // index into m_style_items
         size_t style_index = std::numeric_limits<size_t>::max();
@@ -277,6 +283,9 @@ private:
 
         // place to store result in main thread in Finalize
         std::shared_ptr<StyleImages> result;
+                
+        // pixel per milimeter (scaled DPI)
+        double ppm;
     };
     std::shared_ptr<StyleImagesData::StyleImages> m_temp_style_images;
     bool m_exist_style_images;

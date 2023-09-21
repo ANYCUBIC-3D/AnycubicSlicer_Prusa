@@ -35,6 +35,9 @@ wxDEFINE_EVENT(EVT_GLVIEWTOOLBAR_PREVIEW, SimpleEvent);
 wxDEFINE_EVENT(EVT_ACTION_SLICER, SimpleEvent);
 wxDEFINE_EVENT(EVT_ACTION_EXPORT, SimpleEvent);
 
+wxDEFINE_EVENT(EVT_ACTION_UPLOAD, SimpleEvent);
+wxDEFINE_EVENT(EVT_ACTION_REMOTEPRINTER, SimpleEvent);
+
 const GLToolbarItem::ActionCallback GLToolbarItem::Default_Action_Callback = [](){};
 const GLToolbarItem::VisibilityCallback GLToolbarItem::Default_Visibility_Callback = []()->bool { return true; };
 const GLToolbarItem::EnablingCallback GLToolbarItem::Default_Enabling_Callback = []()->bool { return true; };

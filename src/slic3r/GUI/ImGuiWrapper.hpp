@@ -75,6 +75,7 @@ public:
     ~ImGuiWrapper();
     const ImWchar *GetGlyphRangesChineseSimplifiedOfficial();
     void releaseCtrlKey();
+    void SetKeyEvent(int key,bool index);
     void set_language(const std::string &language);
     void set_display_size(float w, float h);
     void set_scaling(float font_size, float scale_style, float scale_both);
@@ -119,9 +120,10 @@ public:
     void end();
 
     bool button(const wxString &label, const wxString& tooltip = {});
-	bool button(const wxString& label, float width, float height);
+    bool button(const wxString& label, float width, float height);
     bool button(const wxString& label, const ImVec2 &size, bool enable); // default size = ImVec2(0.f, 0.f)
     bool radio_button(const wxString &label, bool active);
+    void draw_icon(ImGuiWindow& window, const ImVec2& pos, float size, wchar_t icon_id);
     bool draw_radio_button(const std::string& name, float size, bool active, std::function<void(ImGuiWindow& window, const ImVec2& pos, float size)> draw_callback, bool showHover = true);
     bool checkbox(const wxString &label, bool &value);
     bool bbl_checkbox(const wxString &label, bool &value);
@@ -143,12 +145,18 @@ public:
     // Float sliders: Manually inserted values aren't clamped by ImGui.Using this wrapper function does (when clamp==true).
     ImVec2 get_slider_icon_size() const;
     bool slider_float(const char* label, float* v, float v_min, float v_max, const char* format = "%.3f", float power = 1.0f, bool clamp = true, const wxString& tooltip = {}, bool show_edit_btn = true);
+    bool slider_float_line(const char *label,int *v,int v_min,int v_max,
+        bool *changeType,ImTextureID imId,int old_value,const char *format = "%d",float power  = 1.0f,
+        bool clamp = true,const wxString &tooltip = {},bool show_edit_input = true);
+
     bool slider_float(const std::string& label, float* v, float v_min, float v_max, const char* format = "%.3f", float power = 1.0f, bool clamp = true, const wxString& tooltip = {}, bool show_edit_btn = true);
     bool slider_float(const wxString& label, float* v, float v_min, float v_max, const char* format = "%.3f", float power = 1.0f, bool clamp = true, const wxString& tooltip = {}, bool show_edit_btn = true);
-
+    bool ACInputInt(const char *label, int *v, int step = 1, int step_fast = 100, ImGuiInputTextFlags flags = 0);
     bool image_button(ImTextureID user_texture_id, const ImVec2& size, const ImVec2& uv0 = ImVec2(0.0, 0.0), const ImVec2& uv1 = ImVec2(1.0, 1.0), int frame_padding = -1, const ImVec4& bg_col = ImVec4(0.0, 0.0, 0.0, 0.0), const ImVec4& tint_col = ImVec4(1.0, 1.0, 1.0, 1.0), ImGuiButtonFlags flags = 0);
     bool image_button(const wchar_t icon, const wxString& tooltip = L"");
     bool ACIMButton(const char* label, const ImVec2& size_arg = ImVec2(0,0), ImGuiButtonFlags flags = (ImGuiButtonFlags_None));
+    bool ACIMButton(bool isLeft, const char *label, const ImVec2 &size_arg = ImVec2(0, 0), ImGuiButtonFlags flags = (ImGuiButtonFlags_None));
+    bool ACIMButton(ImTextureID &_id, const char* label, const ImVec2& size_arg = ImVec2(0,0), ImGuiButtonFlags flags = (ImGuiButtonFlags_None));
     //bool ACIMCheckbox(const char *label,
     //                  bool *      v,
     //                  const float label_offset_x=0.0f,
@@ -165,6 +173,29 @@ public:
                       bool                     *selected,
                       ImGuiSelectableFlags     flags    = 0,
                       const ImVec2 &           size     = ImVec2(0, 0));
+    bool ACSelectable(const int &              rounding,
+                      const char *             label,
+                      const char *             tipLabel,
+                      std::vector<ImTextureID> imgIds,
+                      bool *                   selected,
+                      ImGuiSelectableFlags     flags = 0,
+                      const ImVec2 &           size  = ImVec2(0, 0));
+    bool ACSliderScalar(const char *     label,
+                        ImGuiDataType    data_type,
+                        void *           p_data,
+                        const void *     p_min,
+                        const void *     p_max,
+                        const char *     format,
+                        ImGuiSliderFlags flags);
+    bool ACSliderScalar(const char *     label,
+                        ImGuiDataType    data_type,
+                        void *           p_data,
+                        void *           slider_data,
+                        int            old_data,
+                        const void *     p_min,
+                        const void *     p_max,
+                        const char *     format,
+                        ImGuiSliderFlags flags);
     bool ACListBox(const int & rounding,
                    const char *label,
                    int *       current_item,
@@ -176,10 +207,10 @@ public:
                    float                                           listWidth       = 0.0f);
     // Use selection = -1 to not mark any option as selected
     bool combo(const wxString& label, const std::vector<std::string>& options, int& selection, ImGuiComboFlags flags = 0);
-    bool combo(ImTextureID &_id,const wxString &label,
-               const std::vector<std::string> &options,
-               int &                           selection,
-               ImGuiComboFlags                 flags = 0);
+    //bool combo(const wxString& label, const std::vector<std::string>& options, int& selection, ImGuiComboFlags flags = 0, float label_width = 0.0f, float item_width = 0.0f);
+    bool combo(const std::string& label, const std::vector<std::string>& options, int& selection, ImGuiComboFlags flags = 0, float label_width = 0.0f, float item_width = 0.0f);
+    bool combo(ImTextureID &_id, const wxString &label, const std::vector<std::string> &options, int &selection, float itemWidth = 0.0f,ImGuiComboFlags flags = 0);
+    bool ACBeginCombo(const char *label, const char *preview_value, ImGuiComboFlags flags = 0, float arrowWidth = 0.0f, float itemWidth=0.0f);
     bool undo_redo_list(const ImVec2& size, const bool is_undo, bool (*items_getter)(const bool, int, const char**), int& hovered, int& selected, int& mouse_wheel);
     void search_list(const ImVec2& size, bool (*items_getter)(int, const char** label, const char** tooltip), char* search_str,
                      Search::OptionViewParameters& view_params, int& selected, bool& edited, int& mouse_wheel, bool is_localized);
@@ -213,6 +244,12 @@ public:
     bool slider_optional_float(const char* label, std::optional<float> &v, float v_min, float v_max, const char* format = "%.3f", float power = 1.0f, bool clamp = true, const wxString& tooltip = {}, bool show_edit_btn = true, float def_val = .0f);
     // Extended function ImGuiWrapper::slider_float to work with std::optional<int>, when value == def_val than optional release its value
     bool slider_optional_int(const char* label, std::optional<int> &v, int v_min, int v_max, const char* format = "%.3f", float power = 1.0f, bool clamp = true, const wxString& tooltip = {}, bool show_edit_btn = true, int def_val = 0);
+
+    /// <summary>
+    /// Use ImGui internals to unactivate (lose focus) in input.
+    /// When input is activ it can't change value by application.
+    /// </summary>
+    static void left_inputs();
 
     /// <summary>
     /// Truncate text by ImGui draw function to specific width
@@ -260,6 +297,20 @@ public:
                      ImDrawList *   draw_list = ImGui::GetOverlayDrawList(),
                      ImU32 color     = ImGui::GetColorU32(COL_BLUE_LIGHT),
                      float thickness = 3.f);
+
+    /// <summary>
+    /// Draw symbol of cross hair
+    /// </summary>
+    /// <param name="position">Center of cross hair</param>
+    /// <param name="radius">Circle radius</param>
+    /// <param name="color">Color of symbol</param>
+    /// <param name="num_segments">Precission of circle</param>
+    /// <param name="thickness">Thickness of Line in symbol</param>
+    static void draw_cross_hair(const ImVec2 &position,
+                                float         radius       = 16.f,
+                                ImU32         color        = ImGui::GetColorU32(ImVec4(1.f, 1.f, 1.f, .75f)),
+                                int           num_segments = 0,
+                                float         thickness    = 4.f);
 
     /// <summary>
     /// Check that font ranges contain all chars in string
@@ -314,6 +365,7 @@ public:
     static const ImVec4 COL_AC_BUTTON_ACTIVE     ;
     static const ImVec4 COL_AC_LIST_CLICK;
     static const ImVec4 COL_AC_LIST_HOVER;
+    static const ImVec4 COL_AC_LIST_SCROLL;
 
     static const ImVec4 COL_GREEN_LIGHT;
     static const ImVec4 COL_HOVER;
@@ -392,7 +444,7 @@ private:
     LastSliderStatus m_last_slider_status;
     ImFont* default_font = nullptr;
     ImFont* bold_font = nullptr;
-    
+
     std::map<std::string, ImFont*> im_fonts_map;
     std::vector<std::string> m_fonts_names;
 };

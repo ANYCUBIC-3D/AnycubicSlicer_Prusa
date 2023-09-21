@@ -34,31 +34,31 @@ public:
     wxWindow*           parent() const {return m_parent; }
 };
 
-
-class ObjectSettings : public OG_Settings
-{
-    // sizer for extra Object/Part's settings
-    wxBoxSizer* m_settings_list_sizer{ nullptr };  
-    // option groups for settings
-    std::vector <std::shared_ptr<ConfigOptionsGroup>> m_og_settings;
-
-    ScalableBitmap m_bmp_delete;
-    ScalableBitmap m_bmp_delete_focus;
-
-public:
-    ObjectSettings(wxWindow* parent);
-    ~ObjectSettings() {}
-
-    bool        update_settings_list();
-    /* Additional check for override options: Add options, if its needed.
-     * Example: if Infill is set to 100%, and Fill Pattern is missed in config_to,
-     * we should add fill_pattern to avoid endless loop in update
-     */
-    bool        add_missed_options(ModelConfig *config_to, const DynamicPrintConfig &config_from);
-    void        update_config_values(ModelConfig *config);
-    void        UpdateAndShow(const bool show) override;
-    void        sys_color_changed();
-};
+//
+//class ObjectSettings : public OG_Settings
+//{
+//    // sizer for extra Object/Part's settings
+//    wxBoxSizer* m_settings_list_sizer{ nullptr };  
+//    // option groups for settings
+//    std::vector <std::shared_ptr<ConfigOptionsGroup>> m_og_settings;
+//
+//    ScalableBitmap m_bmp_delete;
+//    ScalableBitmap m_bmp_delete_focus;
+//
+//public:
+//    ObjectSettings(wxWindow* parent);
+//    ~ObjectSettings() {}
+//
+//    bool        update_settings_list();
+//    /* Additional check for override options: Add options, if its needed.
+//     * Example: if Infill is set to 100%, and Fill Pattern is missed in config_to,
+//     * we should add fill_pattern to avoid endless loop in update
+//     */
+//    bool        add_missed_options(ModelConfig *config_to, const DynamicPrintConfig &config_from);
+//    void        update_config_values(ModelConfig *config);
+//    void        UpdateAndShow(const bool show) override;
+//    void        sys_color_changed();
+//};
 
 }}
 

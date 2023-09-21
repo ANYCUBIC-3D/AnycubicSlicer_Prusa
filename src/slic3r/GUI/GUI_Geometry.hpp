@@ -4,13 +4,26 @@
 namespace Slic3r {
 namespace GUI {
 
-#if ENABLE_WORLD_COORDINATE
 enum class ECoordinatesType : unsigned char
 {
     World,
     Instance,
     Local
 };
+
+
+enum EditorType
+{
+    etUndef         = 0,
+    etMinZ          = 1,
+    etMaxZ          = 2,
+    etLayerHeight   = 4,
+};
+
+wxString coordinate_type_str(ECoordinatesType type);
+
+extern const double in_to_mm;
+extern const double mm_to_in;
 
 class TransformationType
 {
@@ -72,8 +85,6 @@ private:
 
     Enum    m_value;
 };
-
-#endif // ENABLE_WORLD_COORDINATE
 
 } // namespace Slic3r
 } // namespace GUI

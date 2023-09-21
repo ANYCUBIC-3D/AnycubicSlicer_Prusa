@@ -189,6 +189,8 @@ class TabPresetComboBox : public PresetComboBox
 {
     bool show_incompatible {false};
     bool m_enable_all {false};
+    // This parameter is used by FilamentSettings tab to show filament setting related to the active extruder
+    int  m_active_extruder_idx {0};
 
 public:
     TabPresetComboBox(wxWindow *parent, Preset::Type preset_type);
@@ -207,6 +209,9 @@ public:
 
     PresetCollection*   presets()   const { return m_collection; }
     Preset::Type        type()      const { return m_type; }
+
+    // used by Filaments tab to update preset list according to the particular extruder
+    void set_active_extruder(int extruder_idx) { m_active_extruder_idx = extruder_idx; }
 };
 
 } // namespace GUI

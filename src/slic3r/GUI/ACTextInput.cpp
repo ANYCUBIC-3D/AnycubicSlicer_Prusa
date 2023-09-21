@@ -80,6 +80,11 @@ void ACTextInput::Create(wxWindow *     parent,
         ProcessEventLocally(e);
         e.Skip();
     });
+    text_ctrl->Bind(wxEVT_SET_FOCUS, [this](auto &e) {
+        OnEdit();
+        e.SetId(GetId());
+        ProcessEventLocally(e);
+    });
     text_ctrl->Bind(wxEVT_TEXT_ENTER, [this](auto &e) {
         OnEdit();
         e.SetId(GetId());

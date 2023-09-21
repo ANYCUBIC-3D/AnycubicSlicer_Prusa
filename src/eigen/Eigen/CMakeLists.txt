@@ -1,19 +1,19 @@
-include(RegexUtils)
-test_escape_string_as_regex()
+file(GLOB Eigen_directory_files_to_install "*")
+file(GLOB TXTS_G "${CMAKE_CURRENT_SOURCE_DIR}/*.txt" )
 
-file(GLOB Eigen_directory_files "*")
+foreach(item ${TXTS_G})
+    list(REMOVE_ITEM Eigen_directory_files_to_install ${item})
+endforeach(item)
+list(REMOVE_ITEM Eigen_directory_files_to_install "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
-escape_string_as_regex(ESCAPED_CMAKE_CURRENT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+INSTALL(FILES ${Eigen_directory_files_to_install} DESTINATION include/Eigen)
 
-foreach(f ${Eigen_directory_files})
-  if(NOT f MATCHES "\\.txt" AND NOT f MATCHES "${ESCAPED_CMAKE_CURRENT_SOURCE_DIR}/[.].+" AND NOT f MATCHES "${ESCAPED_CMAKE_CURRENT_SOURCE_DIR}/src")
-    list(APPEND Eigen_directory_files_to_install ${f})
-  endif()
-endforeach(f ${Eigen_directory_files})
 
-install(FILES
-  ${Eigen_directory_files_to_install}
-  DESTINATION ${INCLUDE_INSTALL_DIR}/Eigen COMPONENT Devel
-  )
 
-install(DIRECTORY src DESTINATION ${INCLUDE_INSTALL_DIR}/Eigen COMPONENT Devel FILES_MATCHING PATTERN "*.h")
+file(GLOB_RECURSE HDRS_G "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h")
+foreach(_source ${HDRS_G})
+    get_filename_component(_source_path "${_source}" PATH)
+    string(REPLACE "/" "\\" _group_path "${_source_path}")
+    string(REPLACE  "${CMAKE_CURRENT_SOURCE_DIR}/src" "" _group_path "${_source_path}")
+    INSTALL(FILES ${_source} DESTINATION include/Eigen/src/${_group_path})
+endforeach(_source)

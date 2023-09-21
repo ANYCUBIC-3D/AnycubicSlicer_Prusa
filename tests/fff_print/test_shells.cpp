@@ -48,9 +48,11 @@ SCENARIO("Shells", "[Shells]") {
                     REQUIRE(! has_shells(i));
             }
             THEN("correct number of top solid layers") {
-                for (int i = 0; i < top_solid_layers; ++ i)
+                // NOTE: there is one additional layer with enusring line under the bridge layer, bridges would be otherwise anchored weakly to the perimeter.
+                size_t additional_ensuring_anchors = top_solid_layers > 0 ? 1 : 0;
+                for (int i = 0; i < top_solid_layers + additional_ensuring_anchors; ++ i)
                     REQUIRE(has_shells(int(zs.size()) - i - 1));
-                for (int i = top_solid_layers; i < int(zs.size() / 2); ++ i)
+                for (int i = top_solid_layers + additional_ensuring_anchors; i < int(zs.size() / 2); ++ i)
                     REQUIRE(! has_shells(int(zs.size()) - i - 1));
             }
             if (top_solid_layers > 0) {
@@ -144,7 +146,7 @@ SCENARIO("Shells (from Perl)", "[Shells]") {
             for (auto z : layers_with_speed(Slic3r::Test::slice({TestMesh::V}, config), solid_speed))
                 if (z <= 7.2)
                     ++ n;
-            REQUIRE(n == 3);
+            REQUIRE(n == 3 + 1/*one additional layer with ensuring for bridge anchors*/);
         }
     }
 

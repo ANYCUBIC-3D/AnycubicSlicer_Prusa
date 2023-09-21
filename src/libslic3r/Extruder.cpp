@@ -37,6 +37,7 @@ std::pair<double, double> Extruder::extrude(double dE)
    value supplied will overwrite the previous one if any. */
 std::pair<double, double> Extruder::retract(double retract_length, double restart_extra)
 {
+    assert(restart_extra >= 0);
     // in case of relative E distances we always reset to 0 before any output
     if (m_config->use_relative_e_distances)
         m_E = 0.;
@@ -62,6 +63,24 @@ std::pair<double, double> Extruder::unretract()
     m_retracted     = 0.;
     m_restart_extra = 0.;
     return std::make_pair(dE, emitE);
+}
+
+// Setting the retract state from the script.
+// Sets current retraction value & restart extra filament amount if retracted > 0.
+void Extruder::set_retracted(double retracted, double restart_extra)
+{
+    if (retracted < - EPSILON)
+        throw Slic3r::RuntimeError("Custom G-code reports negative z_retracted.");
+    if (restart_extra < - EPSILON)
+        throw Slic3r::RuntimeError("Custom G-code reports negative z_restart_extra.");
+
+    if (retracted > EPSILON) {
+        m_retracted     = retracted;
+        m_restart_extra = restart_extra < EPSILON ? 0 : restart_extra;
+    } else {
+        m_retracted     = 0;
+        m_restart_extra = 0;
+    }
 }
 
 // Used filament volume in mm^3.

@@ -10,8 +10,6 @@
 
 #include <tbb/parallel_for.h>
 
-//! macro used to mark string used at localization, return same string
-#define L(s) Slic3r::I18N::translate(s)
 
 namespace Slic3r {
 
@@ -357,8 +355,7 @@ static std::vector<std::vector<ExPolygons>> slices_to_regions(
                                 if (next_region_same_modifier)
                                     // To be used in the following iteration.
                                     temp_slices[idx_region + 1].expolygons = std::move(source);
-                            } else if (region.model_volume->is_model_part() ||
-                                       region.model_volume->is_negative_volume()) {
+                            } else if (region.model_volume->is_model_part() || region.model_volume->is_negative_volume()) {
                                 // Clip every non-zero region preceding it.
                                 for (int idx_region2 = 0; idx_region2 < idx_region; ++ idx_region2)
                                     if (! temp_slices[idx_region2].expolygons.empty()) {
@@ -500,7 +497,7 @@ void PrintObject::slice()
 {
     if (! this->set_started(posSlice))
         return;
-    m_print->set_status(10, L("Processing triangulated mesh"));
+    m_print->set_status(10, _u8L("Processing triangulated mesh"));
     std::vector<coordf_t> layer_height_profile;
     this->update_layer_height_profile(*this->model_object(), m_slicing_params, layer_height_profile);
     m_print->throw_if_canceled();
@@ -734,9 +731,9 @@ void PrintObject::slice_volumes()
         if (m_config.xy_size_compensation.value != 0.f) {
             this->active_step_add_warning(
                 PrintStateBase::WarningLevel::CRITICAL,
-                L("An object has enabled XY Size compensation which will not be used because it is also multi-material painted.\nXY Size "
+                _u8L("An object has enabled XY Size compensation which will not be used because it is also multi-material painted.\nXY Size "
                   "compensation cannot be combined with multi-material painting.") +
-                    "\n" + (L("Object name")) + ": " + this->model_object()->name);
+                    "\n" + (_u8L("Object name")) + ": " + this->model_object()->name);
         }
 
         BOOST_LOG_TRIVIAL(debug) << "Slicing volumes - MMU segmentation";

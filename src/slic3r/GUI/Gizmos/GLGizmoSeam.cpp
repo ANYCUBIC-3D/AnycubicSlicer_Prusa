@@ -352,14 +352,20 @@ void GLGizmoSeam::on_render_input_window(float x, float y, float bottom_limit)
     ImGui::PopStyleVar();
     ImGui::PopStyleColor();
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 20.0f * _scaleIndex);
-    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 56.0f * _scaleIndex);
+
+    wxString btText = m_desc.at("remove_all");
+    ImVec2 btTextSize = m_imgui->calc_button_size(btText);
+    
+    ImGui::SetCursorPosX((ImGui::GetWindowWidth() - btTextSize.x)/2);
+
 
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.95f, 0.97f, 0.99f, 1.00f));
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImGuiWrapper::COL_HOVER);
-    m_imgui->push_ac_button_style(ImGui::GetCursorPosY(), 27.0f * _scaleIndex, 6.0f * _scaleIndex, 8.0f * _scaleIndex);
+    ImGui::PushStyleColor(ImGuiCol_Border, ImGuiWrapper::COL_AC_BLUE);
+    ImGui::PushStyleColor(ImGuiCol_Text, ImGuiWrapper::COL_AC_BLUE);
 
     ImGui::PushFont(m_imgui->default_font_14);
-    if (m_imgui->button(m_desc.at("remove_all"))) {
+    if (m_imgui->button(btText)) {
         Plater::TakeSnapshot snapshot(wxGetApp().plater(), _L("Reset selection"), UndoRedo::SnapshotType::GizmoAction);
         ModelObject *        mo  = m_c->selection_info()->model_object();
         int                  idx = -1;
@@ -373,9 +379,9 @@ void GLGizmoSeam::on_render_input_window(float x, float y, float bottom_limit)
         update_model_object();
         m_parent.set_as_dirty();
     }
-    ImGui::PopStyleColor(2);
+    ImGui::PopStyleColor(4);
     ImGui::PopFont();
-    m_imgui->pop_ac_button_style();
+
     last_seam_win_h = ImGui::GetWindowHeight();
     ImGui::PopFont();
     ImGui::PopStyleVar(2);

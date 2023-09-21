@@ -1,0 +1,6 @@
+﻿version: "3.3"
+services:
+  slicersdk:
+    build:
+      context: .
+      dockerfile: Dockerfile

@@ -21,6 +21,8 @@ enum CUSTOM_CTROL_ID
 
 #define AC_COLOR_BOARD_GRAY          wxColour(214, 220, 230)
 
+#define AC_COLOR_BOARD_RED wxColour(229, 46, 46)
+
 #define AC_COLOR_FONT_GRAY         wxColour(142, 153, 173)
 
 #define AC_COLOR_PANEL_BG			 wxColour(240, 243, 247) 
@@ -44,6 +46,7 @@ enum CUSTOM_CTROL_ID
 #define AC_COLOR_BLACK           wxColour(20, 28, 41 )
 #define AC_COLOR_BLACK_DISABLE   wxColour(151, 158, 168 )
 #define AC_COLOR_BLACK_GRAY     wxColour(112, 112, 112)
+#define AC_COLOR_BLACK_YERROW wxColour(232, 181, 10)
 // for mainframe toolbar / settings Tab
 #define AC_COLOR_PAGE_BLACK           wxColour(60, 79, 115)
 #define AC_COLOR_PAGE_BLACK_DISABLE   wxColour(168, 168, 168)
@@ -93,6 +96,7 @@ enum CUSTOM_CTROL_ID
 #define AC_COLOR_BG_WHITE_HOVER   wxColour(244, 248, 254)
 #define AC_COLOR_BG_WHITE_PRESSED wxColour(235, 239, 245)
 #define AC_COLOR_BG_WHITE_DISABLE wxColour(244, 244, 244)
+#define AC_COLOR_BG_TRANSPARENT   wxColour(255,255,255,0)
 
 // border
 #define AC_COLOR_BD_BLACK         wxColour(175, 185, 204)

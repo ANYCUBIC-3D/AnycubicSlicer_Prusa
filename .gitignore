@@ -1,6 +1,6 @@
 Build
 Build.bat
-/build/
+/build*/
 deps/build
 MYMETA.json
 MYMETA.yml
@@ -16,12 +16,12 @@ xs/assertlib*
 .vs/*
 local-lib
 /src/TAGS
-/.vscode/
 build-linux/*
 deps/build-linux/*
+deps/usr
 **/.DS_Store
 install_*'
-
+deps/download
 
 build_*/
 SVG
@@ -30,6 +30,9 @@ cmake-build-debug
 out_deps
 out_depsx64
 config.cmake
-b国123
 *.app
 *.dmg
+build*
+*install/
+download/
+*.zip

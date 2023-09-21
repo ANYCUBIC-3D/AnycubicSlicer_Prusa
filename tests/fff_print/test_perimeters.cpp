@@ -529,7 +529,7 @@ SCENARIO("Perimeters3", "[Perimeters]")
     auto config = Slic3r::DynamicPrintConfig::full_print_config_with({
         { "skirts",                 0 },
         { "perimeters",             3 },
-        { "layer_height",           0.4 },
+        { "layer_height",           0.15 },
         { "bridge_speed",           99 },
         { "enable_dynamic_overhang_speeds",         false },
         // to prevent bridging over sparse infill

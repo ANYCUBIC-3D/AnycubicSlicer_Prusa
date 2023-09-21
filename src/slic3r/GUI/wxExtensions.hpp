@@ -12,10 +12,13 @@
 #include <wx/statbmp.h>
 #include <wx/timer.h>
 
+#include <string>
 #include <vector>
 #include <functional>
 #include "ACDefines.h"
+#include "GUI_App.hpp"
 
+using namespace Slic3r;
 #ifndef __linux__
 void                sys_color_changed_menu(wxMenu* menu);
 #else 
@@ -24,67 +27,19 @@ inline void         sys_color_changed_menu(wxMenu* /* menu */) {}
 
 class ACMenuItem : public wxMenuItem
 {
+    bool checked = false;
 public:
     ACMenuItem(wxMenu *        parentMenu = NULL,
                int             id         = wxID_SEPARATOR,
                const wxString &name       = wxEmptyString,
                const wxString &help       = wxEmptyString,
                wxItemKind      kind       = wxITEM_NORMAL,
-               wxMenu *        subMenu    = NULL)
-        : wxMenuItem(parentMenu, id, name, help, kind, subMenu)
-    {}
+               wxMenu *        subMenu    = NULL);
+    void setCheckState(bool _newState) { checked = _newState; }
+    bool getCheckState() { return checked; }
 #if wxUSE_OWNER_DRAWN
-    virtual bool OnDrawItem(wxDC &dc, const wxRect &rc, wxODAction act, wxODStatus stat) wxOVERRIDE
-    {
-        // wxMenuItem::OnDrawItem(dc, rc, act, stat);
-        wxRect newRc(rc.GetLeft(), rc.GetTop(), rc.width, rc.height);
-        wxColour paintColor;
-        if ((stat & wxODSelected) || (stat & wxODHasFocus)) {
-            paintColor = AC_COLOR_ITEM_HOVER;
-        } else {
-            if (stat & wxODChecked) {
-                paintColor = AC_COLOR_MLIST_ITEM_SELECT;
-            } else {
-                paintColor = AC_COLOR_BG_WHITE;
-            }
-        }
-        dc.SetBrush(paintColor);
-        dc.SetPen(paintColor);
-        dc.DrawRectangle(newRc);
-
-        wxString text = GetName();
-        wxSize   textSize;
-        wxCoord  w, h;
-        dc.GetTextExtent(text, &w, &h);
-        textSize = wxSize(w, h);
-        wxString new_text = GetItemLabel();
-        text              = new_text.BeforeFirst('\t');
-        text.Replace("&", "");
-        dc.SetFont(GetFont());
-        if ((stat & wxODDisabled) && ((stat & wxODGrayed) || (stat & wxODHidePrefix))) {
-            dc.SetTextForeground(AC_COLOR_FONT_GRAY);
-        } else {
-            dc.SetTextForeground(AC_COLOR_BLACK);
-        }
-        int x = newRc.GetLeft() + 8;
-        int y = newRc.GetTop() + (newRc.GetBottom() - newRc.GetTop() - textSize.y) / 2;
-
-        dc.DrawText(text, x, y);
-
-        wxString accel = new_text.AfterFirst('\t');
-        if (!accel.empty()) {
-            wxSize  accelSize;
-            wxCoord w_r, h_r;
-            accel.Replace("&", "");
-            dc.GetTextExtent(accel, &w_r, &h_r);
-            accelSize = wxSize(w_r, h_r);
-            x         = newRc.GetRight() - w_r - 9;
-            y         = newRc.GetTop() + (newRc.GetBottom() - newRc.GetTop() - accelSize.y) / 2;
-
-            dc.DrawText(accel, x, y);
-        }
-        return true;
-    }
+    virtual bool OnDrawItem(wxDC &dc, const wxRect &rc, wxODAction act, wxODStatus stat) wxOVERRIDE;
+    virtual bool OnMeasureItem(size_t *width, size_t *height) wxOVERRIDE;
 #endif // wxUSE_OWNER_DRAWN
 };
 
@@ -113,20 +68,16 @@ void enable_menu_item(wxUpdateUIEvent& evt, std::function<bool()> const cb_condi
 
 class wxDialog;
 
-void    edit_tooltip(wxString& tooltip);
+void      edit_tooltip(wxString &tooltip);
 void    msw_buttons_rescale(wxDialog* dlg, const int em_unit, const std::vector<int>& btn_ids);
 int     em_unit(wxWindow* win);
 int     mode_icon_px_size();
-
+wxDialog* setMarkWindow(wxWindow *m_parent, wxWindow *child_win,bool bind=true,bool activateIndex=false);
+void AddWindowDrakEdg(wxWindow *child_win,wxColour penColor = wxColour(20, 28, 41));
 wxBitmapBundle* get_bmp_bundle(const std::string& bmp_name_in, wxSize px_cnt, const std::string& new_color = std::string());
 wxBitmapBundle* get_bmp_bundle(const std::string& bmp_name_in, int px_cnt = 16, const std::string& new_color = std::string());
 wxBitmapBundle* get_empty_bmp_bundle(int width, int height);
 wxBitmapBundle* get_solid_bmp_bundle(int width, int height, const std::string& color);
-
-wxBitmap create_scaled_bitmap(const std::string& bmp_name, wxWindow *win = nullptr, 
-    const int px_cnt = 16, const bool grayscale = false,
-    const std::string& new_color = std::string(), // color witch will used instead of orange
-    const bool menu_bitmap = false);
 
 std::vector<wxBitmapBundle*> get_extruder_color_icons(bool thin_icon = false);
 
@@ -210,15 +161,19 @@ class ScalableBitmap
 {
 public:
     ScalableBitmap() {};
+    ScalableBitmap(wxWindow *parent, const std::string &icon_name, const int px_cnt, const bool grayscale = false);
     ScalableBitmap( wxWindow *parent,
-                    const std::string& icon_name = "",
                     const int px_cnt = 16, 
-                    const bool grayscale = false);
-    ScalableBitmap(wxWindow *parent, int width, int height = 0, const bool grayscale = false, const wxSize px_cnt = wxSize(0, 0));
-    ScalableBitmap( wxWindow *parent,
-                    const wxSize px_cnt, 
                     const std::string& icon_name = "",
                     const bool grayscale = false);
+    ScalableBitmap( wxWindow *parent,
+                    const std::string& icon_name = "",
+                    const bool grayscale = false);
+    ScalableBitmap( wxWindow *parent,
+                    const wxSize pxSize, 
+                    const std::string& icon_name = "",
+                    const bool grayscale = false);
+    ScalableBitmap(wxWindow *parent, int width, int height = 0, const bool grayscale = false);
 
     ~ScalableBitmap() {}
 
@@ -228,7 +183,7 @@ public:
     wxBitmap            get_bitmap() const   { return m_bmp.GetBitmapFor(m_parent); }
     wxWindow*           parent()  const { return m_parent;}
     const std::string&  name()    const { return m_icon_name; }
-    int                 px_cnt()  const { return m_px_cnt.x;}
+    wxSize              pxSize()  const { return m_pxSize;}
 
     wxSize              GetSize()   const {
 #ifdef __WIN32__
@@ -245,7 +200,7 @@ private:
     wxBitmapBundle  m_bmp = wxBitmapBundle();
     wxBitmap        m_bitmap = wxBitmap();
     std::string     m_icon_name = "";
-    wxSize          m_px_cnt = wxSize(16,16);
+    wxSize          m_pxSize;
     bool            m_grayscale {false};
 };
 
@@ -315,7 +270,7 @@ public:
         long                style = wxBU_EXACTFIT | wxNO_BORDER);
 
     ~ScalableButton() {}
-
+    void setScalableButtonImg_hover(const std::string &bmp_name, const std::string &hover_bmp_name);
     void SetBitmap_(const ScalableBitmap& bmp);
     bool SetBitmap_(const std::string& bmp_name);
     void SetBitmapDisabled_(const ScalableBitmap &bmp);
@@ -332,7 +287,7 @@ private:
 
 protected:
     // bitmap dimensions 
-    int             m_px_cnt{ 16 };
+    wxSize          m_pxSize;
     bool            m_has_border {false};
 };
 
@@ -425,7 +380,6 @@ public:
 
 private:
     std::vector<ModeButton*> m_mode_btns;
-    wxWindow*                m_parent {nullptr};
     double                   m_hgap_unscaled;
 };
 

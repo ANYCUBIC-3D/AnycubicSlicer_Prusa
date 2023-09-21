@@ -5,15 +5,16 @@
 #include <vector>
 #include <string>
 #include "Line.hpp"
+#include "Point.hpp"
 #include "MultiPoint.hpp"
 #include "Polyline.hpp"
 
 namespace Slic3r {
 
 class Polygon;
-using Polygons          = std::vector<Polygon>;
-using PolygonPtrs       = std::vector<Polygon*>;
-using ConstPolygonPtrs  = std::vector<const Polygon*>;
+using Polygons          = std::vector<Polygon, PointsAllocator<Polygon>>;
+using PolygonPtrs       = std::vector<Polygon*, PointsAllocator<Polygon*>>;
+using ConstPolygonPtrs  = std::vector<const Polygon*, PointsAllocator<const Polygon*>>;
 
 // Returns true if inside. Returns border_result if on boundary.
 bool contains(const Polygon& polygon, const Point& p, bool border_result = true);
@@ -148,7 +149,8 @@ inline void polygons_append(Polygons &dst, Polygons &&src)
     }
 }
 
-Polygons polygons_simplify(const Polygons &polys, double tolerance);
+Polygons polygons_simplify(Polygons &&polys, double tolerance, bool strictly_simple = true);
+Polygons polygons_simplify(const Polygons &polys, double tolerance, bool strictly_simple = true);
 
 inline void polygons_rotate(Polygons &polys, double angle)
 {
@@ -241,7 +243,7 @@ inline Polylines to_polylines(Polygons &&polys)
     return polylines;
 }
 
-inline Polygons to_polygons(const std::vector<Points> &paths)
+inline Polygons to_polygons(const VecOfPoints &paths)
 {
     Polygons out;
     out.reserve(paths.size());
@@ -250,7 +252,7 @@ inline Polygons to_polygons(const std::vector<Points> &paths)
     return out;
 }
 
-inline Polygons to_polygons(std::vector<Points> &&paths)
+inline Polygons to_polygons(VecOfPoints &&paths)
 {
     Polygons out;
     out.reserve(paths.size());

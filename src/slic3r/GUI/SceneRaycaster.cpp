@@ -3,6 +3,8 @@
 
 #include "Camera.hpp"
 #include "GUI_App.hpp"
+#include "Selection.hpp"
+#include "Plater.hpp"
 
 namespace Slic3r {
 namespace GUI {
@@ -88,10 +90,48 @@ void SceneRaycaster::remove_raycaster(std::shared_ptr<SceneRaycasterItem> item)
 
 SceneRaycaster::HitResult SceneRaycaster::hit(const Vec2d& mouse_pos, const Camera& camera, const ClippingPlane* clipping_plane) const
 {
+    // helper class used to return currently selected volume as hit when overlapping with other volumes
+    // to allow the user to click and drag on a selected volume
+    class VolumeKeeper
+    {
+        std::optional<unsigned int> m_selected_volume_id;
+        Vec3f m_closest_hit_pos{ std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max() };
+        bool m_selected_volume_already_found{ false };
+
+    public:
+        VolumeKeeper() {
+            const Selection& selection = wxGetApp().plater()->get_selection();
+            if (selection.is_single_volume() || selection.is_single_modifier()) {
+                const GLVolume* volume = selection.get_first_volume();
+                if (!volume->is_wipe_tower && !volume->is_sla_pad() && !volume->is_sla_support())
+                    m_selected_volume_id = *selection.get_volume_idxs().begin();
+            }
+        }
+
+        bool is_active() const { return m_selected_volume_id.has_value(); }
+        const Vec3f& get_closest_hit_pos() const { return m_closest_hit_pos; }
+        bool check_hit_result(const HitResult& hit) {
+            assert(is_active());
+
+            if (m_selected_volume_already_found && hit.type == SceneRaycaster::EType::Volume && hit.position.isApprox(m_closest_hit_pos))
+                return false;
+
+            if (hit.type == SceneRaycaster::EType::Volume)
+                m_selected_volume_already_found = *m_selected_volume_id == (unsigned int)decode_id(hit.type, hit.raycaster_id);
+
+            m_closest_hit_pos = hit.position;
+            return true;
+        }
+    };
+
+    VolumeKeeper volume_keeper;
+
     double closest_hit_squared_distance = std::numeric_limits<double>::max();
-    auto is_closest = [&closest_hit_squared_distance](const Camera& camera, const Vec3f& hit) {
+    auto is_closest = [&closest_hit_squared_distance, &volume_keeper](const Camera& camera, const Vec3f& hit) {
         const double hit_squared_distance = (camera.get_position() - hit.cast<double>()).squaredNorm();
-        const bool ret = hit_squared_distance < closest_hit_squared_distance;
+        bool ret = hit_squared_distance < closest_hit_squared_distance;
+        if (volume_keeper.is_active())
+            ret |= hit.isApprox(volume_keeper.get_closest_hit_pos());
         if (ret)
             closest_hit_squared_distance = hit_squared_distance;
         return ret;
@@ -103,7 +143,7 @@ SceneRaycaster::HitResult SceneRaycaster::hit(const Vec2d& mouse_pos, const Came
 
     HitResult ret;
 
-    auto test_raycasters = [this, is_closest, clipping_plane](EType type, const Vec2d& mouse_pos, const Camera& camera, HitResult& ret) {
+    auto test_raycasters = [this, is_closest, clipping_plane, &volume_keeper](EType type, const Vec2d& mouse_pos, const Camera& camera, HitResult& ret) {
         const ClippingPlane* clip_plane = (clipping_plane != nullptr && type == EType::Volume) ? clipping_plane : nullptr;
         const std::vector<std::shared_ptr<SceneRaycasterItem>>* raycasters = get_raycasters(type);
         const Vec3f camera_forward = camera.get_dir_forward().cast<float>();
@@ -117,9 +157,14 @@ SceneRaycaster::HitResult SceneRaycaster::hit(const Vec2d& mouse_pos, const Came
             if (item->get_raycaster()->closest_hit(mouse_pos, trafo, camera, current_hit.position, current_hit.normal, clip_plane)) {
                 current_hit.position = (trafo * current_hit.position.cast<double>()).cast<float>();
                 current_hit.normal = (trafo.matrix().block(0, 0, 3, 3).inverse().transpose() * current_hit.normal.cast<double>()).normalized().cast<float>();
-                if (item->use_back_faces() || current_hit.normal.dot(camera_forward) < 0.0f){
+                if (item->use_back_faces() || current_hit.normal.dot(camera_forward) < 0.0f) {
                     if (is_closest(camera, current_hit.position)) {
-                        ret = current_hit;
+                        if (volume_keeper.is_active()) {
+                            if (volume_keeper.check_hit_result(current_hit))
+                                ret = current_hit;
+                        }
+                        else
+                            ret = current_hit;
                     }
                 }
             }

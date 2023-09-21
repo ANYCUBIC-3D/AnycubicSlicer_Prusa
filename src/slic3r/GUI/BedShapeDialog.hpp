@@ -5,7 +5,6 @@
 
 #include "GUI_Utils.hpp"
 #include "2DBed.hpp"
-#include "I18N.hpp"
 
 #include <libslic3r/BuildVolume.hpp>
 
@@ -93,8 +92,7 @@ class BedShapeDialog : public DPIDialog
 {
 	BedShapePanel*	m_panel;
 public:
-	BedShapeDialog(wxWindow* parent) : DPIDialog(parent, wxID_ANY, _(L("Bed Shape")),
-        wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER) {}
+	BedShapeDialog(wxWindow* parent);
 
     void build_dialog(const ConfigOptionPoints& default_pt, const ConfigOptionString& custom_texture, const ConfigOptionString& custom_model);
 

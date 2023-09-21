@@ -16,6 +16,10 @@
 
 #include <mutex>
 #include <stack>
+#include "../Utils/ACNetwork.hpp"
+#include "../Utils/ACCloudWork.hpp"
+#include <wx/timer.h>
+
 
 class wxMenuItem;
 class wxMenuBar;
@@ -39,18 +43,18 @@ namespace GUI{
 class RemovableDriveManager;
 class OtherInstanceMessageHandler;
 class MainFrame;
-class Sidebar;
-class ObjectManipulation;
-class ObjectSettings;
+//class Sidebar;
+//class ObjectManipulation;
+//class ObjectSettings;
 class ObjectList;
-class ObjectLayers;
+//class ObjectLayers;
 class Plater;
 class NotificationManager;
 class Downloader;
 struct GUI_InitParams;
 class GalleryDialog;
-
-
+class Universal;
+class ACCloudMachine;
 
 enum FileType
 {
@@ -83,6 +87,8 @@ extern wxString file_wildcards(FileType file_type);
 #else
 extern wxString file_wildcards(FileType file_type, const std::string &custom_extension = std::string{});
 #endif // ENABLE_ALTERNATIVE_FILE_WILDCARDS_GENERATOR
+
+wxString sla_wildcards(const char *formatid);
 
 enum ConfigMenuIDs {
     ConfigMenuWizard,
@@ -121,6 +127,7 @@ public:
     };
 
 private:
+    bool            m_languageChIndex{false};
     bool            m_initialized { false };
     bool            m_post_initialized { false };
     bool            m_app_conf_exists{ false };
@@ -128,10 +135,12 @@ private:
     EAppMode        m_app_mode{ EAppMode::Editor };
     bool            m_is_recreating_gui{ false };
     bool            m_opengl_initialized{ false };
+    bool            m_is_region_CN{ false };
+	bool            m_is_cloud_login{ false };//云账号登录状态
 
     wxColour        m_color_label_modified;
     wxColour        m_color_label_sys;
-    wxColour        m_color_label_default;
+    wxColour        m_color_label_default = wxColour(20, 28, 41);
     wxColour        m_color_window_default;
 #ifdef _WIN32
     wxColour        m_color_highlight_label_default;
@@ -170,6 +179,10 @@ private:
     std::unique_ptr <Downloader> m_downloader;
     std::string m_instance_hash_string;
 	size_t m_instance_hash_int;
+    std::string m_zn_url;
+    std::string m_en_url;
+
+    wxTimer *m_showWizard_timer = nullptr;
 
 public:
     wxMenuItem *    appendWxMenuItem(wxMenu *        parentMenu,
@@ -181,19 +194,25 @@ public:
     bool            OnInit() override;
     bool            initialized() const { return m_initialized; }
 
-    explicit GUI_App(EAppMode mode = EAppMode::Editor);
+    explicit GUI_App(EAppMode mode = EAppMode::Editor, bool isRegionCN = false);
     ~GUI_App() override;
 
     EAppMode get_app_mode() const { return m_app_mode; }
+    bool is_region_CN() const { return m_is_region_CN; }
+	bool is_cloud_login() const { return m_is_cloud_login; }//get cloud login state
+	void set_cloud_login(bool t) { m_is_cloud_login = t; }  //set cloud login state
     bool is_editor() const { return m_app_mode == EAppMode::Editor; }
     bool is_gcode_viewer() const { return m_app_mode == EAppMode::GCodeViewer; }
     bool is_recreating_gui() const { return m_is_recreating_gui; }
     std::string logo_name() const { return is_editor() ? "AnycubicSlicer" : "AnycubicSlicer-gcodeviewer"; }
 
+	bool is_language_chinese();//is chinese otherwise english
+
     // To be called after the GUI is fully built up.
     // Process command line parameters cached in this->init_params,
     // load configs, STLs etc.
     void            post_init();
+    void showconfig_wizard_startup_merEvent(wxTimerEvent &event);
     // If formatted for github, plaintext with OpenGL extensions enclosed into <details>.
     // Otherwise HTML formatted for the system info dialog.
     static std::string get_gl_info(bool for_github);
@@ -290,6 +309,8 @@ public:
     bool            checked_tab(Tab* tab);
     void            load_current_presets(bool check_printer_presets = true);
 
+    const char*     buildID() const ;
+    const char*     appName() const ;
     wxString        current_language_code() const { return m_wxLocale->GetCanonicalName(); }
 	// Defaults to "en_US".
     wxString 		current_language_code_safe() const;
@@ -308,13 +329,15 @@ public:
     void            MacOpenURL(const wxString& url) override;
 #endif /* __APPLE */
 
-    Sidebar&             sidebar();
-    ObjectManipulation*  obj_manipul();
-    ObjectSettings*      obj_settings();
+    //Sidebar&             sidebar();
+    //ObjectManipulation*  obj_manipul();
+    //ObjectSettings*      obj_settings();
     ObjectList*          obj_list();
-    ObjectLayers*        obj_layers();
+    //ObjectLayers*        obj_layers();
     Plater*              plater();
     const Plater*        plater() const;
+	ACCloudMachine*      get_cloud_machine() const { return m_cloud_machine; }
+	void                 set_cloud_machine(ACCloudMachine* ptr) { m_cloud_machine = ptr; }
     Model&      		 model();
     NotificationManager* notification_manager();
     GalleryDialog *      gallery_dialog();
@@ -328,6 +351,8 @@ public:
     PresetUpdater*  preset_updater{ nullptr };
     MainFrame*      mainframe{ nullptr };
     Plater*         plater_{ nullptr };
+	Universal*      universal_{ nullptr };
+	ACCloudMachine* m_cloud_machine{ nullptr };//middle pass reference pointer
 
 	PresetUpdater*  get_preset_updater() { return preset_updater; }
 
@@ -336,6 +361,11 @@ public:
     int             extruders_edited_cnt() const;
 
     std::vector<Tab *>      tabs_list;
+    ACNetwork m_acNetwork;
+    std::string m_acNetworkLibUrl = "";
+    std::string m_acCaptchaURL = "";
+	std::string m_acCloudWorkLibUrl = "";
+
 
 	RemovableDriveManager* removable_drive_manager() { return m_removable_drive_manager.get(); }
 	OtherInstanceMessageHandler* other_instance_message_handler() { return m_other_instance_message_handler.get(); }
@@ -347,12 +377,14 @@ public:
 	size_t      get_instance_hash_int ()              { return m_instance_hash_int; }
 
     ImGuiWrapper* imgui() { return m_imgui.get(); }
+    bool          checkURLNetWorkStatic(std::string checkUrl = "");
 
     PrintHostJobQueue& printhost_job_queue() { return *m_printhost_job_queue.get(); }
 
     void            open_web_page_localized(const std::string &http_address);
     bool            may_switch_to_SLA_preset(const wxString& caption);
     bool            run_wizard(ACConfigWizard::RunReason reason, ACConfigWizard::StartPage start_page = ACConfigWizard::SP_WELCOME, wxWindow* parent = nullptr);
+    void            change_wizardInfo();
     void            show_desktop_integration_dialog();
     void            show_downloader_registration_dialog();
 
@@ -379,9 +411,42 @@ public:
     void            start_download(std::string url);
 
     void            get_language_info(std::vector<const wxLanguageInfo*>& language_infos, std::vector<std::string>& languageNames, int& defaultIndex, int& curIndex);
+    void app_version_check_public(bool from_user) { app_version_check(from_user); }
+	void app_version_check_once();
+    void sendDownLoadCanceEvent(std::string version);
+    void sendDownLoadFinishEvent();
+    void sendUpdateNowEvent();
+    void runUpdateFileEvent();
+    void sendShowUpdateDialogEvent();
+	void sendUpdateDialogGifEvent();
+	void sendUpdateDialogText4ColorEvent(const wxString& s);
+	void sendUpdateDialogText4ValueEvent(const wxString& s);
+    void sendShowCheckUpdateProgressFinishDialogEvent();
+    void sendShowCheckUpdateProgressDownLoadEvent();
+    void sendThreadCancelEvent(bool index) { m_thread_cancel = index; }
+    void ChangeWizardObj()
+    {
+        if (m_wizard != nullptr) {
+            m_wizard = nullptr;
+        }
+    }
+    void CloseWizardObj()
+    {
+        if (m_wizard != nullptr) {
+            m_wizard->Close();
+            m_wizard = nullptr;
+        }
+    }
+
+    // net lib
+	std::string         ac_net_lib_url();
+	//cloud lib
+	std::string         ac_cloud_lib_url();
+
 private:
     bool            on_init_inner();
 	void            init_app_config();
+    void            load_profile_config_event();
     // returns old config path to copy from if such exists,
     // returns an empty string if such config path does not exists or if it cannot be loaded.
     std::string     check_older_app_config(Semver current_version, bool backup);
@@ -394,12 +459,16 @@ private:
     // Returns true if the configuration is not compatible and the user decided to rather close the slicer instead of reconfiguring.
 	bool            check_updates(const bool verbose);
     void            on_version_read(wxCommandEvent& evt);
+    void            on_version_read_ac(wxCommandEvent &evt);
     // if the data from version file are already downloaded, shows dialogs to start download of new version of app
     void            app_updater(bool from_user);
+    void app_updater_ac(bool from_user);
     // inititate read of version file online in separate thread
     void            app_version_check(bool from_user);
 
     bool            m_datadir_redefined { false }; 
+    bool            m_thread_cancel{false};
+    ACConfigWizard *m_wizard = nullptr;
 };
 
 DECLARE_APP(GUI_App)

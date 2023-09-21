@@ -172,7 +172,7 @@ public:
 	// Creates Slicing Error notification with a custom text and no fade out.
 	void push_slicing_error_notification(const std::string& text);
 	// Creates Slicing Warning notification with a custom text and no fade out.
-	void push_slicing_warning_notification(const std::string& text, bool gray, ObjectID oid, int warning_step);
+	void push_slicing_warning_notification(const std::string& text, bool gray, ObjectID oid, int warning_step, const std::string& hypertext = "", std::function<bool(wxEvtHandler*)> callback = std::function<bool(wxEvtHandler*)>());
 	// marks slicing errors as gray
 	void set_all_slicing_errors_gray(bool g);
 	// marks slicing warings as gray
@@ -351,6 +351,7 @@ private:
 		void				   set_hovered() { if (m_state != EState::Finished && m_state != EState::ClosePending && m_state != EState::Hidden && m_state != EState::Unknown) m_state = EState::Hovered; }
 		// set start of notification to now. Used by delayed notifications
 		void                   reset_timer() { m_notification_start = GLCanvas3D::timestamp_now(); m_state = EState::Shown; }
+        virtual bool getSlicerFinish() { return false;}
 	protected:
 		// Call after every size change
 		virtual void init();
@@ -729,6 +730,8 @@ private:
 		void				set_fdm(bool b) { m_is_fff = b; }
 		void				set_sla(bool b) { m_is_fff = !b; }
 		void                set_export_possible(bool b) { m_export_possible = b; }
+        void                setSlicerFinish(bool index) { m_slicerFinish = index; }
+        bool                getSlicerFinish() { return m_slicerFinish; }
 	protected:
 		void        init() override;
 		void	    render_text(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y) override;
@@ -766,6 +769,7 @@ private:
 		bool					m_is_fff { true };
 		// if true, it is possible show export hyperlink in state SP_PROGRESS
 		bool                    m_export_possible { false };
+        bool m_slicerFinish{false};
 	};
 
 	class ProgressIndicatorNotification : public ProgressBarNotification
@@ -979,7 +983,7 @@ private:
     {NotificationType::URLNotRegistered
 		, NotificationLevel::RegularNotificationLevel
 		, 10
-		, _u8L(" AnycubicSlicer recieved a download request from Printables.com, but it's not allowed. You can allow it")
+		, _u8L(" AnycubicSlicer recieved a download request from anycubic.com, but it's not allowed. You can allow it")
 		, _u8L("here.")
 		,  [](wxEvtHandler* evnthndlr) {
 			wxGetApp().open_preferences("downloader_url_registered", "Other");

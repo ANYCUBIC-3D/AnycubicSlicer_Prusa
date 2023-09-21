@@ -583,8 +583,12 @@ static void process_arrangeable(const ArrangePolygon &arrpoly,
     outp.emplace_back(std::move(p));
     outp.back().rotation(rotation);
     outp.back().translation({offs.x(), offs.y()});
+    outp.back().inflate(arrpoly.inflation);
     outp.back().binId(arrpoly.bed_idx);
     outp.back().priority(arrpoly.priority);
+    outp.back().setOnPackedFn([&arrpoly](Item &itm){
+        itm.inflate(-arrpoly.inflation);
+    });
 }
 
 template<class Fn> auto call_with_bed(const Points &bed, Fn &&fn)
@@ -746,9 +750,25 @@ void arrange(ArrangePolygons &items,
         d += corr;
 
         for (auto &itm : items)
-            if (itm.bed_idx == bedidx)
+            if (itm.bed_idx == int(bedidx))
                 itm.translation += d;
     }
+}
+
+BoundingBox bounding_box(const InfiniteBed &bed)
+{
+    BoundingBox ret;
+    using C = coord_t;
+
+    // It is important for Mx and My to be strictly less than half of the
+    // range of type C. width(), height() and area() will not overflow this way.
+    C Mx = C((std::numeric_limits<C>::lowest() + 2 * bed.center.x()) / 4.01);
+    C My = C((std::numeric_limits<C>::lowest() + 2 * bed.center.y()) / 4.01);
+
+    ret.max = bed.center - Point{Mx, My};
+    ret.min = bed.center + Point{Mx, My};
+
+    return ret;
 }
 
 } // namespace arr

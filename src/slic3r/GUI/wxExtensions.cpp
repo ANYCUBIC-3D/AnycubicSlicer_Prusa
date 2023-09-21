@@ -18,12 +18,95 @@
 #include "BitmapComboBox.hpp"
 #include "libslic3r/Utils.hpp"
 #include "OG_CustomCtrl.hpp"
-
+#include "format.hpp"
+#include "GUI_App.hpp"
 #include "libslic3r/Color.hpp"
 
 #ifndef __linux__
 // msw_menuitem_bitmaps is used for MSW and OSX
 static std::map<int, std::string> msw_menuitem_bitmaps;
+
+ACMenuItem::ACMenuItem(wxMenu *parentMenu,int id,const wxString &name,
+                       const wxString &help,wxItemKind kind,wxMenu *subMenu)
+    : wxMenuItem(parentMenu, id, name, help, kind, subMenu)
+{}
+#if wxUSE_OWNER_DRAWN
+bool ACMenuItem::OnDrawItem(wxDC &dc, const wxRect &rc, wxODAction act, wxODStatus stat) {
+    // wxMenuItem::OnDrawItem(dc, rc, act, stat);
+    wxRect   newRc(rc.GetLeft(), rc.GetTop(), rc.width, rc.height);
+    wxColour paintColor;
+    if ((stat & wxODSelected) || (stat & wxODHasFocus)) {
+        paintColor = AC_COLOR_ITEM_HOVER;
+    } else {
+        // if (stat & wxODChecked) {
+        if (getCheckState()) {
+            paintColor = AC_COLOR_MLIST_ITEM_SELECT;
+        } else {
+            paintColor = AC_COLOR_BG_WHITE;
+        }
+    }
+    wxFont font;
+    GetFontToUse(font);
+    dc.SetFont(font);
+    dc.SetBrush(paintColor);
+    dc.SetPen(paintColor);
+    dc.DrawRectangle(newRc);
+    wxString text = GetName();
+    wxSize   textSize;
+    wxCoord  w, h;
+    dc.GetTextExtent(text, &w, &h);
+    textSize          = wxSize(w, h);
+    wxString new_text = GetItemLabel();
+    text              = new_text.BeforeFirst('\t');
+    text.Replace("&", "");
+
+    if ((stat & wxODDisabled) && ((stat & wxODGrayed) || (stat & wxODHidePrefix))) {
+        dc.SetTextForeground(AC_COLOR_FONT_GRAY);
+    } else {
+        dc.SetTextForeground(AC_COLOR_BLACK);
+    }
+    int x = newRc.GetLeft() + 8;
+    int y = newRc.GetTop() + (newRc.GetBottom() - newRc.GetTop() - textSize.y) / 2;
+
+    dc.DrawText(text, x, y);
+
+    wxString accel = new_text.AfterFirst('\t');
+    if (!accel.empty()) {
+        wxSize  accelSize;
+        wxCoord w_r, h_r;
+        accel.Replace("&", "");
+        dc.GetTextExtent(accel, &w_r, &h_r);
+        accelSize = wxSize(w_r, h_r);
+        x         = newRc.GetRight() - w_r - 9;
+        y         = newRc.GetTop() + (newRc.GetBottom() - newRc.GetTop() - accelSize.y) / 2;
+
+        dc.DrawText(accel, x, y);
+    }
+    return true;
+}
+bool ACMenuItem::OnMeasureItem(size_t *width, size_t *height) {
+    if (IsOwnerDrawn()) {
+        wxMemoryDC dc;
+        wxFont     font;
+        GetFontToUse(font);
+        dc.SetFont(font);
+
+        // item name/text without mnemonics
+        wxString name = wxStripMenuCodes(GetItemLabel(), wxStrip_Mnemonics);
+        wxCoord  w, h;
+        dc.GetTextExtent(name, &w, &h);
+        double scale = GUI::wxGetApp().em_unit() / 10.0f;
+        *width       = 1.3 * w * scale;
+        *height      = 1.5 * h * scale;
+    } else {
+        *width  = 0;
+        *height = 0;
+    }
+
+    return true;
+}
+#endif
+
 void sys_color_changed_menu(wxMenu* menu)
 {
 	struct update_icons {
@@ -189,7 +272,8 @@ wxMenuItem* append_menu_check_item(wxMenu* menu, int id, const wxString& string,
         id = wxNewId();
 
     //wxMenuItem* item = menu->AppendCheckItem(id, string, description);
-    auto *item = new ACMenuItem(menu, id, string, description, wxITEM_CHECK);
+    //auto *item = new ACMenuItem(menu, id, string, description, wxITEM_CHECK);
+    auto *item = new ACMenuItem(menu, id, string, description);
 #ifdef WIN32
     item->SetBackgroundColour(AC_COLOR_BG_WHITE);
     item->SetOwnerDrawn(!item->IsSeparator());
@@ -203,9 +287,13 @@ wxMenuItem* append_menu_check_item(wxMenu* menu, int id, const wxString& string,
         menu->Bind(wxEVT_MENU, cb, id);
 
     if (parent)
-        parent->Bind(wxEVT_UPDATE_UI, [enable_condition, check_condition](wxUpdateUIEvent& evt)
+        parent->Bind(
+            wxEVT_UPDATE_UI,
+            [enable_condition, check_condition, item, parent](wxUpdateUIEvent &evt)
             {
-                evt.Enable(enable_condition());
+                item->setCheckState(check_condition());
+                //evt.Enable(enable_condition());
+                enable_menu_item(evt, enable_condition, item, parent);
                 evt.Check(check_condition());
             }, id);
 
@@ -398,12 +486,162 @@ void wxDataViewTreeCtrlComboPopup::OnDataViewTreeCtrlSelection(wxCommandEvent& e
 	auto selected = GetItemText(GetSelection());
 	cmb->SetText(selected);
 }
+void AddWindowDrakEdg(wxWindow *child_win, wxColour penColor)
+{
+    child_win->Bind(wxEVT_PAINT, [child_win, penColor](wxPaintEvent &evt) {
+        wxPaintDC dc(child_win);
+        dc.SetPen(wxPen(penColor));
+        dc.DrawRectangle(wxPoint(0, 0), child_win->GetClientSize());
+        evt.Skip();
+    });
+}
+
+wxDialog *setMarkWindow(wxWindow *m_parent, wxWindow *child_win, bool bind, bool activateIndex)
+{
+    /*
+    * m_parent: parent window
+    * child_win: dialog window
+    * bind: bind event or not ? deafult bind=true
+    * activateIndex:parent window get activate event? deafult activateIndex=false
+    */
+    wxDialog* markDialog = new wxDialog(m_parent, wxID_ANY, "", wxDefaultPosition, m_parent->GetSize(), wxNO_BORDER);
+    markDialog->SetExtraStyle(markDialog->GetExtraStyle() | wxWS_EX_VALIDATE_RECURSIVELY);
+#ifdef __APPLE__
+    markDialog->SetWindowStyleFlag(markDialog->GetWindowStyleFlag() | wxSTAY_ON_TOP);
+#endif
+    markDialog->SetParent(m_parent);
+#ifdef __WXMSW__
+    HWND hwnd = (HWND) markDialog->GetHandle();
+    ::SetWindowLong(hwnd, GWL_EXSTYLE, ::GetWindowLong(hwnd, GWL_EXSTYLE) | WS_EX_TOOLWINDOW);
+#endif
+    markDialog->SetBackgroundColour(wxColor(20, 28, 41));
+    markDialog->SetTransparent(66);
+    markDialog->Enable(false);
+    if (bind) {
+        int m_em = em_unit(m_parent);
+        //if (activateIndex) {
+        m_parent->Bind(wxEVT_ACTIVATE, [markDialog, m_parent, activateIndex, child_win](wxActivateEvent &event) {
+            if (activateIndex && child_win != nullptr) {
+                if ( event.GetActive() && child_win != nullptr && !child_win->IsBeingDeleted() && child_win->IsShown()) {
+                    if (markDialog->IsShown())
+                        markDialog->Hide();
+                    markDialog->Show();
+            }
+                if (!child_win->HasFlag(wxSTAY_ON_TOP))
+                    child_win->SetWindowStyleFlag(child_win->GetWindowStyleFlag() | wxSTAY_ON_TOP);
+            }
+            event.Skip();
+        });
+        m_parent->Bind(wxEVT_SIZE, [markDialog, m_parent, child_win](wxSizeEvent &event) {
+            if (child_win != nullptr && !child_win->IsBeingDeleted() && child_win->IsShown()) {
+                if (markDialog->IsShown())
+                    markDialog->Hide();
+                markDialog->Show();
+            }
+            event.Skip();
+        });
+        //}
+        child_win->Bind(wxEVT_ACTIVATE, [markDialog, m_parent, child_win](wxActivateEvent &event) { 
+            if (event.GetActive()) {
+                if (!child_win->HasFlag(wxSTAY_ON_TOP))
+                    child_win->SetWindowStyleFlag(child_win->GetWindowStyleFlag() | wxSTAY_ON_TOP);
+            } else {
+                if (child_win->HasFlag(wxSTAY_ON_TOP))
+                    child_win->SetWindowStyleFlag(child_win->GetWindowStyleFlag() & ~wxSTAY_ON_TOP);
+            }
+        });
+        child_win->Bind(wxEVT_SHOW, [m_parent, m_em, markDialog, child_win](wxShowEvent &evt) {
+            if (evt.IsShown()) {
+                wxSize markDialogSize = m_parent->GetSize();
+                wxPoint markPosition = m_parent->GetPosition();
+                if (dynamic_cast<wxFrame *>(m_parent)) {
+                    float m_indexSize = 0.035f;
+#if _WIN32
+                    m_indexSize = 0.04f;
+#endif
+                    if (dynamic_cast<wxFrame *>(m_parent)->IsFullScreen())
+                        m_indexSize = 0.03f;
+                    if (dynamic_cast<wxFrame *>(m_parent)->IsMaximized())
+                        m_indexSize = 0.035f;
+                    float m_gap = m_indexSize * markDialogSize.y;
+                    float m_index = 0.0f;
+#if _WIN32
+                    if (dynamic_cast<wxFrame *>(m_parent) && !dynamic_cast<wxFrame *>(m_parent)->IsFullScreen()) {
+                        m_index = 0.7f;
+                    }
+#endif
+                    float   sizeGap            = m_index * m_em;
+                    wxPoint new_markPosition   = wxPoint(markPosition.x + sizeGap, markPosition.y + m_gap);
+                    wxSize  new_markDialogSize = wxSize(markDialogSize.x - (2 * sizeGap), markDialogSize.y - m_gap - sizeGap);
+                    markPosition               = new_markPosition;
+                    markDialogSize             = new_markDialogSize;
+                } 
+                markDialog->SetPosition(markPosition);
+                markDialog->SetSize(markDialogSize);
+                if (!markDialog->IsShown()) {
+                    markDialog->Show();
+                }
+            } else {
+                if (markDialog->IsShown()) {
+                    markDialog->Hide();
+                }
+            }
+            //child_win->SetWindowStyleFlag(wxSTAY_ON_TOP);
+            evt.Skip();
+        });
+        child_win->Bind(wxEVT_CLOSE_WINDOW, [markDialog, m_parent, child_win](wxCloseEvent &evt) {
+            if (dynamic_cast<wxFrame *>(m_parent)) {
+                if (dynamic_cast<wxFrame *>(m_parent)->IsIconized()) {
+                    dynamic_cast<wxFrame *>(m_parent)->Iconize(false);
+                    dynamic_cast<wxFrame *>(m_parent)->Restore();
+                }
+            }
+            if (markDialog->IsShown()) {
+                markDialog->Hide();
+            }
+            evt.Skip();
+        });
+        child_win->Bind(wxEVT_UPDATE_UI, [markDialog, m_em,m_parent](wxUpdateUIEvent &event) {
+            if (markDialog) {
+                wxSize  markDialogSize = m_parent->GetSize();
+                wxPoint markPosition   = m_parent->GetPosition();
+                if (dynamic_cast<wxFrame *>(m_parent)) {
+                    float m_indexSize = 0.035f;
+#if _WIN32
+                    m_indexSize = 0.04f;
+#endif
+                    if (dynamic_cast<wxFrame *>(m_parent)->IsFullScreen())
+                        m_indexSize = 0.03f;
+                    if (dynamic_cast<wxFrame *>(m_parent)->IsMaximized())
+                        m_indexSize = 0.035f;
+                    float m_gap   = m_indexSize * markDialogSize.y;
+                    float m_index = 0.0f;
+#if _WIN32
+                    if (dynamic_cast<wxFrame *>(m_parent) && !dynamic_cast<wxFrame *>(m_parent)->IsFullScreen()) {
+                        m_index = 0.7f;
+                    }
+#endif
+                    float   sizeGap            = m_index * m_em;
+                    wxPoint new_markPosition   = wxPoint(markPosition.x + sizeGap, markPosition.y + m_gap);
+                    wxSize  new_markDialogSize = wxSize(markDialogSize.x - (2 * sizeGap), markDialogSize.y - m_gap - sizeGap);
+                    markPosition               = new_markPosition;
+                    markDialogSize             = new_markDialogSize;
+                }
+                markDialog->SetPosition(markPosition);
+                markDialog->SetSize(markDialogSize);
+            }
+            event.Skip();
+        });
+        
+    }
+    return markDialog;
+}
 
 // edit tooltip : change Slic3r to SLIC3R_APP_KEY
 // Temporary workaround for localization
 void edit_tooltip(wxString& tooltip)
 {
-    tooltip.Replace("Slic3r", SLIC3R_APP_KEY, true);
+    tooltip.Replace("Slic3r", Slic3r::GUI::wxGetApp().appName(), true);
 }
 
 /* Function for rescale of buttons in Dialog under MSW if dpi is changed.
@@ -505,44 +743,6 @@ wxBitmapBundle* get_solid_bmp_bundle(int width, int height, const std::string& c
 #endif // __WXGTK2__
 }
 
-// win is used to get a correct em_unit value
-// It's important for bitmaps of dialogs.
-// if win == nullptr, em_unit value of MainFrame will be used
-wxBitmap create_scaled_bitmap(  const std::string& bmp_name_in, 
-                                wxWindow *win/* = nullptr*/,
-                                const int px_cnt/* = 16*/, 
-                                const bool grayscale/* = false*/,
-                                const std::string& new_color/* = std::string()*/, // color witch will used instead of orange
-                                const bool menu_bitmap/* = false*/)
-{
-    static Slic3r::GUI::BitmapCache cache;
-
-    unsigned int width = 0;
-    unsigned int height = (unsigned int)(em_unit(win) * px_cnt * 0.1f + 0.5f);
-
-    std::string bmp_name = bmp_name_in;
-    boost::replace_last(bmp_name, ".png", "");
-
-    bool dark_mode = 
-#ifdef _WIN32
-    menu_bitmap ? Slic3r::GUI::check_dark_mode() :
-#endif
-        Slic3r::GUI::wxGetApp().dark_mode();
-
-    // Try loading an SVG first, then PNG if SVG is not found:
-    wxBitmap *bmp = cache.load_svg(bmp_name, width, height, grayscale, dark_mode, new_color);
-    if (bmp == nullptr) {
-        bmp = cache.load_png(bmp_name, width, height, grayscale);
-    }
-
-    if (bmp == nullptr) {
-        // Neither SVG nor PNG has been found, raise error
-        throw Slic3r::RuntimeError("Could not load bitmap: " + bmp_name);
-    }
-
-    return *bmp;
-}
-
 std::vector<wxBitmapBundle*> get_extruder_color_icons(bool thin_icon/* = false*/)
 {
     // Create the bitmap with color bars.
@@ -637,13 +837,7 @@ void LockButton::OnButton(wxCommandEvent& event)
     if (m_disabled)
         return;
 
-#if ENABLE_WORLD_COORDINATE
     SetLock(!m_is_pushed);
-#else
-    m_is_pushed = !m_is_pushed;
-    update_button_bitmaps();
-#endif // ENABLE_WORLD_COORDINATE
-
     event.Skip();
 }
 
@@ -715,9 +909,8 @@ ModeButton::ModeButton( wxWindow*           parent,
 
 void ModeButton::Init(const wxString &mode)
 {
-    std::string mode_str = std::string(mode.ToUTF8());
-    m_tt_focused  = Slic3r::GUI::from_u8((boost::format(_utf8(L("Switch to the %s mode"))) % mode_str).str());
-    m_tt_selected = Slic3r::GUI::from_u8((boost::format(_utf8(L("Current mode is %s"))) % mode_str).str());
+    m_tt_focused  = Slic3r::GUI::format_wxstr(_L("Switch to the %s mode"), mode);
+    m_tt_selected = Slic3r::GUI::format_wxstr(_L("Current mode is %s"),    mode);
 
     SetBitmapMargins(3, 0);
 
@@ -744,7 +937,7 @@ void ModeButton::SetState(const bool state)
 
 void ModeButton::update_bitmap()
 {
-    m_bmp = *get_bmp_bundle("ACEmpty", m_px_cnt, Slic3r::GUI::wxGetApp().get_mode_btn_color(m_mode_id));
+    m_bmp = *get_bmp_bundle("ACEmpty", m_pxSize, Slic3r::GUI::wxGetApp().get_mode_btn_color(m_mode_id));
 
     SetBitmap(m_bmp);
     SetBitmapCurrent(m_bmp);
@@ -821,7 +1014,6 @@ void ACModeButtons::sys_color_changed()
 
 ModeSizer::ModeSizer(wxWindow *parent, int hgap/* = 0*/) :
     wxFlexGridSizer(3, 0, hgap),
-    m_parent(parent),
     m_hgap_unscaled((double)(hgap)/em_unit(parent))
 {
     SetFlexibleDirection(wxHORIZONTAL);
@@ -906,34 +1098,50 @@ void MenuWithSeparators::SetSecondSeparator()
 
 
 ScalableBitmap::ScalableBitmap( wxWindow *parent, 
-                                const wxSize px_cnt/* = 16*/, 
+                                const int px_cnt/* = 16*/, 
                                 const std::string& icon_name/* = ""*/,
                                 const bool grayscale/* = false*/):
     m_parent(parent), m_icon_name(icon_name),
-    m_px_cnt(px_cnt)
+    m_pxSize(wxSize(px_cnt, px_cnt))
 {
-    m_bmp = *get_bmp_bundle(icon_name, px_cnt);
-    m_bitmap = m_bmp.GetBitmap(m_px_cnt);
+    m_bmp = *get_bmp_bundle(icon_name, m_pxSize);
+    m_bitmap = m_bmp.GetBitmap(m_pxSize);
 }
-ScalableBitmap::ScalableBitmap(wxWindow *parent, int width /*0*/, int height /*0*/, const bool grayscale /* = false*/, const wxSize px_cnt)
-    : m_parent(parent), m_px_cnt(px_cnt)
-{
-    m_bmp    = *get_empty_bmp_bundle(width, height);
-    m_bitmap = m_bmp.GetBitmap(m_px_cnt);
-}
+
+ScalableBitmap::ScalableBitmap(wxWindow *         parent,
+                               const std::string &icon_name /* = ""*/,
+                               const int          px_cnt /* = 16*/,
+                               const bool         grayscale /* = false*/)
+    : ScalableBitmap(parent, wxSize(px_cnt, px_cnt), icon_name, grayscale)
+{}
+
 ScalableBitmap::ScalableBitmap( wxWindow *parent, 
                                 const std::string& icon_name/* = ""*/,
-                                const int px_cnt/* = 16*/, 
-                                const bool grayscale/* = false*/)
-    : ScalableBitmap(parent, wxSize(px_cnt, px_cnt), icon_name, grayscale)
+                                const bool grayscale/* = false*/):
+    ScalableBitmap(parent, 16, icon_name, grayscale)
 {
-
+}
+ScalableBitmap::ScalableBitmap( wxWindow *parent, 
+                                const wxSize pxSize/* = 16*/, 
+                                const std::string& icon_name/* = ""*/,
+                                const bool grayscale/* = false*/):
+    m_parent(parent), m_icon_name(icon_name),
+    m_pxSize(pxSize)
+{
+    m_bmp = *get_bmp_bundle(icon_name, m_pxSize);
+    m_bitmap = m_bmp.GetBitmap(m_pxSize);
+}
+ScalableBitmap::ScalableBitmap(wxWindow *parent, int width /*0*/, int height /*0*/, const bool grayscale /* = false*/)
+    : m_parent(parent), m_pxSize(width, height)
+{
+    m_bmp    = *get_empty_bmp_bundle(width, height);
+    m_bitmap = m_bmp.GetBitmap(m_pxSize);
 }
 
 void ScalableBitmap::sys_color_changed()
 {
-    m_bmp = *get_bmp_bundle(m_icon_name, m_px_cnt);
-    m_bitmap = m_bmp.GetBitmap(m_px_cnt);
+    m_bmp = *get_bmp_bundle(m_icon_name, m_pxSize);
+    m_bitmap = m_bmp.GetBitmap(m_pxSize);
 }
 
 
@@ -951,14 +1159,14 @@ ScalableButton::ScalableButton( wxWindow *          parent,
                                 int                 bmp_px_cnt/* = 16*/) :
     m_parent(parent),
     m_current_icon_name(icon_name),
-    m_px_cnt(bmp_px_cnt),
+    m_pxSize(wxSize(bmp_px_cnt, bmp_px_cnt)),
     m_has_border(!(style & wxNO_BORDER))
 {
     Create(parent, id, label, pos, size, style);
     Slic3r::GUI::wxGetApp().UpdateDarkUI(this);
 
     if (!icon_name.empty()) {
-        SetBitmap(*get_bmp_bundle(icon_name, m_px_cnt));
+        SetBitmap(*get_bmp_bundle(icon_name, m_pxSize));
         if (!label.empty())
             SetBitmapMargins(int(0.5* em_unit(parent)), 0);
     }
@@ -979,7 +1187,7 @@ ScalableButton::ScalableButton( wxWindow *          parent,
                                 long                style /*= wxBU_EXACTFIT | wxNO_BORDER*/) :
     m_parent(parent),
     m_current_icon_name(bitmap.name()),
-    m_px_cnt(bitmap.px_cnt()),
+    m_pxSize(bitmap.pxSize()),
     m_has_border(!(style& wxNO_BORDER))
 {
     Create(parent, id, label, wxDefaultPosition, wxDefaultSize, style);
@@ -993,14 +1201,23 @@ void ScalableButton::SetBitmap_(const ScalableBitmap& bmp)
     SetBitmap(bmp.bmp());
     m_current_icon_name = bmp.name();
 }
+void ScalableButton::setScalableButtonImg_hover(const std::string &bmp_name, const std::string &hover_bmp_name) { 
+    this->Bind(wxEVT_ENTER_WINDOW, [this, hover_bmp_name](wxMouseEvent &event) {
+        this->SetBitmap_(hover_bmp_name);
 
-bool ScalableButton::SetBitmap_(const std::string& bmp_name)
+    });
+    this->Bind(wxEVT_LEAVE_WINDOW, [this,bmp_name](wxMouseEvent &event) {
+        this->SetBitmap_(bmp_name);
+    });
+}
+
+bool ScalableButton::SetBitmap_(const std::string &bmp_name)
 {
     m_current_icon_name = bmp_name;
     if (m_current_icon_name.empty())
         return false;
 
-    wxBitmapBundle bmp = *get_bmp_bundle(m_current_icon_name, m_px_cnt);
+    wxBitmapBundle bmp = *get_bmp_bundle(m_current_icon_name, m_pxSize);
     SetBitmap(bmp);
     SetBitmapCurrent(bmp);
     SetBitmapPressed(bmp);
@@ -1028,13 +1245,13 @@ void ScalableButton::sys_color_changed()
 {
     Slic3r::GUI::wxGetApp().UpdateDarkUI(this, m_has_border);
 
-    wxBitmapBundle bmp = *get_bmp_bundle(m_current_icon_name, m_px_cnt);
+    wxBitmapBundle bmp = *get_bmp_bundle(m_current_icon_name, m_pxSize);
     SetBitmap(bmp);
     SetBitmapCurrent(bmp);
     SetBitmapPressed(bmp);
     SetBitmapFocus(bmp);
     if (!m_disabled_icon_name.empty())
-        SetBitmapDisabled(*get_bmp_bundle(m_disabled_icon_name, m_px_cnt));
+        SetBitmapDisabled(*get_bmp_bundle(m_disabled_icon_name, m_pxSize));
     if (!GetLabelText().IsEmpty())
         SetBitmapMargins(int(0.5 * em_unit(m_parent)), 0);
 }

@@ -16,8 +16,9 @@ class FillBedJob : public Job
 
     ArrangePolygons m_selected;
     ArrangePolygons m_unselected;
+    coord_t m_min_bed_inset = 0.;
 
-    Points m_bedpts;
+    arrangement::ArrangeBed m_bed;
 
     int m_status_range = 0;
     Plater *m_plater;

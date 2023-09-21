@@ -166,6 +166,8 @@ namespace ImGui
     const wchar_t PauseHoverButton         = 0x261B;
     const wchar_t OpenButton               = 0x261C;
     const wchar_t OpenHoverButton          = 0x261D;
+    const wchar_t SlaViewOriginal          = 0x261E;
+    const wchar_t SlaViewProcessed         = 0x261F;
 
 
     const wchar_t WarningMarkerSmall       = 0x2701;

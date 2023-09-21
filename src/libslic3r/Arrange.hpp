@@ -1,9 +1,9 @@
 #ifndef ARRANGE_HPP
 #define ARRANGE_HPP
 
-#include "ExPolygon.hpp"
-
 #include <boost/variant.hpp>
+
+#include <libslic3r/ExPolygon.hpp>
 #include <libslic3r/BoundingBox.hpp>
 
 namespace Slic3r {
@@ -55,6 +55,25 @@ struct IrregularBed {
 
 using ArrangeBed = boost::variant<InfiniteBed, RectangleBed, CircleBed, SegmentedRectangleBed, IrregularBed>;
 
+BoundingBox bounding_box(const InfiniteBed &bed);
+inline BoundingBox bounding_box(const RectangleBed &b) { return b.bb; }
+inline BoundingBox bounding_box(const SegmentedRectangleBed &b) { return b.bb; }
+inline BoundingBox bounding_box(const CircleBed &b)
+{
+    auto r = static_cast<coord_t>(std::round(b.radius()));
+    Point R{r, r};
+
+    return {b.center() - R, b.center() + R};
+}
+inline BoundingBox bounding_box(const ArrangeBed &b)
+{
+    BoundingBox ret;
+    auto visitor = [&ret](const auto &b) { ret = bounding_box(b); };
+    boost::apply_visitor(visitor, b);
+
+    return ret;
+}
+
 ArrangeBed to_arrange_bed(const Points &bedpts);
 
 /// A logical bed representing an object not being arranged. Either the arrange
@@ -71,7 +90,7 @@ static const constexpr int UNARRANGED = -1;
 /// polygon belongs: UNARRANGED means no place for the polygon
 /// (also the initial state before arrange), 0..N means the index of the bed.
 /// Zero is the physical bed, larger than zero means a virtual bed.
-struct ArrangePolygon { 
+struct ArrangePolygon {
     ExPolygon poly;                 /// The 2D silhouette to be arranged
     Vec2crd   translation{0, 0};    /// The translation of the poly
     double    rotation{0.0};        /// The rotation of the poly in radians

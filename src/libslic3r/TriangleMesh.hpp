@@ -94,6 +94,7 @@ public:
     explicit TriangleMesh(indexed_triangle_set &&M, const RepairedMeshErrors& repaired_errors = RepairedMeshErrors());
     void clear() { this->its.clear(); m_stats.clear(); }
     bool ReadSTLFile(const char* input_file, bool repair = true);
+    bool ReadSTLStream(std::istream &stream, bool repair = true);
     bool write_ascii(const char* output_file);
     bool write_binary(const char* output_file);
     float volume();
@@ -317,6 +318,7 @@ indexed_triangle_set    its_make_cube(double x, double y, double z);
 indexed_triangle_set    its_make_prism(float width, float length, float height);
 indexed_triangle_set    its_make_cylinder(double r, double h, double fa=(2*PI/360));
 indexed_triangle_set    its_make_cone(double r, double h, double fa=(2*PI/360));
+indexed_triangle_set    its_make_frustum(double r, double h, double fa=(2*PI/360));
 indexed_triangle_set    its_make_frustum_dowel(double r, double h, int sectorCount);
 indexed_triangle_set    its_make_pyramid(float base, float height);
 indexed_triangle_set    its_make_sphere(double radius, double fa);

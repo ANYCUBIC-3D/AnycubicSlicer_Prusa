@@ -47,7 +47,6 @@ bool ACStaticBox::Create(wxWindow* parent, wxWindowID id, const wxPoint& pos, co
     SetBackgroundColour(GetParentBackgroundColor(parent));
     //SetAutoLayout(true);
     SetBackgroundStyle(wxBG_STYLE_PAINT);
-
     this->Bind(wxEVT_SIZE, [this](wxEvent& evt){ evt.Skip(); Refresh(); });
     return true;
 }

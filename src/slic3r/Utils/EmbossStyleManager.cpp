@@ -228,6 +228,43 @@ bool StyleManager::load_style(const EmbossStyle &style, const wxFont &font)
     return true;
 }
 
+bool StyleManager::is_font_changed() const
+{
+    const wxFont &wx_font = get_wx_font();
+    if (!wx_font.IsOk())
+        return false;
+    if (!exist_stored_style())
+        return false;
+    const EmbossStyle *stored_style = get_stored_style();
+    if (stored_style == nullptr)
+        return false;
+
+    const wxFont &wx_font_stored = get_stored_wx_font();
+    if (!wx_font_stored.IsOk())
+        return false;
+
+    const FontProp &prop = get_style().prop;
+    const FontProp &prop_stored = stored_style->prop;
+
+    // Exist change in face name?
+    if(wx_font_stored.GetFaceName() != wx_font.GetFaceName()) return true;
+
+    const std::optional<float> &skew = prop.skew;
+    bool is_italic = skew.has_value() || WxFontUtils::is_italic(wx_font);
+    const std::optional<float> &skew_stored = prop_stored.skew;
+    bool is_stored_italic = skew_stored.has_value() || WxFontUtils::is_italic(wx_font_stored);
+    // is italic changed
+    if (is_italic != is_stored_italic)
+        return true;
+
+    const std::optional<float> &boldness = prop.boldness;
+    bool is_bold = boldness.has_value() || WxFontUtils::is_bold(wx_font);
+    const std::optional<float> &boldness_stored = prop_stored.boldness;
+    bool is_stored_bold = boldness_stored.has_value() || WxFontUtils::is_bold(wx_font_stored);
+    // is bold changed
+    return is_bold != is_stored_bold;
+}
+
 bool StyleManager::is_active_font() { return m_style_cache.font_file.has_value(); }
 
 const EmbossStyle* StyleManager::get_stored_style() const
@@ -304,11 +341,14 @@ void StyleManager::init_trunc_names(float max_width) {
         }
 }
 
-#include "slic3r/GUI/Jobs/CreateFontStyleImagesJob.hpp"
-
 // for access to worker
 #include "slic3r/GUI/GUI_App.hpp"
 #include "slic3r/GUI/Plater.hpp" 
+
+// for get DPI
+#include "slic3r/GUI/GUI_App.hpp"
+#include "slic3r/GUI/MainFrame.hpp"
+//#include "slic3r/GUI/GUI_ObjectManipulation.hpp"
 
 void StyleManager::init_style_images(const Vec2i &max_size,
                                     const std::string &text)
@@ -361,8 +401,15 @@ void StyleManager::init_style_images(const Vec2i &max_size,
             style.prop
         });
     }
+
+    auto mf = wxGetApp().mainframe;
+    // dot per inch for monitor
+    int dpi = get_dpi_for_window(mf);
+    // pixel per milimeter
+    double ppm = dpi / in_to_mm;
+
     auto &worker = wxGetApp().plater()->get_ui_job_worker();
-    StyleImagesData data{std::move(styles), max_size, text, m_temp_style_images};
+    StyleImagesData data{std::move(styles), max_size, text, m_temp_style_images, ppm};
     queue_job(worker, std::make_unique<CreateFontStyleImagesJob>(std::move(data)));
 }
 
@@ -425,8 +472,7 @@ ImFont *StyleManager::create_imgui_font(const std::string &text, double scale)
     // TODO: start using merge mode
     //font_config.MergeMode = true;
 
-    const auto  &cn = font_prop.collection_number;
-    unsigned int font_index = (cn.has_value()) ? *cn : 0;
+    unsigned int font_index = font_prop.collection_number.value_or(0);
     const auto  &font_info  = font_file.infos[font_index];
     if (font_prop.char_gap.has_value()) {
         float coef = font_size / (double) font_info.unit_per_em;
@@ -484,7 +530,7 @@ bool StyleManager::set_wx_font(const wxFont &wx_font) {
 bool StyleManager::set_wx_font(const wxFont &wx_font, std::unique_ptr<FontFile> font_file)
 {
     if (font_file == nullptr) return false;
-    m_style_cache.wx_font   = wx_font; // copy
+    m_style_cache.wx_font = wx_font; // copy
     m_style_cache.font_file = 
         FontFileWithCache(std::move(font_file));
 

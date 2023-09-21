@@ -13,6 +13,7 @@
 #include "../ClipperUtils.hpp"
 #include "../Flow.hpp"
 #include "../Config.hpp"
+#include "../Line.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -20,107 +21,32 @@
 #include <iterator>
 #include <limits>
 #include <numeric>
+#include <ostream>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
 namespace Slic3r {
 
-class SlidingWindowCurvatureAccumulator
-{
-    float        window_size;
-    float        total_distance  = 0; // accumulated distance
-    float        total_curvature = 0; // accumulated signed ccw angles
-    deque<float> distances;
-    deque<float> angles;
-
-public:
-    SlidingWindowCurvatureAccumulator(float window_size) : window_size(window_size) {}
-
-    void add_point(float distance, float angle)
-    {
-        total_distance += distance;
-        total_curvature += angle;
-        distances.push_back(distance);
-        angles.push_back(angle);
-
-        while (distances.size() > 1 && total_distance > window_size) {
-            total_distance -= distances.front();
-            total_curvature -= angles.front();
-            distances.pop_front();
-            angles.pop_front();
-        }
-    }
-
-    float get_curvature() const
-    {
-        return total_curvature / window_size;
-    }
-
-    void reset()
-    {
-        total_curvature = 0;
-        total_distance  = 0;
-        distances.clear();
-        angles.clear();
-    }
-};
-
-class CurvatureEstimator
-{
-    static const size_t               sliders_count          = 3;
-    SlidingWindowCurvatureAccumulator sliders[sliders_count] = {{1.0},{4.0}, {10.0}};
-
-public:
-    void add_point(float distance, float angle)
-    {
-        if (distance < EPSILON)
-            return;
-        for (SlidingWindowCurvatureAccumulator &slider : sliders) {
-            slider.add_point(distance, angle);
-        }
-    }
-    float get_curvature()
-    {
-        float max_curvature = 0.0f;
-        for (const SlidingWindowCurvatureAccumulator &slider : sliders) {
-            if (abs(slider.get_curvature()) > abs(max_curvature)) {
-                max_curvature = slider.get_curvature();
-            }
-        }
-        return max_curvature;
-    }
-    void reset()
-    {
-        for (SlidingWindowCurvatureAccumulator &slider : sliders) {
-            slider.reset();
-        }
-    }
-};
-
 struct ExtendedPoint
 {
-    ExtendedPoint(Vec2d position, float distance = 0.0, size_t nearest_prev_layer_line = size_t(-1), float curvature = 0.0)
-        : position(position), distance(distance), nearest_prev_layer_line(nearest_prev_layer_line), curvature(curvature)
-    {}
-
     Vec2d  position;
     float  distance;
-    size_t nearest_prev_layer_line;
     float  curvature;
 };
 
-template<bool SCALED_INPUT, bool ADD_INTERSECTIONS, bool PREV_LAYER_BOUNDARY_OFFSET, bool SIGNED_DISTANCE, typename P, typename L>
-std::vector<ExtendedPoint> estimate_points_properties(const std::vector<P>                   &input_points,
+template<bool SCALED_INPUT, bool ADD_INTERSECTIONS, bool PREV_LAYER_BOUNDARY_OFFSET, bool SIGNED_DISTANCE, typename POINTS, typename L>
+std::vector<ExtendedPoint> estimate_points_properties(const POINTS                           &input_points,
                                                       const AABBTreeLines::LinesDistancer<L> &unscaled_prev_layer,
                                                       float                                   flow_width,
                                                       float                                   max_line_length = -1.0f)
 {
+    using P = typename POINTS::value_type;
+
     using AABBScalar = typename AABBTreeLines::LinesDistancer<L>::Scalar;
     if (input_points.empty())
         return {};
     float              boundary_offset = PREV_LAYER_BOUNDARY_OFFSET ? 0.5 * flow_width : 0.0f;
-    CurvatureEstimator cestim;
     auto maybe_unscale = [](const P &p) { return SCALED_INPUT ? unscaled(p) : p.template cast<double>(); };
 
     std::vector<ExtendedPoint> points;
@@ -130,21 +56,22 @@ std::vector<ExtendedPoint> estimate_points_properties(const std::vector<P>      
         ExtendedPoint start_point{maybe_unscale(input_points.front())};
         auto [distance, nearest_line, x]    = unscaled_prev_layer.template distance_from_lines_extra<SIGNED_DISTANCE>(start_point.position.cast<AABBScalar>());
         start_point.distance                = distance + boundary_offset;
-        start_point.nearest_prev_layer_line = nearest_line;
         points.push_back(start_point);
     }
     for (size_t i = 1; i < input_points.size(); i++) {
         ExtendedPoint next_point{maybe_unscale(input_points[i])};
         auto [distance, nearest_line, x]   = unscaled_prev_layer.template distance_from_lines_extra<SIGNED_DISTANCE>(next_point.position.cast<AABBScalar>());
         next_point.distance                = distance + boundary_offset;
-        next_point.nearest_prev_layer_line = nearest_line;
 
         if (ADD_INTERSECTIONS &&
             ((points.back().distance > boundary_offset + EPSILON) != (next_point.distance > boundary_offset + EPSILON))) {
             const ExtendedPoint &prev_point = points.back();
             auto intersections = unscaled_prev_layer.template intersections_with_line<true>(L{prev_point.position.cast<AABBScalar>(), next_point.position.cast<AABBScalar>()});
             for (const auto &intersection : intersections) {
-                points.emplace_back(intersection.first.template cast<double>(), boundary_offset, intersection.second);
+                ExtendedPoint p{};
+                p.position = intersection.first.template cast<double>();
+                p.distance = boundary_offset;
+                points.push_back(p);
             }
         }
         points.push_back(next_point);
@@ -170,12 +97,18 @@ std::vector<ExtendedPoint> estimate_points_properties(const std::vector<P>      
                     if (t0 < 1.0) {
                         auto p0                         = curr.position + t0 * (next.position - curr.position);
                         auto [p0_dist, p0_near_l, p0_x] = unscaled_prev_layer.template distance_from_lines_extra<SIGNED_DISTANCE>(p0.cast<AABBScalar>());
-                        new_points.push_back(ExtendedPoint{p0, float(p0_dist + boundary_offset), p0_near_l});
+                        ExtendedPoint new_p{};
+                        new_p.position                 = p0;
+                        new_p.distance                 = float(p0_dist + boundary_offset);
+                        new_points.push_back(new_p);
                     }
                     if (t1 > 0.0) {
                         auto p1                         = curr.position + t1 * (next.position - curr.position);
                         auto [p1_dist, p1_near_l, p1_x] = unscaled_prev_layer.template distance_from_lines_extra<SIGNED_DISTANCE>(p1.cast<AABBScalar>());
-                        new_points.push_back(ExtendedPoint{p1, float(p1_dist + boundary_offset), p1_near_l});
+                        ExtendedPoint new_p{};
+                        new_p.position                 = p1;
+                        new_p.distance                 = float(p1_dist + boundary_offset);
+                        new_points.push_back(new_p);
                     }
                 }
             }
@@ -199,13 +132,19 @@ std::vector<ExtendedPoint> estimate_points_properties(const std::vector<P>      
                     Vec2d pos  = curr.position * (1.0 - j * t) + next.position * (j * t);
                     auto [p_dist, p_near_l,
                           p_x] = unscaled_prev_layer.template distance_from_lines_extra<SIGNED_DISTANCE>(pos.cast<AABBScalar>());
-                    new_points.push_back(ExtendedPoint{pos, float(p_dist + boundary_offset), p_near_l});
+                    ExtendedPoint new_p{};
+                    new_p.position                 = pos;
+                    new_p.distance                 = float(p_dist + boundary_offset);
+                    new_points.push_back(new_p);
                 }
             }
             new_points.push_back(points.back());
         }
         points = new_points;
     }
+
+    std::vector<float> angles_for_curvature(points.size());
+    std::vector<float> distances_for_curvature(points.size());
 
     for (int point_idx = 0; point_idx < int(points.size()); ++point_idx) {
         ExtendedPoint &a    = points[point_idx];
@@ -214,22 +153,59 @@ std::vector<ExtendedPoint> estimate_points_properties(const std::vector<P>      
         int prev_point_idx = point_idx;
         while (prev_point_idx > 0) {
             prev_point_idx--;
-            if ((a.position - points[prev_point_idx].position).squaredNorm() > EPSILON) { break; }
+            if ((a.position - points[prev_point_idx].position).squaredNorm() > EPSILON) {
+                break;
+            }
         }
 
         int next_point_index = point_idx;
         while (next_point_index < int(points.size()) - 1) {
             next_point_index++;
-            if ((a.position - points[next_point_index].position).squaredNorm() > EPSILON) { break; }
+            if ((a.position - points[next_point_index].position).squaredNorm() > EPSILON) {
+                break;
+            }
         }
 
+        distances_for_curvature[point_idx] = (prev.position - a.position).norm();
         if (prev_point_idx != point_idx && next_point_index != point_idx) {
-            float distance = (prev.position - a.position).norm();
-            float alfa     = angle(a.position - points[prev_point_idx].position, points[next_point_index].position - a.position);
-            cestim.add_point(distance, alfa);
-        }
+            float alfa = angle(a.position - points[prev_point_idx].position, points[next_point_index].position - a.position);
+            angles_for_curvature[point_idx] = alfa;
+        } // else keep zero
+    }
 
-        a.curvature = cestim.get_curvature();
+    for (float window_size : {3.0f, 9.0f, 16.0f}) {
+        size_t tail_point      = 0;
+        float  tail_window_acc = 0;
+        float  tail_angle_acc  = 0;
+
+        size_t head_point      = 0;
+        float  head_window_acc = 0;
+        float  head_angle_acc  = 0;
+
+        for (int point_idx = 0; point_idx < int(points.size()); ++point_idx) {
+            if (point_idx > 0) {
+                tail_window_acc += distances_for_curvature[point_idx - 1];
+                tail_angle_acc += angles_for_curvature[point_idx - 1];
+                head_window_acc -= distances_for_curvature[point_idx - 1];
+                head_angle_acc -= angles_for_curvature[point_idx - 1];
+            }
+            while (tail_window_acc > window_size * 0.5 && int(tail_point) < point_idx) {
+                tail_window_acc -= distances_for_curvature[tail_point];
+                tail_angle_acc -= angles_for_curvature[tail_point];
+                tail_point++;
+            }
+
+            while (head_window_acc < window_size * 0.5 && int(head_point) < int(points.size()) - 1) {
+                head_window_acc += distances_for_curvature[head_point];
+                head_angle_acc += angles_for_curvature[head_point];
+                head_point++;
+            }
+
+            float curvature = (tail_angle_acc + head_angle_acc) / (tail_window_acc + head_window_acc);
+            if (std::abs(curvature) > std::abs(points[point_idx].curvature)) {
+                points[point_idx].curvature = curvature;
+            }
+        }
     }
 
     return points;
@@ -246,6 +222,8 @@ class ExtrusionQualityEstimator
 {
     std::unordered_map<const PrintObject *, AABBTreeLines::LinesDistancer<Linef>> prev_layer_boundaries;
     std::unordered_map<const PrintObject *, AABBTreeLines::LinesDistancer<Linef>> next_layer_boundaries;
+    std::unordered_map<const PrintObject *, AABBTreeLines::LinesDistancer<CurledLine>> prev_curled_extrusions;
+    std::unordered_map<const PrintObject *, AABBTreeLines::LinesDistancer<CurledLine>> next_curled_extrusions;
     const PrintObject                                                            *current_object;
 
 public:
@@ -253,18 +231,22 @@ public:
 
     void prepare_for_new_layer(const Layer *layer)
     {
-        if (layer == nullptr) return;
-        const PrintObject *object     = layer->object();
-        prev_layer_boundaries[object] = next_layer_boundaries[object];
-        next_layer_boundaries[object] = AABBTreeLines::LinesDistancer<Linef>{to_unscaled_linesf(layer->lslices)};
+        if (layer == nullptr)
+            return;
+        const PrintObject *object      = layer->object();
+        prev_layer_boundaries[object]  = next_layer_boundaries[object];
+        next_layer_boundaries[object]  = AABBTreeLines::LinesDistancer<Linef>{to_unscaled_linesf(layer->lslices)};
+        prev_curled_extrusions[object] = next_curled_extrusions[object];
+        next_curled_extrusions[object] = AABBTreeLines::LinesDistancer<CurledLine>{layer->curled_lines};
     }
 
-    std::vector<ProcessedPoint> estimate_extrusion_quality(const ExtrusionPath                                          &path,
-                                                           const std::vector<std::pair<int, ConfigOptionFloatOrPercent>> overhangs_w_speeds,
-                                                           const std::vector<std::pair<int, ConfigOptionInts>> overhangs_w_fan_speeds,
-                                                           size_t                                              extruder_id,
-                                                           float                                               ext_perimeter_speed,
-                                                           float                                               original_speed)
+    std::vector<ProcessedPoint> estimate_speed_from_extrusion_quality(
+        const ExtrusionPath                                          &path,
+        const std::vector<std::pair<int, ConfigOptionFloatOrPercent>> overhangs_w_speeds,
+        const std::vector<std::pair<int, ConfigOptionInts>>           overhangs_w_fan_speeds,
+        size_t                                                        extruder_id,
+        float                                                         ext_perimeter_speed,
+        float                                                         original_speed)
     {
         float                  speed_base = ext_perimeter_speed > 0 ? ext_perimeter_speed : original_speed;
         std::map<float, float> speed_sections;
@@ -272,6 +254,7 @@ public:
             float distance           = path.width * (1.0 - (overhangs_w_speeds[i].first / 100.0));
             float speed              = overhangs_w_speeds[i].second.percent ? (speed_base * overhangs_w_speeds[i].second.value / 100.0) :
                                                                               overhangs_w_speeds[i].second.value;
+            if (speed < EPSILON) speed = speed_base;
             speed_sections[distance] = speed;
         }
 
@@ -291,6 +274,54 @@ public:
             const ExtendedPoint &curr = extended_points[i];
             const ExtendedPoint &next = extended_points[i + 1 < extended_points.size() ? i + 1 : i];
 
+            // The following code artifically increases the distance to provide slowdown for extrusions that are over curled lines
+            float artificial_distance_to_curled_lines = 0.0;
+            const double dist_limit = 10.0 * path.width;
+            {
+                Vec2d middle = 0.5 * (curr.position + next.position);
+                auto line_indices = prev_curled_extrusions[current_object].all_lines_in_radius(Point::new_scale(middle), scale_(dist_limit));
+                if (!line_indices.empty()) {
+                    double len   = (next.position - curr.position).norm();
+                    // For long lines, there is a problem with the additional slowdown. If by accident, there is small curled line near the middle of this long line
+                    //  The whole segment gets slower unnecesarily. For these long lines, we do additional check whether it is worth slowing down.
+                    // NOTE that this is still quite rough approximation, e.g. we are still checking lines only near the middle point
+                    // TODO maybe split the lines into smaller segments before running this alg? but can be demanding, and GCode will be huge
+                    if (len > 8) {
+                        Vec2d dir   = Vec2d(next.position - curr.position) / len;
+                        Vec2d right = Vec2d(-dir.y(), dir.x());
+
+                        Polygon box_of_influence = {
+                            scaled(Vec2d(curr.position + right * dist_limit)),
+                            scaled(Vec2d(next.position + right * dist_limit)),
+                            scaled(Vec2d(next.position - right * dist_limit)),
+                            scaled(Vec2d(curr.position - right * dist_limit)),
+                        };
+
+                        double projected_lengths_sum = 0;
+                        for (size_t idx : line_indices) {
+                            const CurledLine &line   = prev_curled_extrusions[current_object].get_line(idx);
+                            Lines             inside = intersection_ln({{line.a, line.b}}, {box_of_influence});
+                            if (inside.empty())
+                                continue;
+                            double projected_length = abs(dir.dot(unscaled(Vec2d((inside.back().b - inside.back().a).cast<double>()))));
+                            projected_lengths_sum += projected_length;
+                        }
+                        if (projected_lengths_sum < 0.4 * len) {
+                            line_indices.clear();
+                        }
+                    }
+
+                    for (size_t idx : line_indices) {
+                        const CurledLine &line                 = prev_curled_extrusions[current_object].get_line(idx);
+                        float             distance_from_curled = unscaled(line_alg::distance_to(line, Point::new_scale(middle)));
+                        float             dist                 = path.width * (1.0 - (distance_from_curled / dist_limit)) *
+                                     (1.0 - (distance_from_curled / dist_limit)) *
+                                     (line.curled_height / (path.height * 10.0f)); // max_curled_height_factor from SupportSpotGenerator
+                        artificial_distance_to_curled_lines = std::max(artificial_distance_to_curled_lines, dist);
+                    }
+                }
+            }
+
             auto interpolate_speed = [](const std::map<float, float> &values, float distance) {
                 auto upper_dist = values.lower_bound(distance);
                 if (upper_dist == values.end()) {
@@ -305,12 +336,14 @@ public:
                 return (1.0f - t) * lower_dist->second + t * upper_dist->second;
             };
 
-            float extrusion_speed = std::min(interpolate_speed(speed_sections, curr.distance),
-                                             interpolate_speed(speed_sections, next.distance));
-            float fan_speed       = std::min(interpolate_speed(fan_speed_sections, curr.distance),
-                                             interpolate_speed(fan_speed_sections, next.distance));
+            float extrusion_speed   = std::min(interpolate_speed(speed_sections, curr.distance),
+                                               interpolate_speed(speed_sections, next.distance));
+            float curled_base_speed = interpolate_speed(speed_sections, artificial_distance_to_curled_lines);
+            float final_speed       = std::min(curled_base_speed, extrusion_speed);
+            float fan_speed         = std::min(interpolate_speed(fan_speed_sections, curr.distance),
+                                               interpolate_speed(fan_speed_sections, next.distance));
 
-            processed_points.push_back({scaled(curr.position), extrusion_speed, int(fan_speed)});
+            processed_points.push_back({scaled(curr.position), final_speed, int(fan_speed)});
         }
         return processed_points;
     }

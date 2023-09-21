@@ -63,12 +63,14 @@ public:
 
 	bool version_check_enabled() const;
 
+
+	void internal_bundle_version_check();
 private:
 	struct priv;
 	std::unique_ptr<priv> p;
 };
 
-//wxDECLARE_EVENT(EVT_SLIC3R_VERSION_ONLINE, wxCommandEvent);
-//wxDECLARE_EVENT(EVT_SLIC3R_EXPERIMENTAL_VERSION_ONLINE, wxCommandEvent);
+//wxDECLARE_EVENT(EVT_ACSLICER_VERSION_ONLINE, wxCommandEvent);
+//wxDECLARE_EVENT(EVT_ACSLICER_EXPERIMENTAL_VERSION_ONLINE, wxCommandEvent);
 }
 #endif

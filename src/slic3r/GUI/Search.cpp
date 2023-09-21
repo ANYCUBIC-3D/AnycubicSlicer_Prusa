@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <string>
+#include <cstdlib>
 #include <boost/algorithm/string.hpp>
 #include <boost/optional.hpp>
 #include <boost/nowide/convert.hpp>
@@ -490,6 +491,7 @@ SearchDialog::SearchDialog(OptionsSearcher* searcher)
     int em = em_unit();
 
     search_line = new wxTextCtrl(this, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER);
+    search_line->SetForegroundColour(AC_COLOR_BLACK);
     GUI::wxGetApp().UpdateDarkUI(search_line);
 
     search_list = new wxDataViewCtrl(this, wxID_ANY, wxDefaultPosition, wxSize(em * 40, em * 30), wxDV_NO_HEADER | wxDV_SINGLE

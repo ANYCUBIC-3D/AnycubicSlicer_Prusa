@@ -24,6 +24,7 @@ public:
     void SetTitle(wxString title);
 
     void Rescale();
+    void ChangeIconStyle();
 
     void OnMenuClose(wxMenuEvent &event);
 private:

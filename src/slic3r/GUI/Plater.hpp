@@ -16,6 +16,8 @@
 #include "Jobs/Job.hpp"
 #include "Jobs/Worker.hpp"
 #include "Search.hpp"
+#include "GUI_Geometry.hpp"
+#include "ACGcode.hpp"
 
 class wxButton;
 class ScalableButton;
@@ -48,9 +50,9 @@ namespace GUI {
 
 class MainFrame;
 class ConfigOptionsGroup;
-class ObjectManipulation;
-class ObjectSettings;
-class ObjectLayers;
+//class ObjectManipulation;
+//class ObjectSettings;
+//class ObjectLayers;
 class ObjectList;
 class GLCanvas3D;
 class Mouse3DController;
@@ -64,71 +66,71 @@ using t_optgroups = std::vector <std::shared_ptr<ConfigOptionsGroup>>;
 class Plater;
 enum class ActionButtonType : int;
 
-class Sidebar : public wxPanel
-{
-    ConfigOptionMode    m_mode{ConfigOptionMode::comSimple};
-public:
-    Sidebar(Plater *parent);
-    Sidebar(Sidebar &&) = delete;
-    Sidebar(const Sidebar &) = delete;
-    Sidebar &operator=(Sidebar &&) = delete;
-    Sidebar &operator=(const Sidebar &) = delete;
-    ~Sidebar();
-
-    void init_filament_combo(PlaterPresetComboBox **combo, const int extr_idx);
-    void remove_unused_filament_combos(const size_t current_extruder_count);
-    void update_all_preset_comboboxes();
-    void update_presets(Slic3r::Preset::Type preset_type);
-    void update_mode_sizer() const;
-    //void change_top_border_for_mode_sizer(bool increase_border);
-    void update_reslice_btn_tooltip() const;
-    void msw_rescale();
-    void sys_color_changed();
-    void update_mode_markers();
-    void search();
-    void jump_to_option(size_t selected);
-    void jump_to_option(const std::string& opt_key, Preset::Type type, const std::wstring& category);
-
-    ObjectManipulation*     obj_manipul();
-    ObjectList*             obj_list();
-    ObjectSettings*         obj_settings();
-    ObjectLayers*           obj_layers();
-    wxScrolledWindow*       scrolled_panel();
-    wxPanel*                presets_panel();
-
-    ConfigOptionsGroup*     og_freq_chng_params(const bool is_fff);
-    wxButton*               get_wiping_dialog_button();
-    void                    update_objects_list_extruder_column(size_t extruders_count);
-    void                    show_info_sizer();
-    void                    show_sliced_info_sizer(const bool show);
-    void                    update_sliced_info_sizer();
-    void                    enable_buttons(bool enable);
-    void                    set_btn_label(const ActionButtonType btn_type, const wxString& label) const;
-    bool                    show_reslice(bool show) const;
-	bool                    show_export(bool show) const;
-	bool                    show_send(bool show) const;
-    bool                    show_eject(bool show)const;
-	bool                    show_export_removable(bool show) const;
-	bool                    get_eject_shown() const;
-    bool                    is_multifilament();
-    void                    update_mode();
-    bool                    is_collapsed();
-    void                    collapse(bool collapse);
-    void                    check_and_update_searcher(bool respect_mode = false);
-    void                    update_ui_from_settings();
-
-// #ifdef _MSW_DARK_MODE
-    void                    show_mode_sizer(bool show);
-// #endif
-
-    std::vector<PlaterPresetComboBox*>&   combos_filament();
-    Search::OptionsSearcher&        get_searcher();
-    std::string&                    get_search_line();
-
-private:
-    struct priv;
-    std::unique_ptr<priv> p;
-};
+//class Sidebar : public wxPanel
+//{
+//    ConfigOptionMode    m_mode{ConfigOptionMode::comSimple};
+//public:
+//    Sidebar(Plater *parent);
+//    Sidebar(Sidebar &&) = delete;
+//    Sidebar(const Sidebar &) = delete;
+//    Sidebar &operator=(Sidebar &&) = delete;
+//    Sidebar &operator=(const Sidebar &) = delete;
+//    ~Sidebar();
+//
+//    void init_filament_combo(PlaterPresetComboBox **combo, const int extr_idx);
+//    void remove_unused_filament_combos(const size_t current_extruder_count);
+//    void update_all_preset_comboboxes();
+//    void update_presets(Slic3r::Preset::Type preset_type);
+//    void update_mode_sizer() const;
+//    //void change_top_border_for_mode_sizer(bool increase_border);
+//    void update_reslice_btn_tooltip() const;
+//    void msw_rescale();
+//    void sys_color_changed();
+//    void update_mode_markers();
+//    void search();
+//    void jump_to_option(size_t selected);
+//    void jump_to_option(const std::string& opt_key, Preset::Type type, const std::wstring& category);
+//
+//    ObjectManipulation*     obj_manipul();
+//    ObjectList*             obj_list();
+//    ObjectSettings*         obj_settings();
+//    ObjectLayers*           obj_layers();
+//    wxScrolledWindow*       scrolled_panel();
+//    wxPanel*                presets_panel();
+//
+//    ConfigOptionsGroup*     og_freq_chng_params(const bool is_fff);
+//    wxButton*               get_wiping_dialog_button();
+//    void                    update_objects_list_extruder_column(size_t extruders_count);
+//    void                    show_info_sizer();
+//    void                    show_sliced_info_sizer(const bool show);
+//    void                    update_sliced_info_sizer();
+//    void                    enable_buttons(bool enable);
+//    void                    set_btn_label(const ActionButtonType btn_type, const wxString& label) const;
+//    bool                    show_reslice(bool show) const;
+//	bool                    show_export(bool show) const;
+//	bool                    show_send(bool show) const;
+//    bool                    show_eject(bool show)const;
+//	bool                    show_export_removable(bool show) const;
+//	bool                    get_eject_shown() const;
+//    bool                    is_multifilament();
+//    void                    update_mode();
+//    bool                    is_collapsed();
+//    void                    collapse(bool collapse);
+//    void                    check_and_update_searcher(bool respect_mode = false);
+//    void                    update_ui_from_settings();
+//
+//// #ifdef _MSW_DARK_MODE
+//    void                    show_mode_sizer(bool show);
+//// #endif
+//
+//    std::vector<PlaterPresetComboBox*>&   combos_filament();
+//    Search::OptionsSearcher&        get_searcher();
+//    std::string&                    get_search_line();
+//
+//private:
+//    struct priv;
+//    std::unique_ptr<priv> p;
+//};
 
 class Plater: public wxPanel
 {
@@ -146,6 +148,8 @@ public:
     bool is_presets_dirty() const;
     void update_project_dirty_from_presets();
     int  save_project_if_dirty(const wxString& reason);
+    int  save_project_if_dirty(const wxString &reason,bool show);
+    int  save_project_forceupgrade_if_dirty(const wxString &reason, bool index);
     void reset_project_dirty_after_save();
     void reset_project_dirty_initial_presets();
 #if ENABLE_PROJECT_DIRTY_STATE_DEBUG_WINDOW
@@ -154,7 +158,14 @@ public:
 
     bool is_project_temp() const;
 
-    Sidebar& sidebar();
+    ACGcode *acgcode();
+
+    ACGcodeMode&    acgcode_mode() { return m_ac_gcode_params.mode; }
+    std::string&     acgcode_lastFile() { return m_ac_gcode_params.last_gcode_file; }
+    void    set_acgcode_params(const ACGcode_Params &params);
+    ACGcode_Params &acgcode_params() { return m_ac_gcode_params; }
+
+    //Sidebar& sidebar();
     const Model& model() const;
     Model& model();
     const Print& fff_print() const;
@@ -162,21 +173,37 @@ public:
     const SLAPrint& sla_print() const;
     SLAPrint& sla_print();
 
-    void new_project();
+    bool new_project(bool skip_confirm = false);
     void load_project();
     void load_project(const wxString& filename);
-    void add_model(bool imperial_units = false);
+    void add_model(bool imperial_units = false, wxString filePath = "", bool save_to_recent = true);
     void import_zip_archive();
     void import_sl1_archive();
     void extract_config_from_project();
     void load_gcode();
     void load_gcode(const wxString& filename);
+    void ac_load_gcode(const wxString &filename);
+    double convert_time_to_double(std::string &time_str);
     void reload_gcode_from_disk();
     void refresh_print();
 
-    std::vector<size_t> load_files(const std::vector<boost::filesystem::path>& input_files, bool load_model = true, bool load_config = true, bool imperial_units = false);
+    ObjectList*             obj_list();
+    const ObjectList*       obj_list() const;
+
+    void             set_coordinates_type(ECoordinatesType type);
+    void             set_coordinates_type(const wxString& type_string);
+    ECoordinatesType get_coordinates_type() const;
+    bool             is_world_coordinates()    const;
+    bool             is_instance_coordinates() const;
+    bool             is_local_coordinates()    const;
+
+    void        set_uniform_scaling(const bool use_uniform_scale);
+    bool        get_uniform_scaling() const;
+
+
+    std::vector<size_t> load_files(const std::vector<boost::filesystem::path>& input_files, bool load_model = true, bool load_config = true, bool imperial_units = false, bool save_to_recent = true);
     // To be called when providing a list of files to the GUI slic3r on command line.
-    std::vector<size_t> load_files(const std::vector<std::string>& input_files, bool load_model = true, bool load_config = true, bool imperial_units = false);
+    std::vector<size_t> load_files(const std::vector<std::string>& input_files, bool load_model = true, bool load_config = true, bool imperial_units = false, bool save_to_recent = true);
     // to be called on drag and drop
     bool load_files(const wxArrayString& filenames, bool delete_after_load = false);
     void check_selected_presets_visibility(PrinterTechnology loaded_printer_technology);
@@ -185,7 +212,12 @@ public:
 
     const wxString& get_last_loaded_gcode() const { return m_last_loaded_gcode; }
 
-    void update();
+    enum class UpdateParams {
+        FORCE_FULL_SCREEN_REFRESH = 1,
+        FORCE_BACKGROUND_PROCESSING_UPDATE = 2,
+        POSTPONE_VALIDATION_ERROR_MESSAGE = 4,
+    };
+    void update(unsigned int flags = 0);
 
     // Get the worker handling the UI jobs (arrange, fill bed, etc...)
     // Here is an example of starting up an ad-hoc job:
@@ -227,6 +259,9 @@ public:
     void doSlicer();
     void doExportGcode();
 
+    void doUpLoadEvent();
+    void doRemotePrintEvent();
+
     bool is_preview_shown() const;
     bool is_preview_loaded() const;
     bool is_view3D_shown() const;
@@ -237,8 +272,8 @@ public:
     bool is_legend_shown() const;
     void show_legend(bool show);
 
-    bool is_sidebar_collapsed() const;
-    void collapse_sidebar(bool show);
+    //bool is_sidebar_collapsed() const;
+    //void collapse_sidebar(bool show);
 
     bool is_view3D_layers_editing_enabled() const;
 
@@ -253,19 +288,21 @@ public:
     void reset_with_confirm();
     bool delete_object_from_model(size_t obj_idx);
     void remove_selected();
-    void increase_instances(size_t num = 1, int obj_idx = -1);
+    void increase_instances(size_t num = 1, int obj_idx = -1, int inst_idx = -1);
     void decrease_instances(size_t num = 1, int obj_idx = -1);
     void set_number_of_copies();
     void fill_bed_with_instances();
     bool is_selection_empty() const;
     void scale_selection_to_fit_print_volume();
     void convert_unit(ConversionType conv_type);
-    void toggle_layers_editing(bool enable);
+    //void toggle_layers_editing(bool enable);
 
     void cut(size_t obj_idx, size_t instance_idx, const Transform3d& cut_matrix, ModelObjectCutAttributes attributes);
+    void cut(size_t init_obj_idx, const ModelObjectPtrs& cut_objects);
     void cut(size_t obj_idx, size_t instance_idx, coordf_t z, ModelObjectCutAttributes attributes);
 
     void export_gcode(bool prefer_removable);
+    void ac_export_gcode(bool prefer_removable);
     void export_stl_obj(bool extended = false, bool selection_only = false);
     void export_amf();
     bool export_3mf(const boost::filesystem::path& output_path = boost::filesystem::path());
@@ -289,6 +326,7 @@ public:
     void send_gcode();
 	void eject_drive();
 
+    bool modelIsEmpty();
     void take_snapshot(const std::string &snapshot_name);
     void take_snapshot(const wxString &snapshot_name);
     void take_snapshot(const std::string &snapshot_name, UndoRedo::SnapshotType snapshot_type);
@@ -308,10 +346,11 @@ public:
     void enter_gizmos_stack();
     void leave_gizmos_stack();
 
-    void on_extruders_change(size_t extruders_count);
+    //void on_extruders_change(size_t extruders_count);
     bool update_filament_colors_in_full_config();
     void on_config_change(const DynamicPrintConfig &config);
     void force_filament_colors_update();
+    void force_filament_cb_update();
     void force_print_bed_update();
     // On activating the parent window.
     void on_activate();
@@ -346,7 +385,13 @@ public:
 
     void copy_selection_to_clipboard();
     void paste_from_clipboard();
+    void search();
     void search(bool plater_is_active);
+    void jump_to_option(size_t selected);
+    void jump_to_option(const std::string& opt_key, Preset::Type type, const std::wstring& category);
+    void                            check_and_update_searcher(bool respect_mode = false);
+    Search::OptionsSearcher&        get_searcher();
+    std::string&                    get_search_line();
     void mirror(Axis axis);
     void split_object();
     void split_volume();
@@ -380,10 +425,11 @@ public:
     void msw_rescale();
     void sys_color_changed();
 
+
     //bool init_view_toolbar();
     //void enable_view_toolbar(bool enable);
-    bool init_collapse_toolbar();
-    void enable_collapse_toolbar(bool enable);
+    //bool init_collapse_toolbar();
+    //void enable_collapse_toolbar(bool enable);
 
     const Camera& get_camera() const;
     Camera& get_camera();
@@ -398,8 +444,10 @@ public:
     //const GLToolbar& get_view_toolbar() const;
     //GLToolbar& get_view_toolbar();
 
-    const GLToolbar& get_collapse_toolbar() const;
-    GLToolbar& get_collapse_toolbar();
+    //const GLToolbar& get_collapse_toolbar() const;
+    //GLToolbar& get_collapse_toolbar();
+
+    void set_preview_layers_slider_values_range(int bottom, int top);
 
     void update_preview_moves_slider();
     void enable_preview_moves_slider(bool enable);
@@ -505,6 +553,7 @@ private:
     void allow_snapshots();
 
     friend class SuppressBackgroundProcessingUpdate;
+    ACGcode_Params m_ac_gcode_params;
 };
 
 class SuppressBackgroundProcessingUpdate

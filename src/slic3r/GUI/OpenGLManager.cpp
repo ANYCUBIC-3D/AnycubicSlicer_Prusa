@@ -2,11 +2,13 @@
 #include "OpenGLManager.hpp"
 
 #include "GUI.hpp"
+#include "GUI_App.hpp"
 #if ENABLE_GL_CORE_PROFILE
 #include "GUI_Init.hpp"
 #endif // ENABLE_GL_CORE_PROFILE
 #include "I18N.hpp"
 #include "3DScene.hpp"
+#include "format.hpp"
 
 #include "libslic3r/Platform.hpp"
 
@@ -371,33 +373,32 @@ bool OpenGLManager::init_gl()
 
         if (!valid_version) {
             // Complain about the OpenGL version.
-            wxString message = from_u8((boost::format(
+            wxString message = format_wxstr(
 #if ENABLE_OPENGL_ES
-                _utf8(L("AnycubicSlicer requires OpenGL ES 2.0 capable graphics driver to run correctly, \n"
-                    "while OpenGL version %s, render %s, vendor %s was detected."))) % s_gl_info.get_version_string() % s_gl_info.get_renderer() % s_gl_info.get_vendor()).str());
+                _L("AnycubicSlicer requires OpenGL ES 2.0 capable graphics driver to run correctly, \n"
+                    "while OpenGL version %s, render %s, vendor %s was detected."), s_gl_info.get_version_string(), s_gl_info.get_renderer(), s_gl_info.get_vendor());
 #elif ENABLE_GL_CORE_PROFILE
-                _utf8(L("AnycubicSlicer requires OpenGL %s capable graphics driver to run correctly, \n"
-                    "while OpenGL version %s, render %s, vendor %s was detected."))) % (s_gl_info.is_core_profile() ? "3.3" : "2.0") % s_gl_info.get_version_string() % s_gl_info.get_renderer() % s_gl_info.get_vendor()).str());
+                _L("AnycubicSlicer requires OpenGL %s capable graphics driver to run correctly, \n"
+                    "while OpenGL version %s, render %s, vendor %s was detected."), (s_gl_info.is_core_profile() ? "3.3" : "2.0"), s_gl_info.get_version_string(), s_gl_info.get_renderer(), s_gl_info.get_vendor());
 #else
-                _utf8(L("AnycubicSlicer requires OpenGL 2.0 capable graphics driver to run correctly, \n"
-                    "while OpenGL version %s, render %s, vendor %s was detected."))) % s_gl_info.get_version_string() % s_gl_info.get_renderer() % s_gl_info.get_vendor()).str());
+                _L("AnycubicSlicer requires OpenGL 2.0 capable graphics driver to run correctly, \n"
+                    "while OpenGL version %s, render %s, vendor %s was detected."), s_gl_info.get_version_string(), s_gl_info.get_renderer(), s_gl_info.get_vendor());
 #endif // ENABLE_OPENGL_ES
             message += "\n";
         	message += _L("You may need to update your graphics card driver.");
 #ifdef _WIN32
             message += "\n";
-            message += _L("As a workaround, you may run AnycubicSlicer with a software rendered 3D graphics by running AnycubicSlicer.exe with the --sw-renderer parameter.");
+            message += _L("As a workaround, you may run AnycubicSlicer with a software rendered 3D graphics by running prusa-slicer.exe with the --sw-renderer parameter.");
 #endif
-        	wxMessageBox(message, wxString("AnycubicSlicer - ") + _L("Unsupported OpenGL version"), wxOK | wxICON_ERROR);
+        	wxMessageBox(message, wxGetApp().appName() + wxString(" - ") + _L("Unsupported OpenGL version"), wxOK | wxICON_ERROR);
         }
 
         if (valid_version) {
             // load shaders
             auto [result, error] = m_shaders_manager.init();
             if (!result) {
-                wxString message = from_u8((boost::format(
-                    _utf8(L("Unable to load the following shaders:\n%s"))) % error).str());
-                wxMessageBox(message, wxString("AnycubicSlicer - ") + _L("Error loading shaders"), wxOK | wxICON_ERROR);
+                wxString message =format_wxstr(_L("Unable to load the following shaders:\n%s") , error);
+                wxMessageBox(message, wxGetApp().appName() + wxString(" - ") + _L("Error loading shaders"), wxOK | wxICON_ERROR);
             }
 #if ENABLE_OPENGL_DEBUG_OPTION
             if (m_debug_enabled && GLEW_KHR_debug) {
@@ -411,7 +412,7 @@ bool OpenGLManager::init_gl()
 
 #ifdef _WIN32
         // Since AMD driver version 22.7.1, there is probably some bug in the driver that causes the issue with the missing
-        // texture of the bed (see: https://github.com/prusa3d/PrusaSlicer/issues/8417).
+        // texture of the bed (see: https://github.com/prusa3d/AnycubicSlicer/issues/8417).
         // It seems that this issue only triggers when mipmaps are generated manually
         // (combined with a texture compression) with texture size not being power of two.
         // When mipmaps are generated through OpenGL function glGenerateMipmap() the driver works fine,
@@ -419,9 +420,12 @@ bool OpenGLManager::init_gl()
         // There is no an easy way to detect the driver version without using Win32 API because the strings returned by OpenGL
         // have no standardized format, only some of them contain the driver version.
         // Until we do not know that driver will be fixed (if ever) we force the use of power of two textures on all cards
-        // containing the string 'Radeon' in the string returned by glGetString(GL_RENDERER)
+        // 1) containing the string 'Radeon' in the string returned by glGetString(GL_RENDERER)
+        // 2) containing the string 'Custom' in the string returned by glGetString(GL_RENDERER)
         const auto& gl_info = OpenGLManager::get_gl_info();
-        if (boost::contains(gl_info.get_vendor(), "ATI Technologies Inc.") && boost::contains(gl_info.get_renderer(), "Radeon"))
+        if (boost::contains(gl_info.get_vendor(), "ATI Technologies Inc.") &&
+           (boost::contains(gl_info.get_renderer(), "Radeon") ||
+            boost::contains(gl_info.get_renderer(), "Custom")))
             s_force_power_of_two_textures = true;
 #endif // _WIN32
     }

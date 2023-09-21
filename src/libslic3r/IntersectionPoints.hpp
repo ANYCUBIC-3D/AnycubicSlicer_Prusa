@@ -6,6 +6,7 @@
 namespace Slic3r {
 
 // collect all intersecting points
+//FIXME O(n^2) complexity!
 Pointfs intersection_points(const Lines &lines);
 Pointfs intersection_points(const Polygon &polygon);
 Pointfs intersection_points(const Polygons &polygons);

@@ -193,6 +193,7 @@ namespace Emboss
     /// Z-rotation as angle to Y axis(FontProp::angle)</param>
     /// <param name="transformation">In / Out transformation to modify by property</param>
     void apply_transformation(const FontProp &font_prop, Transform3d &transformation);
+    void apply_transformation(const std::optional<float> &angle, const std::optional<float> &distance, Transform3d &transformation);
 
     /// <summary>
     /// Read information from naming table of font file
@@ -273,7 +274,23 @@ namespace Emboss
     /// <param name="projection">Define transformation from 2d to 3d(orientation, position, scale, ...)</param>
     /// <returns>Projected shape into space</returns>
     indexed_triangle_set polygons2model(const ExPolygons &shape2d, const IProjection& projection);
+    
+    /// <summary>
+    /// Suggest wanted up vector of embossed text by emboss direction
+    /// </summary>
+    /// <param name="normal">Normalized vector of emboss direction in world</param>
+    /// <param name="up_limit">Is compared with normal.z to suggest up direction</param>
+    /// <returns>Wanted up vector</returns>
+    Vec3d suggest_up(const Vec3d normal, double up_limit = 0.9);
         
+    /// <summary>
+    /// By transformation calculate angle between suggested and actual up vector
+    /// </summary>
+    /// <param name="tr">Transformation of embossed volume in world</param>
+    /// <param name="up_limit">Is compared with normal.z to suggest up direction</param>
+    /// <returns>Rotation of suggested up-vector[in rad] in the range [-Pi, Pi], When rotation is not zero</returns>
+    std::optional<float> calc_up(const Transform3d &tr, double up_limit = 0.9);
+
     /// <summary>
     /// Create transformation for emboss text object to lay on surface point
     /// </summary>
@@ -282,7 +299,7 @@ namespace Emboss
     /// <param name="up_limit">Is compared with normal.z to suggest up direction</param>
     /// <returns>Transformation onto surface point</returns>
     Transform3d create_transformation_onto_surface(
-        const Vec3f &position, const Vec3f &normal, float up_limit = 0.9f);
+        const Vec3d &position, const Vec3d &normal, double up_limit = 0.9);
 
     class ProjectZ : public IProjection
     {

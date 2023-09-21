@@ -35,7 +35,7 @@ std::string FileGet::escape_url(const std::string& unescaped)
 }
 bool FileGet::is_subdomain(const std::string& url, const std::string& domain)
 {
-	// domain should be f.e. printables.com (.com including)
+	// domain should be f.e. anycubic.com (.com including)
 	char* host;
 	std::string host_string;
 	CURLUcode rc;
@@ -190,7 +190,8 @@ void FileGet::priv::get_perform()
 	//assert(file != NULL);
 	if (file == NULL) {
 		wxCommandEvent* evt = new wxCommandEvent(EVT_DWNLDR_FILE_ERROR);
-		evt->SetString(GUI::format_wxstr(_L("Can't create file at %1%."), temp_path_wstring));
+		// TRN %1% = file path
+		evt->SetString(GUI::format_wxstr(_L("Can't create file at %1%"), temp_path_wstring));
 		evt->SetInt(m_id);
 		m_evt_handler->QueueEvent(evt);
 		return;

@@ -19,6 +19,7 @@
 #include "slic3r/GUI/GUI.hpp"
 #include "slic3r/GUI/I18N.hpp"
 #include "slic3r/GUI/MsgDialog.hpp"
+#include "slic3r/GUI/format.hpp"
 #include "Http.hpp"
 
 namespace fs = boost::filesystem;
@@ -70,10 +71,10 @@ wxString FlashAir::get_test_ok_msg () const
 
 wxString FlashAir::get_test_failed_msg (wxString &msg) const
 {
-    return GUI::from_u8((boost::format("%s: %s\n%s")
-                    % _utf8(L("Could not connect to FlashAir"))
-                    % std::string(msg.ToUTF8())
-                    % _utf8(L("Note: FlashAir with firmware 2.00.02 or newer and activated upload function is required."))).str());
+    return GUI::format_wxstr("%s: %s\n%s"
+                    , _u8L("Could not connect to FlashAir")
+                    , msg
+                    , _u8L("Note: FlashAir with firmware 2.00.02 or newer and activated upload function is required."));
 }
 
 bool FlashAir::upload(PrintHostUpload upload_data, ProgressFn prorgess_fn, ErrorFn error_fn, InfoFn info_fn) const

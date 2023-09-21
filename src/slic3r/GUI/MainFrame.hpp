@@ -21,6 +21,11 @@
 #include "ACTopbar.hpp"
 #include "ACToolbar.hpp"
 #include "ACDialogTopbar.hpp"
+#include "ACUpdateOnlineDialog.hpp"
+#include "ACPressureAdvance.hpp"
+#include "Universal.hpp"
+#include "Cloud/ACCloudSelectMachine.hpp"
+#include "Cloud/ACCloudAddMachine.hpp"
 
 class wxBookCtrlBase;
 class wxProgressDialog;
@@ -38,9 +43,12 @@ class Plater;
 class MainFrame;
 class ACPreferencesDialog;
 class GalleryDialog;
+class ACCheckUpdate;
+class ACUpdateManger;
+class ACPressureAdvanceDialog;
+class ACCloudSelectMachine;
 
-enum QuickSlice
-{
+enum QuickSlice {
     qsUndef = 0,
     qsReslice = 1,
     qsSaveAs = 2,
@@ -66,6 +74,7 @@ class SettingsDialog : public DPIDialog//DPIDialog
     ACDialogTopbar* m_dialogTopbar = nullptr;
     wxSizer* m_panelSizer = nullptr;
     bool m_isVisible = false;
+    /*wxDialog *      markDialog = nullptr;*/
 public:
     SettingsDialog(MainFrame* mainframe);
     ~SettingsDialog() = default;
@@ -73,6 +82,8 @@ public:
     wxMenuBar* menubar() { return m_menubar; }
     wxSizer* GetPanelSizer() { return m_panelSizer; }
     bool IsVisible() { return m_isVisible; }
+    /*wxDialog * getDialogObj() { return markDialog; }
+    void       setDialogObj(wxDialog *indexObj) { markDialog = indexObj; }*/
 protected:
     void on_dpi_changed(const wxRect& suggested_rect) override;
 };
@@ -85,6 +96,9 @@ class MainFrame : public DPIFrame
     wxString    m_qs_last_output_file = wxEmptyString;
     wxString    m_last_config = wxEmptyString;
     wxMenuBar*  m_menubar{ nullptr };
+
+    bool isRunDownFileIndex{false};
+    bool m_isPopWinShow{false};
 
 #if 0
     wxMenuItem* m_menu_item_repeat { nullptr }; // doesn't used now
@@ -116,6 +130,7 @@ class MainFrame : public DPIFrame
     bool can_delete_all() const;
     bool can_reslice() const;
     void bind_diff_dialog();
+    bool m_online_ForceUpgrade = false;
 
     // MenuBar items changeable in respect to printer technology 
     //enum MenuItems
@@ -147,14 +162,28 @@ class MainFrame : public DPIFrame
     };
     
     ESettingsLayout m_layout{ ESettingsLayout::Unknown };
+    ACCloudSelectMachine *m_ACSelectDialog = nullptr;
+    ACCloudAddMachine *   m_ACSAddDialog = nullptr;
 
 protected:
     virtual void on_dpi_changed(const wxRect &suggested_rect) override;
     virtual void on_sys_color_changed() override;
 
 public:
-    MainFrame();
-    ~MainFrame();
+    MainFrame(const int font_point_size);
+    ~MainFrame() ;
+    
+    void                  SetOnlineForceUpgradeStatc(bool index) { m_online_ForceUpgrade = index; }
+    ACCloudSelectMachine *GetACCloudSelectMachineObj() { return m_ACSelectDialog; }
+    ACCloudAddMachine *   GetACCloudAddMachineObj() { return m_ACSAddDialog; }
+    bool showWebDialog();
+    bool showSelectPrinterDialog();
+    wxString showAddPrinterDialog();
+
+    void SetRunDownFileIndex(bool index) { isRunDownFileIndex = index; }
+
+    bool GetPopWinShowIndex() { return m_isPopWinShow; }
+    void SetPopWinShowIndex(bool index) { m_isPopWinShow = index; }
 
     void update_layout();
     void update_mode_markers();
@@ -163,15 +192,26 @@ public:
 	void 		shutdown();
 
     Plater*     plater() { return m_plater; }
+	Universal*  universal() const { return m_universal; }
     GalleryDialog* gallery_dialog();
 
-    
+	//monitor EVT_ACCLOUD_LOGIN_SUCCESS event
+	void OnCloudLoginSuccess(wxCommandEvent& event);
+	//monitor EVT_ACCLOUD_LOGOUT event
+	void OnCloudLogout(wxCommandEvent& event);
+	//monitor EVT_ACCLOUD_PRINTER_LIST event
+	void OnCloudPrinterList(wxCommandEvent& event);
+
     ACTopbar* topbar() { return m_topbar; }
     ACToolBar* toolbar() { return m_toolbar; }
+    void       CheckRunNumEvent(int num);
 #if _WIN32
     void OnShortcut(wxCommandEvent &event);
 #endif // _WIN32
+    bool        OnMenuSelection();
     void        update_title();
+    void        AC_ReplaceFirst(wxString &str, const wxString &searchStr, const wxString &replaceStr);
+
 
     void        init_tabpanel();
     void        create_preset_tabs();
@@ -202,6 +242,8 @@ public:
     void        load_config_file();
     // Open a config file. Return true if loaded.
     bool        load_config_file(const std::string &path);
+	// Check a config file is Anycubic ACSlicer config file.
+	bool        check_file_from_acslicer(const wxString& path);
     void        export_configbundle(bool export_physical_printers = false);
     void        load_configbundle(wxString file = wxEmptyString);
     void        load_config(const DynamicPrintConfig& config);
@@ -210,6 +252,8 @@ public:
     void        select_tab(Tab* tab);
     void        select_tab(size_t tab = size_t(-1));
     void        select_view(const std::string& direction);
+	//select Plater{ 0}  or Universal { 1 }
+	void        select_main_panel(int index = 0);
     // Propagate changed configuration from the Tab to the Plater and save changes to the AppConfig
     void        on_config_changed(DynamicPrintConfig* cfg) const ;
 
@@ -220,23 +264,27 @@ public:
 
     void        add_to_recent_projects(const wxString& filename);
     void        technology_changed();
-
+    void                  ShowPressureAdvanceDialog();
     PrintHostQueueDialog* printhost_queue_dlg() { return m_printhost_queue_dlg; }
 
     ACTopbar*             m_topbar{ nullptr };
     ACToolBar*            m_toolbar{ nullptr };
 
     Plater*               m_plater { nullptr };
+	Universal*            m_universal{ nullptr };
     wxBookCtrlBase*       m_tabpanel { nullptr };
     SettingsDialog        m_settings_dialog;
     DiffPresetDialog      diff_dialog;
     wxWindow*             m_plater_page{ nullptr };
 //    wxProgressDialog*     m_progress_dialog { nullptr };
     ACPreferencesDialog*    preferences_dialog { nullptr };
+    //ACCheckUpdate *         checkUpdate_dialog { nullptr };
+    //ACCheckUpdate *         GetCheckUpdateObj() { return checkUpdate_dialog; }
+	ACUpdateManger*         checkUpdate_dialog { nullptr };
+	ACUpdateManger*         GetCheckUpdateObj() { return checkUpdate_dialog; }
     PrintHostQueueDialog* m_printhost_queue_dlg;
 //    std::shared_ptr<ProgressStatusBar>  m_statusbar;
     GalleryDialog*        m_gallery_dialog{ nullptr };
-
 #ifdef __APPLE__
     std::unique_ptr<wxTaskBarIcon> m_taskbar_icon;
 #endif // __APPLE__

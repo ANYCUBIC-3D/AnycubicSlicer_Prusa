@@ -1,9 +1,8 @@
-// Include GLGizmoBase.hpp before I18N.hpp as it includes some libigl code, which overrides our localization "L" macro.
 #include "GLGizmoMeasure.hpp"
 #include "slic3r/GUI/GLCanvas3D.hpp"
 #include "slic3r/GUI/GUI_App.hpp"
 #include "slic3r/GUI/Plater.hpp"
-#include "slic3r/GUI/GUI_ObjectManipulation.hpp"
+////#include "slic3r/GUI/GUI_ObjectManipulation.hpp"
 
 
 #include "libslic3r/PresetBundle.hpp"
@@ -61,7 +60,7 @@ static std::string surface_feature_type_as_string(Measure::SurfaceFeatureType ty
     switch (type)
     {
     default:
-    case Measure::SurfaceFeatureType::Undef:  { return _u8L("No feature"); }
+    case Measure::SurfaceFeatureType::Undef:  { return ("No feature"); }
     case Measure::SurfaceFeatureType::Point:  { return _u8L("Vertex"); }
     case Measure::SurfaceFeatureType::Edge:   { return _u8L("Edge"); }
     case Measure::SurfaceFeatureType::Circle: { return _u8L("Circle"); }
@@ -455,7 +454,7 @@ bool GLGizmoMeasure::on_mouse(const wxMouseEvent &mouse_event)
     return false;
 }
 
-void GLGizmoMeasure::data_changed()
+void GLGizmoMeasure::data_changed(bool is_serializing)
 {
     m_parent.toggle_sla_auxiliaries_visibility(false, nullptr, -1);
 
@@ -1206,7 +1205,7 @@ void GLGizmoMeasure::render_dimensioning()
         m_dimensioning.triangle.render();
 
         const bool use_inches = wxGetApp().app_config->get_bool("use_inches");
-        const double curr_value = use_inches ? ObjectManipulation::mm_to_in * distance : distance;
+        const double curr_value = use_inches ? mm_to_in * distance : distance;
         const std::string curr_value_str = format_double(curr_value);
         const std::string units = use_inches ? _u8L("in") : _u8L("mm");
         const float value_str_width = 20.0f + ImGui::CalcTextSize(curr_value_str.c_str()).x;
@@ -1318,7 +1317,7 @@ void GLGizmoMeasure::render_dimensioning()
                 selection.setup_cache();
                 selection.scale(ratio * Vec3d::Ones(), type);
                 wxGetApp().plater()->canvas3D()->do_scale(""); // avoid storing another snapshot
-                wxGetApp().obj_manipul()->set_dirty();
+                //wxGetApp().obj_manipul()->set_dirty();
 
                 // scale dimensioning
                 const Vec3d new_center = selection.get_bounding_box().center();
@@ -1538,7 +1537,7 @@ void GLGizmoMeasure::render_dimensioning()
         m_imgui->set_next_window_pos(label_position_ss.x(), viewport[3] - label_position_ss.y(), ImGuiCond_Always, 0.0f, 1.0f);
         m_imgui->set_next_window_bg_alpha(0.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-        m_imgui->begin(_L("##angle"), ImGuiWindowFlags_NoMouseInputs | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove);
+        m_imgui->begin(wxString("##angle"), ImGuiWindowFlags_NoMouseInputs | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove);
         ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
         ImGui::AlignTextToFramePadding();
         ImDrawList* draw_list = ImGui::GetWindowDrawList();
@@ -1737,7 +1736,7 @@ void GLGizmoMeasure::render_debug_dialog()
             add_strings_row_to_table(*m_imgui, "m_pt3", ImGuiWrapper::COL_BLUE_LIGHT, format_vec3(*extra_point), ImGui::GetStyleColorVec4(ImGuiCol_Text));
     };
 
-    m_imgui->begin(_L("Measure tool debug"), ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
+    m_imgui->begin("Measure tool debug", ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
     if (ImGui::BeginTable("Mode", 2)) {
         std::string txt;
         switch (m_mode)
@@ -1990,8 +1989,15 @@ void GLGizmoMeasure::on_render_input_window(float x, float y, float bottom_limit
                 const Vec3d on_circle = center + radius * Measure::get_orthogonal(normal, true);
                 radius = (on_circle - center).norm();
                 if (use_inches)
-                    radius = ObjectManipulation::mm_to_in * radius;
+                    radius = mm_to_in * radius;
                 text += " (" + _u8L("Diameter") + ": " + format_double(2.0 * radius) + units + ")";
+            }
+            else if (item.feature.has_value() && item.feature->get_type() == Measure::SurfaceFeatureType::Edge) {
+                auto [start, end] = item.feature->get_edge();
+                double length = (end - start).norm();
+                if (use_inches)
+                    length = mm_to_in * length;
+                text += " (" + _u8L("Length") + ": " + format_double(length) + units + ")";
             }
             return text;
         };
@@ -2047,7 +2053,7 @@ void GLGizmoMeasure::on_render_input_window(float x, float y, float bottom_limit
             if (measure.distance_infinite.has_value()) {
                 double distance = measure.distance_infinite->dist;
                 if (use_inches)
-                    distance = ObjectManipulation::mm_to_in * distance;
+                    distance = mm_to_in * distance;
                 ImGui::PushID("ClipboardDistanceInfinite");
                 add_measure_row_to_table(show_strict ? _u8L("Perpendicular distance") : _u8L("Distance"), ImGuiWrapper::COL_BLUE_LIGHT, format_double(distance) + units,
                     ImGui::GetStyleColorVec4(ImGuiCol_Text));
@@ -2057,7 +2063,7 @@ void GLGizmoMeasure::on_render_input_window(float x, float y, float bottom_limit
             if (show_strict) {
                 double distance = measure.distance_strict->dist;
                 if (use_inches)
-                    distance = ObjectManipulation::mm_to_in * distance;
+                    distance = mm_to_in * distance;
                 ImGui::PushID("ClipboardDistanceStrict");
                 add_measure_row_to_table(_u8L("Direct distance"), ImGuiWrapper::COL_BLUE_LIGHT, format_double(distance) + units,
                     ImGui::GetStyleColorVec4(ImGuiCol_Text));
@@ -2067,7 +2073,7 @@ void GLGizmoMeasure::on_render_input_window(float x, float y, float bottom_limit
             if (measure.distance_xyz.has_value() && measure.distance_xyz->norm() > EPSILON) {
                 Vec3d distance = *measure.distance_xyz;
                 if (use_inches)
-                    distance = ObjectManipulation::mm_to_in * distance;
+                    distance = mm_to_in * distance;
                 ImGui::PushID("ClipboardDistanceXYZ");
                 add_measure_row_to_table(_u8L("Distance XYZ"), ImGuiWrapper::COL_BLUE_LIGHT, format_vec3(distance),
                     ImGui::GetStyleColorVec4(ImGuiCol_Text));

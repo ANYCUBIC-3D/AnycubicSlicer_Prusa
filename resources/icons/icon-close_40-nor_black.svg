@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="40" height="40" viewBox="0 0 40 40">
+  <defs>
+    <clipPath id="clip-icon-close_40-nor">
+      <rect width="40" height="40"/>
+    </clipPath>
+  </defs>
+  <g id="icon-close_40-nor" clip-path="url(#clip-icon-close_40-nor)">
+    <g id="icon-close" transform="translate(6 6)">
+      <path id="占位" d="M0,0H20A20,20,0,0,1,40,20V40a0,0,0,0,1,0,0H0a0,0,0,0,1,0,0V0A0,0,0,0,1,0,0Z" transform="translate(-6 -6)" fill="none"/>
+      <g id="组_512" data-name="组 512" transform="translate(9 9)">
+        <path id="路径_20" data-name="路径 20" d="M320.9,855.721l10,10" transform="translate(-320.895 -855.721)" fill="none" stroke="#404040" stroke-linecap="round" stroke-width="1.4"/>
+        <path id="路径_21" data-name="路径 21" d="M330.9,855.721l-10,10" transform="translate(-320.895 -855.721)" fill="none" stroke="#404040" stroke-linecap="round" stroke-width="1.4"/>
+      </g>
+    </g>
+  </g>
+</svg>

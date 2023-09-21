@@ -103,10 +103,10 @@ bool MultiPoint::remove_duplicate_points()
     return false;
 }
 
-std::vector<Point> MultiPoint::_douglas_peucker(const std::vector<Point>& pts, const double tolerance)
+Points MultiPoint::douglas_peucker(const Points &pts, const double tolerance)
 {
-    std::vector<Point> result_pts;
-	double tolerance_sq = tolerance * tolerance;
+    Points result_pts;
+	auto tolerance_sq = int64_t(sqr(tolerance));
     if (! pts.empty()) {
         const Point  *anchor      = &pts.front();
         size_t        anchor_idx  = 0;
@@ -120,14 +120,40 @@ std::vector<Point> MultiPoint::_douglas_peucker(const std::vector<Point>& pts, c
             dpStack.reserve(pts.size());
             dpStack.emplace_back(floater_idx);
             for (;;) {
-                double max_dist_sq  = 0.0;
-                size_t furthest_idx = anchor_idx;
+                int64_t max_dist_sq  = 0;
+                size_t  furthest_idx = anchor_idx;
                 // find point furthest from line seg created by (anchor, floater) and note it
-                for (size_t i = anchor_idx + 1; i < floater_idx; ++ i) {
-                    double dist_sq = Line::distance_to_squared(pts[i], *anchor, *floater);
-                    if (dist_sq > max_dist_sq) {
-                        max_dist_sq  = dist_sq;
-                        furthest_idx = i;
+                {
+                    const Point   a = *anchor;
+                    const Point   f = *floater;
+                    const Vec2i64 v = (f - a).cast<int64_t>();
+                    if (const int64_t l2 = v.squaredNorm(); l2 == 0) {
+                        for (size_t i = anchor_idx + 1; i < floater_idx; ++ i)
+                            if (int64_t dist_sq = (pts[i] - a).cast<int64_t>().squaredNorm(); dist_sq > max_dist_sq) {
+                                max_dist_sq  = dist_sq;
+                                furthest_idx = i;
+                            }
+                    } else {
+                        const double dl2 = double(l2);
+                        const Vec2d  dv  = v.cast<double>();
+                        for (size_t i = anchor_idx + 1; i < floater_idx; ++ i) {
+                            const Point   p  = pts[i];
+                            const Vec2i64 va = (p  - a).template cast<int64_t>();
+                            const int64_t t  = va.dot(v);
+                            int64_t dist_sq;
+                            if (t <= 0) {
+                                dist_sq = va.squaredNorm();
+                            } else if (t >= l2) {
+                                dist_sq = (p - f).cast<int64_t>().squaredNorm();
+                            } else {
+                                const Vec2i64 w = ((double(t) / dl2) * dv).cast<int64_t>();
+                                dist_sq = (w - va).squaredNorm();
+                            }
+                            if (dist_sq > max_dist_sq) {
+                                max_dist_sq  = dist_sq;
+                                furthest_idx = i;
+                            }
+                        }                        
                     }
                 }
                 // remove point if less than tolerance

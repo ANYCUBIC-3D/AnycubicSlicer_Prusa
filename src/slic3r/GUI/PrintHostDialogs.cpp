@@ -71,7 +71,7 @@ PrintHostSendDialog::PrintHostSendDialog(const fs::path &path, PrintHostPostUplo
 
     if (combo_storage != nullptr) {
         // PrusaLink specific: User needs to choose a storage
-        auto* label_group = new wxStaticText(this, wxID_ANY, _L("Upload to storage:"));
+        auto* label_group = new wxStaticText(this, wxID_ANY, _L("Upload to storage") + ":");
         content_sizer->Add(label_group);
         content_sizer->Add(combo_storage, 0, wxBOTTOM, 2 * VERT_SPACING);
         combo_storage->SetValue(storage_names.front());
@@ -80,7 +80,7 @@ PrintHostSendDialog::PrintHostSendDialog(const fs::path &path, PrintHostPostUplo
             combo_storage->SetValue(recent_storage); 
     } else if (storage_names.GetCount() == 1){
         // PrusaLink specific: Show which storage has been detected.
-        auto* label_group = new wxStaticText(this, wxID_ANY, _L("Upload to storage: ") + storage_names.front());
+        auto* label_group = new wxStaticText(this, wxID_ANY, _L("Upload to storage") + ": " + storage_names.front());
         content_sizer->Add(label_group);
         m_preselected_storage = storage_paths.front();
     }
@@ -102,7 +102,7 @@ PrintHostSendDialog::PrintHostSendDialog(const fs::path &path, PrintHostPostUplo
     // .gcode suffix control
     auto validate_path = [this](const wxString &path) -> bool {
         if (! path.Lower().EndsWith(m_valid_suffix.Lower())) {
-            MessageDialog msg_wingow(this, wxString::Format(_L("Upload filename doesn't end with \"%s\". Do you wish to continue?"), m_valid_suffix), wxString(SLIC3R_APP_NAME), wxYES | wxNO);
+            MessageDialog msg_wingow(this, wxString::Format(_L("Upload filename doesn't end with \"%s\". Do you wish to continue?"), m_valid_suffix), wxString::FromUTF8(wxGetApp().appName()), wxYES | wxNO);
             if (msg_wingow.ShowModal() == wxID_NO)
                 return false;
         }
@@ -197,7 +197,7 @@ std::string PrintHostSendDialog::storage() const
 {
     if (!combo_storage)
         return GUI::format("%1%", m_preselected_storage);
-    if (combo_storage->GetSelection() < 0 || combo_storage->GetSelection() >= m_paths.size())
+    if (combo_storage->GetSelection() < 0 || combo_storage->GetSelection() >= int(m_paths.size()))
         return {};
     return boost::nowide::narrow(m_paths[combo_storage->GetSelection()]);
 }
@@ -473,7 +473,7 @@ void PrintHostQueueDialog::on_error(Event &evt)
 
     set_state(evt.job_id, ST_ERROR);
 
-    auto errormsg = from_u8((boost::format("%1%\n%2%") % _utf8(L("Error uploading to print host:")) % std::string(evt.status.ToUTF8())).str());
+    auto errormsg = format_wxstr("%1%\n%2%", _L("Error uploading to print host") + ":", evt.status);
     job_list->SetValue(wxVariant(0), evt.job_id, COL_PROGRESS);
     job_list->SetValue(wxVariant(errormsg), evt.job_id, COL_ERRORMSG);    // Stashes the error message into a hidden column for later
 

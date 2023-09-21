@@ -81,10 +81,12 @@ public:
     ACConfigWizard &operator=(const ACConfigWizard &) = delete;
     ~ACConfigWizard();
 
+    void On_Close(wxCloseEvent &event);
+
     // Run the Wizard. Return whether it was completed.
     bool run(RunReason reason, StartPage start_page = SP_WELCOME);
 
-    void setButtonVisiable(int btID, bool visiable); 
+    void setButtonVisiable(int btID, bool visiable);
 
     static const wxString& name(const bool from_menu = false);
 protected:

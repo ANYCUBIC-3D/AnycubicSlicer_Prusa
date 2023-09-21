@@ -3,6 +3,9 @@
 #include "libslic3r/Print.hpp"
 #include "libslic3r/LocalesUtils.hpp"
 #include "libslic3r/format.hpp"
+#include "libslic3r/I18N.hpp"
+#include "libslic3r/GCodeWriter.hpp"
+#include "libslic3r/I18N.hpp"
 #include "GCodeProcessor.hpp"
 
 #include <boost/algorithm/string/case_conv.hpp>
@@ -440,12 +443,14 @@ void GCodeProcessorResult::reset() {
     max_print_height = 0.0f;
     settings_ids.reset();
     extruders_count = 0;
+    backtrace_enabled = false;
     extruder_colors = std::vector<std::string>();
     filament_diameters = std::vector<float>(MIN_EXTRUDERS_COUNT, DEFAULT_FILAMENT_DIAMETER);
     filament_densities = std::vector<float>(MIN_EXTRUDERS_COUNT, DEFAULT_FILAMENT_DENSITY);
     filament_cost = std::vector<float>(MIN_EXTRUDERS_COUNT, DEFAULT_FILAMENT_COST);
     custom_gcode_per_print_z = std::vector<CustomGCode::Item>();
     spiral_vase_layers = std::vector<std::pair<float, std::pair<size_t, size_t>>>();
+    conflict_result = std::nullopt;
     time = 0;
 }
 #else
@@ -457,12 +462,14 @@ void GCodeProcessorResult::reset() {
     max_print_height = 0.0f;
     settings_ids.reset();
     extruders_count = 0;
+    backtrace_enabled = false;
     extruder_colors = std::vector<std::string>();
     filament_diameters = std::vector<float>(MIN_EXTRUDERS_COUNT, DEFAULT_FILAMENT_DIAMETER);
     filament_densities = std::vector<float>(MIN_EXTRUDERS_COUNT, DEFAULT_FILAMENT_DENSITY);
     filament_cost = std::vector<float>(MIN_EXTRUDERS_COUNT, DEFAULT_FILAMENT_COST);
     custom_gcode_per_print_z = std::vector<CustomGCode::Item>();
     spiral_vase_layers = std::vector<std::pair<float, std::pair<size_t, size_t>>>();
+    conflict_result = std::nullopt;
 }
 #endif // ENABLE_GCODE_VIEWER_STATISTICS
 
@@ -550,6 +557,8 @@ void GCodeProcessor::apply_config(const PrintConfig& config)
     m_producer = EProducer::PrusaSlicer;
     m_flavor = config.gcode_flavor;
 
+    m_result.backtrace_enabled = is_XL_printer(config);
+
     size_t extruders_count = config.nozzle_diameter.values.size();
     m_result.extruders_count = extruders_count;
 
@@ -559,19 +568,25 @@ void GCodeProcessor::apply_config(const PrintConfig& config)
     m_result.filament_densities.resize(extruders_count);
     m_result.filament_cost.resize(extruders_count);
     m_extruder_temps.resize(extruders_count);
+    m_extruder_temps_config.resize(extruders_count);
+    m_extruder_temps_first_layer_config.resize(extruders_count);
+    m_is_XL_printer = is_XL_printer(config);
 
     for (size_t i = 0; i < extruders_count; ++ i) {
         m_extruder_offsets[i]           = to_3d(config.extruder_offset.get_at(i).cast<float>().eval(), 0.f);
         m_extruder_colors[i]            = static_cast<unsigned char>(i);
+        m_extruder_temps_config[i]      = static_cast<int>(config.temperature.get_at(i));
+        m_extruder_temps_first_layer_config[i] = static_cast<int>(config.first_layer_temperature.get_at(i));
         m_result.filament_diameters[i]  = static_cast<float>(config.filament_diameter.get_at(i));
         m_result.filament_densities[i]  = static_cast<float>(config.filament_density.get_at(i));
         m_result.filament_cost[i]       = static_cast<float>(config.filament_cost.get_at(i));
     }
 
-    if ((m_flavor == gcfMarlinLegacy || m_flavor == gcfMarlinFirmware || m_flavor == gcfRepRapFirmware) && config.machine_limits_usage.value != MachineLimitsUsage::Ignore) {
+    if ((m_flavor == gcfMarlinLegacy || m_flavor == gcfMarlinFirmware || m_flavor == gcfRepRapFirmware || m_flavor == gcfKlipper)
+         && config.machine_limits_usage.value != MachineLimitsUsage::Ignore) {
         m_time_processor.machine_limits = reinterpret_cast<const MachineEnvelopeConfig&>(config);
-        if (m_flavor == gcfMarlinLegacy) {
-            // Legacy Marlin does not have separate travel acceleration, it uses the 'extruding' value instead.
+        if (m_flavor == gcfMarlinLegacy || m_flavor == gcfKlipper) {
+            // Legacy Marlin and Klipper don't have separate travel acceleration, they use the 'extruding' value instead.
             m_time_processor.machine_limits.machine_max_acceleration_travel = m_time_processor.machine_limits.machine_max_acceleration_extruding;
         }
         if (m_flavor == gcfRepRapFirmware) {
@@ -609,7 +624,12 @@ for (size_t i = 0; i < static_cast<size_t>(PrintEstimatedStatistics::ETimeMode::
         float max_retract_acceleration = get_option_value(m_time_processor.machine_limits.machine_max_acceleration_retracting, i);
         m_time_processor.machines[i].max_retract_acceleration = max_retract_acceleration;
         m_time_processor.machines[i].retract_acceleration = (max_retract_acceleration > 0.0f) ? max_retract_acceleration : DEFAULT_RETRACT_ACCELERATION;
+
         float max_travel_acceleration = get_option_value(m_time_processor.machine_limits.machine_max_acceleration_travel, i);
+        if ( ! GCodeWriter::supports_separate_travel_acceleration(config.gcode_flavor.value) || config.machine_limits_usage.value != MachineLimitsUsage::EmitToGCode) {
+            // Only clamp travel acceleration when it is accessible in machine limits.
+            max_travel_acceleration = 0;
+        }
         m_time_processor.machines[i].max_travel_acceleration = max_travel_acceleration;
         m_time_processor.machines[i].travel_acceleration = (max_travel_acceleration > 0.0f) ? max_travel_acceleration : DEFAULT_TRAVEL_ACCELERATION;
     }
@@ -788,7 +808,7 @@ void GCodeProcessor::apply_config(const DynamicPrintConfig& config)
     if (machine_limits_usage != nullptr)
         use_machine_limits = machine_limits_usage->value != MachineLimitsUsage::Ignore;
 
-    if (use_machine_limits && (m_flavor == gcfMarlinLegacy || m_flavor == gcfMarlinFirmware || m_flavor == gcfRepRapFirmware)) {
+    if (use_machine_limits && (m_flavor == gcfMarlinLegacy || m_flavor == gcfMarlinFirmware || m_flavor == gcfRepRapFirmware || m_flavor == gcfKlipper)) {
         const ConfigOptionFloats* machine_max_acceleration_x = config.option<ConfigOptionFloats>("machine_max_acceleration_x");
         if (machine_max_acceleration_x != nullptr)
             m_time_processor.machine_limits.machine_max_acceleration_x.values = machine_max_acceleration_x->values;
@@ -846,8 +866,8 @@ void GCodeProcessor::apply_config(const DynamicPrintConfig& config)
             m_time_processor.machine_limits.machine_max_acceleration_retracting.values = machine_max_acceleration_retracting->values;
 
 
-        // Legacy Marlin does not have separate travel acceleration, it uses the 'extruding' value instead.
-        const ConfigOptionFloats* machine_max_acceleration_travel = config.option<ConfigOptionFloats>(m_flavor == gcfMarlinLegacy
+        // Legacy Marlin and Klipper don't have separate travel acceleration, they use the 'extruding' value instead.
+        const ConfigOptionFloats* machine_max_acceleration_travel = config.option<ConfigOptionFloats>((m_flavor == gcfMarlinLegacy || m_flavor == gcfKlipper)
                                                                                                     ? "machine_max_acceleration_extruding"
                                                                                                     : "machine_max_acceleration_travel");
         if (machine_max_acceleration_travel != nullptr)
@@ -885,7 +905,7 @@ void GCodeProcessor::apply_config(const DynamicPrintConfig& config)
         m_time_processor.machines[i].travel_acceleration = (max_travel_acceleration > 0.0f) ? max_travel_acceleration : DEFAULT_TRAVEL_ACCELERATION;
     }
 
-    if (m_flavor == gcfMarlinLegacy || m_flavor == gcfMarlinFirmware) {
+    if (m_flavor == gcfMarlinLegacy || m_flavor == gcfMarlinFirmware) { // No Klipper here, it does not support silent mode.
         const ConfigOptionBool* silent_mode = config.option<ConfigOptionBool>("silent_mode");
         if (silent_mode != nullptr) {
             if (silent_mode->value && m_time_processor.machine_limits.machine_max_acceleration_x.values.size() > 1)
@@ -1002,6 +1022,74 @@ static inline const char* remove_eols(const char *begin, const char *end) {
 
 // Load a G-code into a stand-alone G-code viewer.
 // throws CanceledException through print->throw_if_canceled() (sent by the caller as callback).
+void GCodeProcessor::ac_process_file(bool isACLoad,std::function<void(double, double, std::string)> setPrintStatistics_callback,const std::string &filename, std::function<void()> cancel_callback)
+{
+    CNumericLocalesSetter locales_setter;
+
+#if ENABLE_GCODE_VIEWER_STATISTICS
+    m_start_time = std::chrono::high_resolution_clock::now();
+#endif // ENABLE_GCODE_VIEWER_STATISTICS
+
+    // pre-processing
+    // parse the gcode file to detect its producer
+    {
+        m_parser.parse_file_raw(filename, [this](GCodeReader &reader, const char *begin, const char *end) {
+            begin = skip_whitespaces(begin, end);
+            if (begin != end && *begin == ';') {
+                // Comment.
+                begin = skip_whitespaces(++begin, end);
+                end   = remove_eols(begin, end);
+                if (begin != end && detect_producer(std::string_view(begin, end - begin)))
+                    m_parser.quit_parsing();
+            }
+        });
+        m_parser.reset();
+
+        // if the gcode was produced by Anycubic Slicer,
+        // extract the config from it
+        if (m_producer == EProducer::PrusaSlicer || m_producer == EProducer::Slic3rPE || m_producer == EProducer::Slic3r) {
+            DynamicPrintConfig config;
+            config.apply(FullPrintConfig::defaults());
+            // Silently substitute unknown values by new ones for loading configurations from Anycubic Slicer's own G-code.
+            // Showing substitution log or errors may make sense, but we are not really reading many values from the G-code config,
+            // thus a probability of incorrect substitution is low and the G-code viewer is a consumer-only anyways.
+            config.load_from_gcode_file(isACLoad, setPrintStatistics_callback,filename, ForwardCompatibilitySubstitutionRule::EnableSilent);
+            apply_config(config);
+        } else {
+            m_result.extruder_colors = DEFAULT_EXTRUDER_COLORS;
+
+            if (m_producer == EProducer::Simplify3D)
+                apply_config_simplify3d(filename);
+            else if (m_producer == EProducer::SuperSlicer)
+                apply_config_superslicer(filename);
+            else if (m_producer == EProducer::KissSlicer)
+                apply_config_kissslicer(filename);
+        }
+    }
+
+    // process gcode
+    m_result.filename = filename;
+    m_result.id       = ++s_result_id;
+    initialize_result_moves();
+    // 1st move must be a dummy move
+    size_t parse_line_callback_cntr = 10000;
+    m_parser.parse_file(
+        filename,
+        [this, cancel_callback, &parse_line_callback_cntr](GCodeReader &reader, const GCodeReader::GCodeLine &line) {
+            if (--parse_line_callback_cntr == 0) {
+                // Don't call the cancel_callback() too often, do it every at every 10000'th line.
+                parse_line_callback_cntr = 10000;
+                if (cancel_callback)
+                    cancel_callback();
+            }
+            this->process_gcode_line(line, true);
+        },
+        m_result.lines_ends);
+
+    // Don't post-process the G-code to update time stamps.
+    this->finalize(false);
+}
+
 void GCodeProcessor::process_file(const std::string& filename, std::function<void()> cancel_callback)
 {
     CNumericLocalesSetter locales_setter;
@@ -1045,14 +1133,16 @@ void GCodeProcessor::process_file(const std::string& filename, std::function<voi
                 apply_config_superslicer(filename);
             else if (m_producer == EProducer::KissSlicer)
                 apply_config_kissslicer(filename);
+
+            if (m_result.extruders_count == 0)
+                m_result.extruders_count = MIN_EXTRUDERS_COUNT;
         }
     }
 
     // process gcode
     m_result.filename = filename;
     m_result.id = ++s_result_id;
-    // 1st move must be a dummy move
-    m_result.moves.emplace_back(GCodeProcessorResult::MoveVertex());
+    initialize_result_moves();
     size_t parse_line_callback_cntr = 10000;
     m_parser.parse_file(filename, [this, cancel_callback, &parse_line_callback_cntr](GCodeReader& reader, const GCodeReader::GCodeLine& line) {
         if (-- parse_line_callback_cntr == 0) {
@@ -1079,8 +1169,6 @@ void GCodeProcessor::initialize(const std::string& filename)
     // process gcode
     m_result.filename = filename;
     m_result.id = ++s_result_id;
-    // 1st move must be a dummy move
-    m_result.moves.emplace_back(GCodeProcessorResult::MoveVertex());
 }
 
 void GCodeProcessor::process_buffer(const std::string &buffer)
@@ -2336,27 +2424,57 @@ void GCodeProcessor::process_G0(const GCodeReader::GCodeLine& line)
 
 void GCodeProcessor::process_G1(const GCodeReader::GCodeLine& line)
 {
+    std::array<std::optional<double>, 4> g1_axes = { std::nullopt, std::nullopt, std::nullopt, std::nullopt };
+    if (line.has_x()) g1_axes[X] = (double)line.x();
+    if (line.has_y()) g1_axes[Y] = (double)line.y();
+    if (line.has_z()) g1_axes[Z] = (double)line.z();
+    if (line.has_e()) g1_axes[E] = (double)line.e();
+    std::optional<double> g1_feedrate = std::nullopt;
+    if (line.has_f()) g1_feedrate = (double)line.f();
+    std::optional<std::string> g1_cmt = std::nullopt;
+    if (!line.comment().empty()) g1_cmt = line.comment();
+
+    process_G1(g1_axes, g1_feedrate, g1_cmt);
+}
+
+void GCodeProcessor::process_G1(const std::array<std::optional<double>, 4>& axes, std::optional<double> feedrate, std::optional<std::string> cmt)
+{
     const float filament_diameter = (static_cast<size_t>(m_extruder_id) < m_result.filament_diameters.size()) ? m_result.filament_diameters[m_extruder_id] : m_result.filament_diameters.back();
     const float filament_radius = 0.5f * filament_diameter;
     const float area_filament_cross_section = static_cast<float>(M_PI) * sqr(filament_radius);
 
     auto move_type = [this](const AxisCoords& delta_pos) {
-        EMoveType type = EMoveType::Noop;
-
         if (m_wiping)
-            type = EMoveType::Wipe;
+            return EMoveType::Wipe;
         else if (delta_pos[E] < 0.0f)
-            type = (delta_pos[X] != 0.0f || delta_pos[Y] != 0.0f || delta_pos[Z] != 0.0f) ? EMoveType::Travel : EMoveType::Retract;
+            return (delta_pos[X] != 0.0f || delta_pos[Y] != 0.0f || delta_pos[Z] != 0.0f) ? EMoveType::Travel : EMoveType::Retract;
         else if (delta_pos[E] > 0.0f) {
             if (delta_pos[X] == 0.0f && delta_pos[Y] == 0.0f)
-                type = (delta_pos[Z] == 0.0f) ? EMoveType::Unretract : EMoveType::Travel;
+                return (delta_pos[Z] == 0.0f) ? EMoveType::Unretract : EMoveType::Travel;
             else if (delta_pos[X] != 0.0f || delta_pos[Y] != 0.0f)
-                type = EMoveType::Extrude;
-        } 
+                return EMoveType::Extrude;
+        }
         else if (delta_pos[X] != 0.0f || delta_pos[Y] != 0.0f || delta_pos[Z] != 0.0f)
-            type = EMoveType::Travel;
+            return EMoveType::Travel;
 
-        return type;
+        return EMoveType::Noop;
+    };
+
+    auto extract_absolute_position_on_axis = [&](Axis axis, std::optional<double> value, double area_filament_cross_section)
+    {
+        if (value.has_value()) {
+            bool is_relative = (m_global_positioning_type == EPositioningType::Relative);
+            if (axis == E)
+                is_relative |= (m_e_local_positioning_type == EPositioningType::Relative);
+
+            const double lengthsScaleFactor = (m_units == EUnits::Inches) ? double(INCHES_TO_MM) : 1.0;
+            double ret = *value * lengthsScaleFactor;
+            if (axis == E && m_use_volumetric_e)
+                ret /= area_filament_cross_section;
+            return is_relative ? m_start_position[axis] + ret : m_origin[axis] + ret;
+        }
+        else
+            return m_start_position[axis];
     };
 
     ++m_g1_line_id;
@@ -2366,27 +2484,26 @@ void GCodeProcessor::process_G1(const GCodeReader::GCodeLine& line)
 
     // updates axes positions from line
     for (unsigned char a = X; a <= E; ++a) {
-        m_end_position[a] = extract_absolute_position_on_axis((Axis)a, line, double(area_filament_cross_section));
+        m_end_position[a] = extract_absolute_position_on_axis((Axis)a, axes[a], double(area_filament_cross_section));
     }
 
     // updates feedrate from line, if present
-    if (line.has_f())
-        m_feedrate = m_feed_multiply.current * line.f() * MMMIN_TO_MMSEC;
+    if (feedrate.has_value())
+        m_feedrate = m_feed_multiply.current * (*feedrate) * MMMIN_TO_MMSEC;
 
-     // calculates movement deltas
-     AxisCoords delta_pos;
+    // calculates movement deltas
+    AxisCoords delta_pos;
     for (unsigned char a = X; a <= E; ++a)
-         delta_pos[a] = m_end_position[a] - m_start_position[a];
- 
+        delta_pos[a] = m_end_position[a] - m_start_position[a];
+
     if (std::all_of(delta_pos.begin(), delta_pos.end(), [](double d) { return d == 0.; }))
-         return;
-    
+        return;
+
     const float volume_extruded_filament = area_filament_cross_section * delta_pos[E];
 
     if (volume_extruded_filament != 0.)
-        m_used_filaments.increase_caches(volume_extruded_filament,
-            m_extruder_id, area_filament_cross_section * m_parking_position,
-            area_filament_cross_section * m_extra_loading_move);
+        m_used_filaments.increase_caches(volume_extruded_filament, m_extruder_id, area_filament_cross_section * m_parking_position,
+                                        area_filament_cross_section * m_extra_loading_move);
 
     const EMoveType type = move_type(delta_pos);
     if (type == EMoveType::Extrude) {
@@ -2403,7 +2520,7 @@ void GCodeProcessor::process_G1(const GCodeReader::GCodeLine& line)
             m_height = m_forced_height;
         else if (m_layer_id == 0)
             m_height = m_first_layer_height + m_z_offset;
-        else if (line.comment() != INTERNAL_G2G3_TAG){
+        else if (!cmt.has_value() || *cmt != INTERNAL_G2G3_TAG) {
             if (m_end_position[Z] > m_extruded_last_z + EPSILON && delta_pos[Z] == 0.0)
                 m_height = m_end_position[Z] - m_extruded_last_z;
         }
@@ -2414,7 +2531,7 @@ void GCodeProcessor::process_G1(const GCodeReader::GCodeLine& line)
         if (m_end_position[Z] == 0.0f || (m_extrusion_role == GCodeExtrusionRole::Custom && m_layer_id == 0))
             m_end_position[Z] = m_height;
 
-        if (line.comment() != INTERNAL_G2G3_TAG)
+        if (!cmt.has_value() || *cmt != INTERNAL_G2G3_TAG)
             m_extruded_last_z = m_end_position[Z];
         m_options_z_corrector.update(m_height);
 
@@ -2447,7 +2564,7 @@ void GCodeProcessor::process_G1(const GCodeReader::GCodeLine& line)
 
     // time estimate section
     auto move_length = [](const AxisCoords& delta_pos) {
-        float sq_xyz_length = sqr(delta_pos[X]) + sqr(delta_pos[Y]) + sqr(delta_pos[Z]);
+        const float sq_xyz_length = sqr(delta_pos[X]) + sqr(delta_pos[Y]) + sqr(delta_pos[Z]);
         return (sq_xyz_length > 0.0f) ? std::sqrt(sq_xyz_length) : std::abs(delta_pos[E]);
     };
 
@@ -2468,8 +2585,7 @@ void GCodeProcessor::process_G1(const GCodeReader::GCodeLine& line)
         TimeMachine::State& prev = machine.prev;
         std::vector<TimeBlock>& blocks = machine.blocks;
 
-        curr.feedrate = (delta_pos[E] == 0.0f) ?
-            minimum_travel_feedrate(static_cast<PrintEstimatedStatistics::ETimeMode>(i), m_feedrate) :
+        curr.feedrate = (delta_pos[E] == 0.0f) ? minimum_travel_feedrate(static_cast<PrintEstimatedStatistics::ETimeMode>(i), m_feedrate) :
             minimum_feedrate(static_cast<PrintEstimatedStatistics::ETimeMode>(i), m_feedrate);
 
         TimeBlock block;
@@ -2504,11 +2620,9 @@ void GCodeProcessor::process_G1(const GCodeReader::GCodeLine& line)
         }
 
         // calculates block acceleration
-        float acceleration = 
-            (type == EMoveType::Travel) ? get_travel_acceleration(static_cast<PrintEstimatedStatistics::ETimeMode>(i)) :
-            (is_extrusion_only_move(delta_pos) ?
-                get_retract_acceleration(static_cast<PrintEstimatedStatistics::ETimeMode>(i)) :
-                get_acceleration(static_cast<PrintEstimatedStatistics::ETimeMode>(i)));
+        float acceleration = (type == EMoveType::Travel) ? get_travel_acceleration(static_cast<PrintEstimatedStatistics::ETimeMode>(i)) :
+            (is_extrusion_only_move(delta_pos) ? get_retract_acceleration(static_cast<PrintEstimatedStatistics::ETimeMode>(i)) :
+            get_acceleration(static_cast<PrintEstimatedStatistics::ETimeMode>(i)));
 
         for (unsigned char a = X; a <= E; ++a) {
             const float axis_max_acceleration = get_axis_max_acceleration(static_cast<PrintEstimatedStatistics::ETimeMode>(i), static_cast<Axis>(a));
@@ -2534,8 +2648,8 @@ void GCodeProcessor::process_G1(const GCodeReader::GCodeLine& line)
         // calculates block entry feedrate
         float vmax_junction = curr.safe_feedrate;
         if (!blocks.empty() && prev.feedrate > PREVIOUS_FEEDRATE_THRESHOLD) {
-            bool prev_speed_larger = prev.feedrate > block.feedrate_profile.cruise;
-            float smaller_speed_factor = prev_speed_larger ? (block.feedrate_profile.cruise / prev.feedrate) : (prev.feedrate / block.feedrate_profile.cruise);
+            const bool prev_speed_larger = prev.feedrate > block.feedrate_profile.cruise;
+            const float smaller_speed_factor = prev_speed_larger ? (block.feedrate_profile.cruise / prev.feedrate) : (prev.feedrate / block.feedrate_profile.cruise);
             // Pick the smaller of the nominal speeds. Higher speed shall not be achieved at the junction during coasting.
             vmax_junction = prev_speed_larger ? block.feedrate_profile.cruise : prev.feedrate;
 
@@ -2557,18 +2671,18 @@ void GCodeProcessor::process_G1(const GCodeReader::GCodeLine& line)
 
                 // Calculate the jerk depending on whether the axis is coasting in the same direction or reversing a direction.
                 const float jerk =
-                    (v_exit > v_entry) ?
-                    ((v_entry > 0.0f || v_exit < 0.0f) ?
-                        // coasting
-                        (v_exit - v_entry) :
-                        // axis reversal
-                        std::max(v_exit, -v_entry)) :
-                    // v_exit <= v_entry
-                    ((v_entry < 0.0f || v_exit > 0.0f) ?
-                        // coasting
-                        (v_entry - v_exit) :
-                        // axis reversal
-                        std::max(-v_exit, v_entry));
+                  (v_exit > v_entry) ?
+                  ((v_entry > 0.0f || v_exit < 0.0f) ?
+                    // coasting
+                    (v_exit - v_entry) :
+                    // axis reversal
+                    std::max(v_exit, -v_entry)) :
+                  // v_exit <= v_entry
+                  ((v_entry < 0.0f || v_exit > 0.0f) ?
+                    // coasting
+                    (v_entry - v_exit) :
+                    // axis reversal
+                    std::max(-v_exit, v_entry));
 
                 const float axis_max_jerk = get_axis_max_jerk(static_cast<PrintEstimatedStatistics::ETimeMode>(i), static_cast<Axis>(a));
                 if (jerk > axis_max_jerk) {
@@ -2647,7 +2761,7 @@ void GCodeProcessor::process_G1(const GCodeReader::GCodeLine& line)
     }
 
     // store move
-    store_move_vertex(type, line.comment() == INTERNAL_G2G3_TAG);
+    store_move_vertex(type, cmt.has_value() && *cmt == INTERNAL_G2G3_TAG);
 }
 
 void GCodeProcessor::process_G2_G3(const GCodeReader::GCodeLine& line, bool clockwise)
@@ -2676,7 +2790,7 @@ void GCodeProcessor::process_G2_G3(const GCodeReader::GCodeLine& line, bool cloc
         double delta_z() const { return end.z() - start.z(); }
 
         double length() const { return angle * start_radius(); }
-        double travel_length() const { return std::sqrt(sqr(length() + sqr(delta_z()))); }
+        double travel_length() const { return std::sqrt(sqr(length()) + sqr(delta_z())); }
         double start_radius() const { return (start - center).norm(); }
         double end_radius() const { return (end - center).norm(); }
 
@@ -2761,18 +2875,18 @@ void GCodeProcessor::process_G2_G3(const GCodeReader::GCodeLine& line, bool cloc
         return ret;
     };
 
-    auto internal_only_g1_line = [](const AxisCoords& target, bool has_z, const std::optional<float>& feedrate, const std::optional<float>& extrusion) {
-        std::string ret = (boost::format("G1 X%1% Y%2%") % target[X] % target[Y]).str();
+    auto internal_only_g1_line = [this](const AxisCoords& target, bool has_z, const std::optional<float>& feedrate, const std::optional<float>& extrusion) {
+        std::array<std::optional<double>, 4> g1_axes = { target[X], target[Y], std::nullopt, std::nullopt };
+        std::optional<double> g1_feedrate = std::nullopt;
         if (has_z)
-            ret += (boost::format(" Z%1%") % target[Z]).str();
+            g1_axes[Z] = target[Z];
         if (feedrate.has_value())
-            ret += (boost::format(" F%1%") % *feedrate).str();
+            g1_feedrate = (double)*feedrate;
         if (extrusion.has_value())
-            ret += (boost::format(" E%1%") % target[E]).str();
+            g1_axes[E] = target[E];
+        std::optional<std::string> g1_cmt = INTERNAL_G2G3_TAG;
 
-        ret += (boost::format(" ;%1%\n") % INTERNAL_G2G3_TAG).str();
-
-        return ret;
+        process_G1(g1_axes, g1_feedrate, g1_cmt);
     };
 
     // calculate arc segments
@@ -2781,17 +2895,16 @@ void GCodeProcessor::process_G2_G3(const GCodeReader::GCodeLine& line, bool cloc
     // https://github.com/prusa3d/Prusa-Firmware/blob/MK3/Firmware/motion_control.cpp
 
     // segments count
-    static const double MM_PER_ARC_SEGMENT = 0.5;
-    const size_t segments = std::ceil(travel_length / MM_PER_ARC_SEGMENT);
-    assert(segments >= 1);
+    static const double MM_PER_ARC_SEGMENT = 1.0;
+    const size_t segments = std::max<size_t>(std::floor(travel_length / MM_PER_ARC_SEGMENT), 1);
 
-    const double theta_per_segment = arc.angle / double(segments);
-    const double z_per_segment = arc.delta_z() / double(segments);
-    const double extruder_per_segment = (extrusion.has_value()) ? *extrusion / double(segments) : 0.0;
+    const double inv_segment = 1.0 / double(segments);
+    const double theta_per_segment = arc.angle  * inv_segment;
+    const double z_per_segment = arc.delta_z() * inv_segment;
+    const double extruder_per_segment = (extrusion.has_value()) ? *extrusion * inv_segment : 0.0;
 
-    const double sq_theta_per_segment = sqr(theta_per_segment);
-    const double cos_T = 1.0 - 0.5 * sq_theta_per_segment; // Small angle approximation
-    const double sin_T = theta_per_segment - sq_theta_per_segment * theta_per_segment / 6.0; // Small angle approximation
+    const double cos_T = 1.0 - 0.5 * sqr(theta_per_segment); // Small angle approximation
+    const double sin_T = theta_per_segment;
 
     AxisCoords prev_target = m_start_position;
     AxisCoords arc_target;
@@ -2803,28 +2916,25 @@ void GCodeProcessor::process_G2_G3(const GCodeReader::GCodeLine& line, bool cloc
     arc_target[E] = m_start_position[E];
 
     static const size_t N_ARC_CORRECTION = 25;
-
     Vec3d curr_rel_arc_start = arc.relative_start();
-
-    std::string gcode;
-
-    size_t n_arc_correction = N_ARC_CORRECTION;
+    size_t count = 0;
 
     for (size_t i = 1; i < segments; ++i) {
-        if (n_arc_correction-- == 0) {
-            // Calculate the actual position for r_axis_x and r_axis_y
-            const double cos_Ti = ::cos((double)i * theta_per_segment);
-            const double sin_Ti = ::sin((double)i * theta_per_segment);
-            curr_rel_arc_start.x() = -double(rel_center.x()) * cos_Ti + double(rel_center.y()) * sin_Ti;
-            curr_rel_arc_start.y() = -double(rel_center.x()) * sin_Ti - double(rel_center.y()) * cos_Ti;
-            // reset n_arc_correction
-            n_arc_correction = N_ARC_CORRECTION;
-        }
-        else {
-            // Calculate X and Y using the small angle approximation
+        if (count < N_ARC_CORRECTION) {
+            // Apply vector rotation matrix 
             const float r_axisi = curr_rel_arc_start.x() * sin_T + curr_rel_arc_start.y() * cos_T;
             curr_rel_arc_start.x() = curr_rel_arc_start.x() * cos_T - curr_rel_arc_start.y() * sin_T;
             curr_rel_arc_start.y() = r_axisi;
+            ++count;
+        }
+        else {
+            // Arc correction to radius vector. Computed only every N_ARC_CORRECTION increments.
+            // Compute exact location by applying transformation matrix from initial radius vector(=-offset).
+            const double cos_Ti = ::cos(i * theta_per_segment);
+            const double sin_Ti = ::sin(i * theta_per_segment);
+            curr_rel_arc_start.x() = -double(rel_center.x()) * cos_Ti + double(rel_center.y()) * sin_Ti;
+            curr_rel_arc_start.y() = -double(rel_center.x()) * sin_Ti - double(rel_center.y()) * cos_Ti;
+            count = 0;
         }
 
         // Update arc_target location
@@ -2833,23 +2943,14 @@ void GCodeProcessor::process_G2_G3(const GCodeReader::GCodeLine& line, bool cloc
         arc_target[Z] += z_per_segment;
         arc_target[E] += extruder_per_segment;
 
-        gcode += internal_only_g1_line(adjust_target(arc_target, prev_target), z_per_segment != 0.0, feedrate, extrusion);
+        m_start_position = m_end_position; // this is required because we are skipping the call to process_gcode_line()
+        internal_only_g1_line(adjust_target(arc_target, prev_target), z_per_segment != 0.0, (i == 1) ? feedrate : std::nullopt, extrusion);
         prev_target = arc_target;
-
-        // feedrate is constant, we do not need to repeat it
-        feedrate.reset();
     }
 
     // Ensure last segment arrives at target location.
-    gcode += internal_only_g1_line(adjust_target(end_position, prev_target), arc.delta_z() != 0.0, feedrate, extrusion);
-
-    // process fake gcode lines
-    GCodeReader parser;
-    parser.parse_buffer(gcode, [this](GCodeReader&, const GCodeReader::GCodeLine& line) {
-        // force all lines to share the same id
-        --m_line_id;
-        process_gcode_line(line, false);
-        });
+    m_start_position = m_end_position; // this is required because we are skipping the call to process_gcode_line()
+    internal_only_g1_line(adjust_target(end_position, prev_target), arc.delta_z() != 0.0, (segments == 1) ? feedrate : std::nullopt, extrusion);
 }
 
 void GCodeProcessor::process_G10(const GCodeReader::GCodeLine& line)
@@ -3244,7 +3345,7 @@ void GCodeProcessor::process_M205(const GCodeReader::GCodeLine& line)
 
 void GCodeProcessor::process_M220(const GCodeReader::GCodeLine& line)
 {
-    if (m_flavor != gcfMarlinLegacy && m_flavor != gcfMarlinFirmware)
+    if (m_flavor != gcfMarlinLegacy && m_flavor != gcfMarlinFirmware && m_flavor != gcfKlipper)
         return;
 
     if (line.has('B'))
@@ -3362,7 +3463,7 @@ void GCodeProcessor::process_T(const std::string_view command)
             if (m_extruder_id != id) {
                 if (((m_producer == EProducer::PrusaSlicer || m_producer == EProducer::Slic3rPE || m_producer == EProducer::Slic3r) && id >= m_result.extruders_count) ||
                     ((m_producer != EProducer::PrusaSlicer && m_producer != EProducer::Slic3rPE && m_producer != EProducer::Slic3r) && id >= m_result.extruder_colors.size()))
-                    BOOST_LOG_TRIVIAL(error) << "GCodeProcessor encountered an invalid toolchange, maybe from a custom gcode.";
+                    BOOST_LOG_TRIVIAL(error) << "GCodeProcessor encountered an invalid toolchange, maybe from a custom gcode (" << command << ").";
                 else {
                     unsigned char old_extruder_id = m_extruder_id;
                     process_filaments(CustomGCode::ToolChange);
@@ -3395,10 +3496,13 @@ void GCodeProcessor::process_T(const std::string_view command)
 
 void GCodeProcessor::post_process()
 {
-    FilePtr in{ boost::nowide::fopen(m_result.filename.c_str(), "rb") };
+    FilePtr in;
+    if(m_result.filename != "stream"){
+        in.f = boost::nowide::fopen(m_result.filename.c_str(), "rb"); 
     if (in.f == nullptr)
         throw Slic3r::RuntimeError(std::string("GCode processor post process export failed.\nCannot open file for reading.\n"));
-
+    }
+    
     // temporary file to contain modified gcode
     std::string out_path = m_result.filename + ".postprocess";
     FilePtr out{ boost::nowide::fopen(out_path.c_str(), "wb") };
@@ -3454,18 +3558,251 @@ void GCodeProcessor::post_process()
         last_exported_stop[i] = time_in_minutes(m_time_processor.machines[i].time);
     }
 
-    // buffer line to export only when greater than 64K to reduce writing calls
-    std::string export_line;
+    // Helper class to modify and export gcode to file
+    class ExportLines
+    {
+    public:
+        struct Backtrace
+        {
+            float time{ 60.0f };
+            unsigned int steps{ 10 };
+            float time_step() const { return time / float(steps); }
+        };
+
+        enum class EWriteType
+        {
+            BySize,
+            ByTime
+        };
+
+    private:
+        struct LineData
+        {
+            std::string line;
+            float time;
+        };
+
+#ifndef NDEBUG
+        class Statistics
+        {
+            ExportLines& m_parent;
+            size_t m_max_size{ 0 };
+            size_t m_lines_count{ 0 };
+            size_t m_max_lines_count{ 0 };
+
+        public:
+            explicit Statistics(ExportLines& parent)
+            : m_parent(parent)
+            {}
+
+            void add_line(size_t line_size) {
+                ++m_lines_count;
+                m_max_size = std::max(m_max_size, m_parent.get_size() + line_size);
+                m_max_lines_count = std::max(m_max_lines_count, m_lines_count);
+            }
+
+            void remove_line() { --m_lines_count; }
+            void remove_all_lines() { m_lines_count = 0; }
+        };
+
+        Statistics m_statistics;
+#endif // NDEBUG
+
+        EWriteType m_write_type{ EWriteType::BySize };
+        // Time machine containing g1 times cache
+        TimeMachine& m_machine;
+        // Current time
+        float m_time{ 0.0f };
+        // Current size in bytes
+        size_t m_size{ 0 };
+
+        // gcode lines cache
+        std::deque<LineData> m_lines;
+        size_t m_added_lines_counter{ 0 };
+        // map of gcode line ids from original to final 
+        // used to update m_result.moves[].gcode_id
+        std::vector<std::pair<size_t, size_t>> m_gcode_lines_map;
+
+        size_t m_curr_g1_id{ 0 };
+        size_t m_out_file_pos{ 0 };
+
+    public:
+        ExportLines(EWriteType type, TimeMachine& machine)
+#ifndef NDEBUG
+        : m_statistics(*this), m_write_type(type), m_machine(machine) {}
+#else
+        : m_write_type(type), m_machine(machine) {}
+#endif // NDEBUG
+
+        void update(size_t lines_counter, size_t g1_lines_counter) {
+            m_gcode_lines_map.push_back({ lines_counter, 0 });
+
+            if (g1_lines_counter == 0)
+                return;
+
+            auto init_it = m_machine.g1_times_cache.begin() + m_curr_g1_id;
+            auto it = init_it;
+            while (it != m_machine.g1_times_cache.end() && it->id < g1_lines_counter + 1) {
+                ++it;
+                ++m_curr_g1_id;
+            }
+
+            if ((it != m_machine.g1_times_cache.end() && it != init_it) || m_curr_g1_id == 0)
+                m_time = it->elapsed_time;
+        }
+
+        // add the given gcode line to the cache
+        void append_line(const std::string& line) {
+            m_lines.push_back({ line, m_time });
+#ifndef NDEBUG
+            m_statistics.add_line(line.length());
+#endif // NDEBUG
+            m_size += line.length();
+            ++m_added_lines_counter;
+            assert(!m_gcode_lines_map.empty());
+            m_gcode_lines_map.back().second = m_added_lines_counter;
+        }
+
+        // Insert the gcode lines required by the command cmd by backtracing into the cache
+        void insert_lines(const Backtrace& backtrace, const std::string& cmd, std::function<std::string(unsigned int, float, float)> line_inserter,
+            std::function<std::string(const std::string&)> line_replacer) {
+            assert(!m_lines.empty());
+            const float time_step = backtrace.time_step();
+            size_t rev_it_dist = 0; // distance from the end of the cache of the starting point of the backtrace
+            float last_time_insertion = 0.0f; // used to avoid inserting two lines at the same time
+            for (unsigned int i = 0; i < backtrace.steps; ++i) {
+                const float backtrace_time_i = (i + 1) * time_step;
+                const float time_threshold_i = m_time - backtrace_time_i;
+                auto rev_it = m_lines.rbegin() + rev_it_dist;
+                auto start_rev_it = rev_it;
+
+                std::string curr_cmd = GCodeReader::GCodeLine::extract_cmd(rev_it->line);
+                // backtrace into the cache to find the place where to insert the line
+                while (rev_it != m_lines.rend() && rev_it->time > time_threshold_i && curr_cmd != cmd && curr_cmd != "G28" && curr_cmd != "G29") {
+                    rev_it->line = line_replacer(rev_it->line);
+                    ++rev_it;
+                    curr_cmd = GCodeReader::GCodeLine::extract_cmd(rev_it->line);
+                }
+
+                // we met the previous evenience of cmd, or a G28/G29 command. stop inserting lines
+                if (rev_it != m_lines.rend() && (curr_cmd == cmd || curr_cmd == "G28" || curr_cmd == "G29"))
+                    break;
+
+                // insert the line for the current step
+                if (rev_it != m_lines.rend() && rev_it != start_rev_it && rev_it->time != last_time_insertion) {
+                    last_time_insertion = rev_it->time;
+                    const std::string out_line = line_inserter(i + 1, last_time_insertion, m_time - last_time_insertion);
+                    rev_it_dist = std::distance(m_lines.rbegin(), rev_it) + 1;
+                    m_lines.insert(rev_it.base(), { out_line, rev_it->time });
+#ifndef NDEBUG
+                    m_statistics.add_line(out_line.length());
+#endif // NDEBUG
+                    m_size += out_line.length();
+                    // synchronize gcode lines map
+                    for (auto map_it = m_gcode_lines_map.rbegin(); map_it != m_gcode_lines_map.rbegin() + rev_it_dist - 1; ++map_it) {
+                        ++map_it->second;
+                    }
+
+                    ++m_added_lines_counter;
+                }
+            }
+        }
+
+        // write to file:
+        // m_write_type == EWriteType::ByTime - all lines older than m_time - backtrace_time
+        // m_write_type == EWriteType::BySize - all lines if current size is greater than 65535 bytes
+        void write(FilePtr& out, float backtrace_time, GCodeProcessorResult& result, const std::string& out_path) {
+            if (m_lines.empty())
+                return;
+
+            // collect lines to write into a single string
+            std::string out_string;
+            if (!m_lines.empty()) {
+                if (m_write_type == EWriteType::ByTime) {
+                    while (m_lines.front().time < m_time - backtrace_time) {
+                        const LineData& data = m_lines.front();
+                        out_string += data.line;
+                        m_size -= data.line.length();
+                        m_lines.pop_front();
+#ifndef NDEBUG
+                        m_statistics.remove_line();
+#endif // NDEBUG
+                    }
+                }
+                else {
+                    if (m_size > 65535) {
+                        while (!m_lines.empty()) {
+                            out_string += m_lines.front().line;
+                            m_lines.pop_front();
+                        }
+                        m_size = 0;
+#ifndef NDEBUG
+                        m_statistics.remove_all_lines();
+#endif // NDEBUG
+                    }
+                }
+            }
+
+            write_to_file(out, out_string, result, out_path);
+        }
+
+        // flush the current content of the cache to file
+        void flush(FilePtr& out, GCodeProcessorResult& result, const std::string& out_path) {
+            // collect lines to flush into a single string
+            std::string out_string;
+            while (!m_lines.empty()) {
+                out_string += m_lines.front().line;
+                m_lines.pop_front();
+            }
+            m_size = 0;
+#ifndef NDEBUG
+            m_statistics.remove_all_lines();
+#endif // NDEBUG
+
+            write_to_file(out, out_string, result, out_path);
+        }
+
+        void synchronize_moves(GCodeProcessorResult& result) const {
+            auto it = m_gcode_lines_map.begin();
+            for (GCodeProcessorResult::MoveVertex& move : result.moves) {
+                while (it != m_gcode_lines_map.end() && it->first < move.gcode_id) {
+                    ++it;
+                }
+                if (it != m_gcode_lines_map.end() && it->first == move.gcode_id)
+                    move.gcode_id = it->second;
+            }
+        }
+
+        size_t get_size() const { return m_size; }
+
+    private:
+        void write_to_file(FilePtr& out, const std::string& out_string, GCodeProcessorResult& result, const std::string& out_path) {
+            if (!out_string.empty()) {
+                fwrite((const void*)out_string.c_str(), 1, out_string.length(), out.f);
+                if (ferror(out.f)) {
+                    out.close();
+                    boost::nowide::remove(out_path.c_str());
+                    throw Slic3r::RuntimeError(std::string("GCode processor post process export failed.\nIs the disk full?\n"));
+                }
+                for (size_t i = 0; i < out_string.size(); ++i) {
+                    if (out_string[i] == '\n')
+                        result.lines_ends.emplace_back(m_out_file_pos + i + 1);
+                }
+                m_out_file_pos += out_string.size();
+            }
+        }
+    };
+
+    ExportLines export_lines(m_result.backtrace_enabled ? ExportLines::EWriteType::ByTime : ExportLines::EWriteType::BySize, m_time_processor.machines[0]);
 
     // replace placeholder lines with the proper final value
     // gcode_line is in/out parameter, to reduce expensive memory allocation
     auto process_placeholders = [&](std::string& gcode_line) {
-        unsigned int extra_lines_count = 0;
+        bool processed = false;
 
         // remove trailing '\n'
         auto line = std::string_view(gcode_line).substr(0, gcode_line.length() - 1);
 
-        std::string ret;
         if (line.length() > 1) {
             line = line.substr(1);
             if (m_time_processor.export_remaining_time_enabled &&
@@ -3474,17 +3811,16 @@ void GCodeProcessor::post_process()
                     const TimeMachine& machine = m_time_processor.machines[i];
                     if (machine.enabled) {
                         // export pair <percent, remaining time>
-                        ret += format_line_M73_main(machine.line_m73_main_mask.c_str(),
+                        export_lines.append_line(format_line_M73_main(machine.line_m73_main_mask.c_str(),
                             (line == reserved_tag(ETags::First_Line_M73_Placeholder)) ? 0 : 100,
-                            (line == reserved_tag(ETags::First_Line_M73_Placeholder)) ? time_in_minutes(machine.time) : 0);
-                        ++extra_lines_count;
+                            (line == reserved_tag(ETags::First_Line_M73_Placeholder)) ? time_in_minutes(machine.time) : 0));
+                        processed = true;
 
                         // export remaining time to next printer stop
                         if (line == reserved_tag(ETags::First_Line_M73_Placeholder) && !machine.stop_times.empty()) {
-                            int to_export_stop = time_in_minutes(machine.stop_times.front().elapsed_time);
-                            ret += format_line_M73_stop_int(machine.line_m73_stop_mask.c_str(), to_export_stop);
+                            const int to_export_stop = time_in_minutes(machine.stop_times.front().elapsed_time);
+                            export_lines.append_line(format_line_M73_stop_int(machine.line_m73_stop_mask.c_str(), to_export_stop));
                             last_exported_stop[i] = to_export_stop;
-                            ++extra_lines_count;
                         }
                     }
                 }
@@ -3498,16 +3834,26 @@ void GCodeProcessor::post_process()
                         sprintf(buf, "; estimated printing time (%s mode) = %s\n",
                             (mode == PrintEstimatedStatistics::ETimeMode::Normal) ? "normal" : "silent",
                             get_time_dhms(machine.time).c_str());
-                        ret += buf;
+                        export_lines.append_line(buf);
+                        processed = true;
+                    }
+                }
+                for (size_t i = 0; i < static_cast<size_t>(PrintEstimatedStatistics::ETimeMode::Count); ++i) {
+                    const TimeMachine& machine = m_time_processor.machines[i];
+                    PrintEstimatedStatistics::ETimeMode mode = static_cast<PrintEstimatedStatistics::ETimeMode>(i);
+                    if (mode == PrintEstimatedStatistics::ETimeMode::Normal || machine.enabled) {
+                        char buf[128];
+                        sprintf(buf, "; estimated first layer printing time (%s mode) = %s\n",
+                            (mode == PrintEstimatedStatistics::ETimeMode::Normal) ? "normal" : "silent",
+                            get_time_dhms(machine.layers_time.empty() ? 0.f : machine.layers_time.front()).c_str());
+                        export_lines.append_line(buf);
+                        processed = true;
                     }
                 }
             }
         }
 
-        if (!ret.empty())
-            // Not moving the move operator on purpose, so that the gcode_line allocation will grow and it will not be reallocated after handful of lines are processed.
-            gcode_line = ret;
-        return std::tuple(!ret.empty(), (extra_lines_count == 0) ? extra_lines_count : extra_lines_count - 1);
+        return processed;
     };
 
     std::vector<double> filament_mm(m_result.extruders_count, 0.0);
@@ -3581,10 +3927,8 @@ void GCodeProcessor::post_process()
         time_in_minutes, format_time_float, format_line_M73_main, format_line_M73_stop_int, format_line_M73_stop_float, time_in_last_minute,
         // Caches, to be modified
         &g1_times_cache_it, &last_exported_main, &last_exported_stop,
-        // String output
-        &export_line]
+        &export_lines]
         (const size_t g1_lines_counter) {
-        unsigned int exported_lines_count = 0;
         if (m_time_processor.export_remaining_time_enabled) {
             for (size_t i = 0; i < static_cast<size_t>(PrintEstimatedStatistics::ETimeMode::Count); ++i) {
                 const TimeMachine& machine = m_time_processor.machines[i];
@@ -3598,10 +3942,9 @@ void GCodeProcessor::post_process()
                         std::pair<int, int> to_export_main = { int(100.0f * it->elapsed_time / machine.time),
                                                                 time_in_minutes(machine.time - it->elapsed_time) };
                         if (last_exported_main[i] != to_export_main) {
-                            export_line += format_line_M73_main(machine.line_m73_main_mask.c_str(),
-                                to_export_main.first, to_export_main.second);
+                            export_lines.append_line(format_line_M73_main(machine.line_m73_main_mask.c_str(),
+                                to_export_main.first, to_export_main.second));
                             last_exported_main[i] = to_export_main;
-                            ++exported_lines_count;
                         }
                         // export remaining time to next printer stop
                         auto it_stop = std::upper_bound(machine.stop_times.begin(), machine.stop_times.end(), it->elapsed_time,
@@ -3611,9 +3954,8 @@ void GCodeProcessor::post_process()
                             if (last_exported_stop[i] != to_export_stop) {
                                 if (to_export_stop > 0) {
                                     if (last_exported_stop[i] != to_export_stop) {
-                                        export_line += format_line_M73_stop_int(machine.line_m73_stop_mask.c_str(), to_export_stop);
+                                        export_lines.append_line(format_line_M73_stop_int(machine.line_m73_stop_mask.c_str(), to_export_stop));
                                         last_exported_stop[i] = to_export_stop;
-                                        ++exported_lines_count;
                                     }
                                 }
                                 else {
@@ -3633,12 +3975,11 @@ void GCodeProcessor::post_process()
 
                                     if (is_last) {
                                         if (std::distance(machine.stop_times.begin(), it_stop) == static_cast<ptrdiff_t>(machine.stop_times.size() - 1))
-                                            export_line += format_line_M73_stop_int(machine.line_m73_stop_mask.c_str(), to_export_stop);
+                                            export_lines.append_line(format_line_M73_stop_int(machine.line_m73_stop_mask.c_str(), to_export_stop));
                                         else
-                                            export_line += format_line_M73_stop_float(machine.line_m73_stop_mask.c_str(), time_in_last_minute(it_stop->elapsed_time - it->elapsed_time));
+                                            export_lines.append_line(format_line_M73_stop_float(machine.line_m73_stop_mask.c_str(), time_in_last_minute(it_stop->elapsed_time - it->elapsed_time)));
 
                                         last_exported_stop[i] = to_export_stop;
-                                        ++exported_lines_count;
                                     }
                                 }
                             }
@@ -3647,28 +3988,62 @@ void GCodeProcessor::post_process()
                 }
             }
         }
-        return exported_lines_count;
     };
 
-    // helper function to write to disk
-    size_t out_file_pos = 0;
-    m_result.lines_ends.clear();
-    auto write_string = [this, &export_line, &out, &out_path, &out_file_pos](const std::string& str) {
-        fwrite((const void*)export_line.c_str(), 1, export_line.length(), out.f);
-        if (ferror(out.f)) {
-            out.close();
-            boost::nowide::remove(out_path.c_str());
-            throw Slic3r::RuntimeError(std::string("GCode processor post process export failed.\nIs the disk full?\n"));
+    // add lines XXX to exported gcode
+    auto process_line_T = [this, &export_lines](const std::string& gcode_line, const size_t g1_lines_counter, const ExportLines::Backtrace& backtrace) {
+        const std::string cmd = GCodeReader::GCodeLine::extract_cmd(gcode_line);
+        if (cmd.size() >= 2) {
+            std::stringstream ss(cmd.substr(1));
+            int tool_number = -1;
+            ss >> tool_number;
+            if (tool_number != -1) {
+                if (tool_number < 0 || (int)m_extruder_temps_config.size() <= tool_number) {
+                    // found an invalid value, clamp it to a valid one
+                    tool_number = std::clamp<int>(0, m_extruder_temps_config.size() - 1, tool_number);
+                    // emit warning
+                    std::string warning = _u8L("GCode Post-Processor encountered an invalid toolchange, maybe from a custom gcode:");
+                    warning += "\n> ";
+                    warning += gcode_line;
+                    warning += _u8L("Generated M104 lines may be incorrect.");
+                    BOOST_LOG_TRIVIAL(error) << warning;
+                    if (m_print != nullptr)
+                        m_print->active_step_add_warning(PrintStateBase::WarningLevel::CRITICAL, warning);
+                }
+            }
+            export_lines.insert_lines(backtrace, cmd,
+                // line inserter
+                [tool_number, this](unsigned int id, float time, float time_diff) {
+                    int temperature = int( m_layer_id != 1 ? m_extruder_temps_config[tool_number] : m_extruder_temps_first_layer_config[tool_number]);
+                    const std::string out = "M104 T" + std::to_string(tool_number) + " P" + std::to_string(int(std::round(time_diff))) + " S" + std::to_string(temperature) + "\n";
+                    return out;
+                },
+                // line replacer
+                [this, tool_number](const std::string& line) {
+                    if (GCodeReader::GCodeLine::cmd_is(line, "M104")) {
+                        GCodeReader::GCodeLine gline;
+                        GCodeReader reader;
+                        reader.parse_line(line, [&gline](GCodeReader& reader, const GCodeReader::GCodeLine& l) { gline = l; });
+
+                        float val;
+                        if (gline.has_value('T', val) && gline.raw().find("cooldown") != std::string::npos && m_is_XL_printer) {
+                            if (static_cast<int>(val) == tool_number)
+                                return std::string("; removed M104\n");
+                        }
+                    }
+                    return line;
+                });
         }
-        for (size_t i = 0; i < export_line.size(); ++i)
-            if (export_line[i] == '\n')
-                m_result.lines_ends.emplace_back(out_file_pos + i + 1);
-        out_file_pos += export_line.size();
-        export_line.clear();
     };
+
+    m_result.lines_ends.clear();
 
     unsigned int line_id = 0;
-    std::vector<std::pair<unsigned int, unsigned int>> offsets;
+    // Backtrace data for Tx gcode lines
+    static const ExportLines::Backtrace backtrace_T = { 120.0f, 10 };
+    // In case there are multiple sources of backtracing, keeps track of the longest backtrack time needed
+    // to flush the backtrace cache accordingly
+    float max_backtrace_time = 120.0f;
 
     {
         // Read the input stream 64kB at a time, extract lines and process them.
@@ -3692,24 +4067,29 @@ void GCodeProcessor::post_process()
                 gcode_line.insert(gcode_line.end(), it, it_end);
                 if (eol) {
                     ++line_id;
+                    export_lines.update(line_id, g1_lines_counter);
 
                     gcode_line += "\n";
                     // replace placeholder lines
-                    auto [processed, lines_added_count] = process_placeholders(gcode_line);
-                    if (processed && lines_added_count > 0)
-                        offsets.push_back({ line_id, lines_added_count });
+                    bool processed = process_placeholders(gcode_line);
+                    if (processed)
+                        gcode_line.clear();
                     if (!processed)
                         processed = process_used_filament(gcode_line);
-                    if (!processed && !is_temporary_decoration(gcode_line) && GCodeReader::GCodeLine::cmd_is(gcode_line, "G1")) {
-                        // remove temporary lines, add lines M73 where needed
-                        unsigned int extra_lines_count = process_line_G1(g1_lines_counter++);
-                        if (extra_lines_count > 0)
-                            offsets.push_back({ line_id, extra_lines_count });
+                    if (!processed && !is_temporary_decoration(gcode_line)) {
+                        if (GCodeReader::GCodeLine::cmd_is(gcode_line, "G1"))
+                            // add lines M73 where needed
+                            process_line_G1(g1_lines_counter++);
+                        else if (m_result.backtrace_enabled && GCodeReader::GCodeLine::cmd_starts_with(gcode_line, "T")) {
+                            // add lines XXX where needed
+                            process_line_T(gcode_line, g1_lines_counter, backtrace_T);
+                            max_backtrace_time = std::max(max_backtrace_time, backtrace_T.time);
+                        }
                     }
 
-                    export_line += gcode_line;
-                    if (export_line.length() > 65535)
-                        write_string(export_line);
+                    if (!gcode_line.empty())
+                        export_lines.append_line(gcode_line);
+                    export_lines.write(out, 1.1f * max_backtrace_time, m_result, out_path);
                     gcode_line.clear();
                 }
                 // Skip EOL.
@@ -3724,22 +4104,12 @@ void GCodeProcessor::post_process()
         }
     }
 
-    if (!export_line.empty())
-        write_string(export_line);
+    export_lines.flush(out, m_result, out_path);
 
     out.close();
     in.close();
 
-    // updates moves' gcode ids which have been modified by the insertion of the M73 lines
-    unsigned int curr_offset_id = 0;
-    unsigned int total_offset = 0;
-    for (GCodeProcessorResult::MoveVertex& move : m_result.moves) {
-        while (curr_offset_id < static_cast<unsigned int>(offsets.size()) && offsets[curr_offset_id].first <= move.gcode_id) {
-            total_offset += offsets[curr_offset_id].second;
-            ++curr_offset_id;
-        }
-        move.gcode_id += total_offset;
-    }
+    export_lines.synchronize_moves(m_result);
 
     if (rename_file(out_path, m_result.filename))
         throw Slic3r::RuntimeError(std::string("Failed to rename the output G-code file from ") + out_path + " to " + m_result.filename + '\n' +
@@ -3890,6 +4260,8 @@ void GCodeProcessor::set_travel_acceleration(PrintEstimatedStatistics::ETimeMode
 
 float GCodeProcessor::get_filament_load_time(size_t extruder_id)
 {
+    if (m_is_XL_printer)
+        return 4.5f; // FIXME
     return (m_time_processor.filament_load_times.empty() || m_time_processor.extruder_unloaded) ?
         0.0f :
         ((extruder_id < m_time_processor.filament_load_times.size()) ?
@@ -3898,6 +4270,8 @@ float GCodeProcessor::get_filament_load_time(size_t extruder_id)
 
 float GCodeProcessor::get_filament_unload_time(size_t extruder_id)
 {
+    if (m_is_XL_printer)
+        return 0.f; // FIXME
     return (m_time_processor.filament_unload_times.empty() || m_time_processor.extruder_unloaded) ?
         0.0f :
         ((extruder_id < m_time_processor.filament_unload_times.size()) ?

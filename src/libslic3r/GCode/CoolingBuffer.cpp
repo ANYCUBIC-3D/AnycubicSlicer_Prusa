@@ -789,10 +789,11 @@ std::string CoolingBuffer::apply_layer_cooldown(
             }
 #undef EXTRUDER_CONFIG
             bridge_fan_control = bridge_fan_speed > fan_speed_new;
-        } else {
+        } else { // fan disabled
             bridge_fan_control = false;
             bridge_fan_speed   = 0;
             fan_speed_new      = 0;
+            custom_fan_speed_limits.second = 0;
         }
         if (fan_speed_new != m_fan_speed) {
             m_fan_speed = fan_speed_new;

@@ -78,7 +78,9 @@ wxString	from_path(const boost::filesystem::path &path);
 boost::filesystem::path	into_path(const wxString &str);
 
 // Display an About dialog
-extern void about();
+extern void about(wxWindow *parent);
+// Display an Update dialog
+extern void update();
 // Ask the destop to open the datadir using the default file explorer.
 extern void desktop_open_datadir_folder();
 // Ask the destop to open the directory specified by path using the default file explorer.

@@ -1,10 +1,12 @@
-#ifndef _libslic3r_h_
+﻿#ifndef _libslic3r_h_
 #define _libslic3r_h_
 
 #include "libslic3r_version.h"
 #define GCODEVIEWER_APP_NAME "AnycubicSlicer G-code Viewer"
+#define GCODEVIEWER_APP_NAME_CN u8"纵维立方切片器 G-code 预览"
 #define GCODEVIEWER_APP_KEY  "AnycubicSlicerGcodeViewer"
-
+#define SLIC3R_APP_NAME_CN "纵维立方切片器"
+#define SLIC3R_BUILD_ID_CN "纵维立方切片器-" SLIC3R_VERSION
 // this needs to be included early for MSVC (listing it in Build.PL is not enough)
 #include <memory>
 #include <array>
@@ -67,6 +69,7 @@ static constexpr double EXTERNAL_INFILL_MARGIN = 3.;
 //FIXME Better to use an inline function with an explicit return type.
 //inline coord_t scale_(coordf_t v) { return coord_t(floor(v / SCALING_FACTOR + 0.5f)); }
 #define scale_(val) ((val) / SCALING_FACTOR)
+#define unscale_(val) ((val) * SCALING_FACTOR)
 
 #define SCALED_EPSILON scale_(EPSILON)
 
@@ -106,8 +109,8 @@ enum Axis {
 	NUM_AXES_WITH_UNKNOWN,
 };
 
-template <typename T>
-inline void append(std::vector<T>& dest, const std::vector<T>& src)
+template <typename T, typename Alloc, typename Alloc2>
+inline void append(std::vector<T, Alloc> &dest, const std::vector<T, Alloc2> &src)
 {
     if (dest.empty())
         dest = src; // copy
@@ -115,8 +118,8 @@ inline void append(std::vector<T>& dest, const std::vector<T>& src)
         dest.insert(dest.end(), src.begin(), src.end());
 }
 
-template <typename T>
-inline void append(std::vector<T>& dest, std::vector<T>&& src)
+template <typename T, typename Alloc>
+inline void append(std::vector<T, Alloc> &dest, std::vector<T, Alloc> &&src)
 {
     if (dest.empty())
         dest = std::move(src);

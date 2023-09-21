@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 
+#include <libslic3r/Polygon.hpp>
 #include <libslic3r/ExPolygon.hpp>
 #include <libslic3r/AABBMesh.hpp>
 
@@ -13,9 +14,6 @@
 #include <libslic3r/SLA/SupportTreeStrategies.hpp>
 
 namespace Slic3r {
-
-using Polygons = std::vector<Polygon>;
-using ExPolygons = std::vector<ExPolygon>;
 
 namespace sla {
 

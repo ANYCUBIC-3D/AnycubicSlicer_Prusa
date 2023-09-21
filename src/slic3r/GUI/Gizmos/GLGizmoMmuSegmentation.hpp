@@ -3,6 +3,8 @@
 
 #include "GLGizmoPainterBase.hpp"
 
+#include "slic3r/GUI/I18N.hpp"
+
 namespace Slic3r::GUI {
 
 class GLMmSegmentationGizmo3DScene
@@ -88,7 +90,7 @@ public:
 
     void render_painter_gizmo() override;
 
-    void data_changed() override;
+    void data_changed(bool is_serializing) override;
 
     void render_triangles(const Selection& selection) const override;
 
@@ -117,7 +119,7 @@ protected:
 
     std::string get_gizmo_entering_text() const override { return _u8L("Entering Multimaterial painting"); }
     std::string get_gizmo_leaving_text() const override { return _u8L("Leaving Multimaterial painting"); }
-    std::string get_action_snapshot_name() override { return _u8L("Multimaterial painting editing"); }
+    std::string get_action_snapshot_name() const override { return _u8L("Multimaterial painting editing"); }
 
     size_t                            m_first_selected_extruder_idx  = 0;
     size_t                            m_second_selected_extruder_idx = 1;

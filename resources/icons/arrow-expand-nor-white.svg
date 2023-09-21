@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="20" height="14" viewBox="0 0 20 14">
+  <defs>
+    <clipPath id="clip-arrow-expand-nor">
+      <rect width="20" height="14"/>
+    </clipPath>
+  </defs>
+  <g id="arrow-expand-nor" clip-path="url(#clip-arrow-expand-nor)">
+    <g id="icon-arrow">
+      <rect id="占位" width="20" height="14" fill="none" opacity="0.5"/>
+      <path id="路径_37" data-name="路径 37" d="M-764.91,812.769l5,5,5-5" transform="translate(770.41 -808.269)" fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4"/>
+    </g>
+  </g>
+</svg>

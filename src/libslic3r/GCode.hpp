@@ -158,6 +158,7 @@ public:
     // throws std::runtime_exception on error,
     // throws CanceledException through print->throw_if_canceled().
     void            do_export(Print* print, const char* path, GCodeProcessorResult* result = nullptr, ThumbnailsGeneratorCallback thumbnail_cb = nullptr);
+    void            do_export(Print *print, std::ostream &stream, GCodeProcessorResult *result = nullptr, ThumbnailsGeneratorCallback thumbnail_cb = nullptr);
 
     // Exported for the helper classes (OozePrevention, Wipe) and for the Perl binding for unit tests.
     const Vec2d&    origin() const { return m_origin; }
@@ -173,8 +174,8 @@ public:
     const Layer*    layer() const { return m_layer; }
     GCodeWriter&    writer() { return m_writer; }
     const GCodeWriter& writer() const { return m_writer; }
-    PlaceholderParser& placeholder_parser() { return m_placeholder_parser; }
-    const PlaceholderParser& placeholder_parser() const { return m_placeholder_parser; }
+    PlaceholderParser& placeholder_parser() { return m_placeholder_parser_integration.parser; }
+    const PlaceholderParser& placeholder_parser() const { return m_placeholder_parser_integration.parser; }
     // Process a template through the placeholder parser, collect error messages to be reported
     // inside the generated string and after the G-code export finishes.
     std::string     placeholder_parser_process(const std::string &name, const std::string &templ, unsigned int current_extruder_id, const DynamicConfig *config_override = nullptr);
@@ -187,6 +188,12 @@ public:
 
     // append full config to the given string
     static void append_full_config(const Print& print, std::string& str);
+
+    std::string     travel_to(const Point &point, ExtrusionRole role, std::string comment);
+    bool            needs_retraction(const Polyline &travel, ExtrusionRole role = ExtrusionRole::None);
+    std::string     retract(bool toolchange = false);
+    std::string     unretract() { return m_writer.unlift() + m_writer.unretract(); }
+    std::string     set_extruder(unsigned int extruder_id, double print_z);
 
     // Object and support extrusions of the same PrintObject at the same print_z.
     // public, so that it could be accessed by free helper functions from GCode.cpp
@@ -324,12 +331,6 @@ private:
 
     std::string     extrude_support(const ExtrusionEntityCollection &support_fills);
 
-    std::string     travel_to(const Point &point, ExtrusionRole role, std::string comment);
-    bool            needs_retraction(const Polyline &travel, ExtrusionRole role = ExtrusionRole::None);
-    std::string     retract(bool toolchange = false);
-    std::string     unretract() { return m_writer.unlift() + m_writer.unretract(); }
-    std::string     set_extruder(unsigned int extruder_id, double print_z);
-
     // Cache for custom seam enforcers/blockers for each layer.
     SeamPlacer                          m_seam_placer;
 
@@ -343,11 +344,37 @@ private:
     // scaled G-code resolution
     double                              m_scaled_resolution;
     GCodeWriter                         m_writer;
-    PlaceholderParser                   m_placeholder_parser;
-    // For random number generator etc.
-    PlaceholderParser::ContextData      m_placeholder_parser_context;
-    // Collection of templates, on which the placeholder substitution failed.
-    std::map<std::string, std::string>  m_placeholder_parser_failed_templates;
+
+    struct PlaceholderParserIntegration {
+        void reset();
+        void init(const GCodeWriter &config);
+        void update_from_gcodewriter(const GCodeWriter &writer);
+        void validate_output_vector_variables();
+
+        PlaceholderParser                   parser;
+        // For random number generator etc.
+        PlaceholderParser::ContextData      context;
+        // Collection of templates, on which the placeholder substitution failed.
+        std::map<std::string, std::string>  failed_templates;
+        // Input/output from/to custom G-code block, for returning position, retraction etc.
+        DynamicConfig                       output_config;
+        ConfigOptionFloats                 *opt_position { nullptr };
+        ConfigOptionFloat                  *opt_zhop { nullptr };
+        ConfigOptionFloats                 *opt_e_position { nullptr };
+        ConfigOptionFloats                 *opt_e_retracted { nullptr };
+        ConfigOptionFloats                 *opt_e_restart_extra { nullptr };
+        ConfigOptionFloats                 *opt_extruded_volume { nullptr };
+        ConfigOptionFloats                 *opt_extruded_weight { nullptr };
+        ConfigOptionFloat                  *opt_extruded_volume_total { nullptr };
+        ConfigOptionFloat                  *opt_extruded_weight_total { nullptr };
+        // Caches of the data passed to the script.
+        size_t                              num_extruders;
+        std::vector<double>                 position;
+        std::vector<double>                 e_position;
+        std::vector<double>                 e_retracted;
+        std::vector<double>                 e_restart_extra;
+    } m_placeholder_parser_integration;
+
     OozePrevention                      m_ooze_prevention;
     Wipe                                m_wipe;
     AvoidCrossingPerimeters             m_avoid_crossing_perimeters;
@@ -403,15 +430,15 @@ private:
     // Index of a last object copy extruded.
     std::pair<const PrintObject*, Point> m_last_obj_copy;
 
-    bool m_silent_time_estimator_enabled;
+    bool                                m_silent_time_estimator_enabled;
 
     // Processor
-    GCodeProcessor m_processor;
+    GCodeProcessor                      m_processor;
 
-    std::string _extrude(const ExtrusionPath &path, const std::string_view description, double speed = -1);
-    void print_machine_envelope(GCodeOutputStream &file, Print &print);
-    void _print_first_layer_bed_temperature(GCodeOutputStream &file, Print &print, const std::string &gcode, unsigned int first_printing_extruder_id, bool wait);
-    void _print_first_layer_extruder_temperatures(GCodeOutputStream &file, Print &print, const std::string &gcode, unsigned int first_printing_extruder_id, bool wait);
+    std::string                         _extrude(const ExtrusionPath &path, const std::string_view description, double speed = -1);
+    void                                print_machine_envelope(GCodeOutputStream &file, Print &print);
+    void                                _print_first_layer_bed_temperature(GCodeOutputStream &file, Print &print, const std::string &gcode, unsigned int first_printing_extruder_id, bool wait);
+    void                                _print_first_layer_extruder_temperatures(GCodeOutputStream &file, Print &print, const std::string &gcode, unsigned int first_printing_extruder_id, bool wait);
     // On the first printing layer. This flag triggers first layer speeds.
     bool                                on_first_layer() const { return m_layer != nullptr && m_layer->id() == 0; }
     // To control print speed of 1st object layer over raft interface.

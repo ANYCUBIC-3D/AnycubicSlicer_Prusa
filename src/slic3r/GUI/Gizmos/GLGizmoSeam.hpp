@@ -3,6 +3,8 @@
 
 #include "GLGizmoPainterBase.hpp"
 
+#include "slic3r/GUI/I18N.hpp"
+
 namespace Slic3r::GUI {
 
 class GLGizmoSeam : public GLGizmoPainterBase
@@ -22,7 +24,7 @@ protected:
 
     std::string get_gizmo_entering_text() const override { return _u8L("Entering Seam painting"); }
     std::string get_gizmo_leaving_text() const override { return _u8L("Leaving Seam painting"); }
-    std::string get_action_snapshot_name() override { return _u8L("Paint-on seam editing"); }
+    std::string get_action_snapshot_name() const override { return _u8L("Paint-on seam editing"); }
 
 private:
     bool on_init() override;

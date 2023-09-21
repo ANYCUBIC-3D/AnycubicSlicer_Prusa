@@ -26,6 +26,8 @@
 #include <boost/nowide/cstdio.hpp>
 #include <boost/predef/other/endian.h>
 
+#include <tbb/concurrent_vector.h>
+
 #include <Eigen/Core>
 #include <Eigen/Dense>
 
@@ -206,6 +208,39 @@ bool TriangleMesh::ReadSTLFile(const char* input_file, bool repair)
 
     stl_generate_shared_vertices(&stl, this->its);
     return true;
+}
+
+bool TriangleMesh::ReadSTLStream(std::istream &stream, bool repair) {
+  stl_file stl;
+  if (!stl_open(&stl, stream))
+    return false;
+  if (repair)
+    trianglemesh_repair_on_import(stl);
+
+  m_stats.number_of_facets = stl.stats.number_of_facets;
+  m_stats.min = stl.stats.min;
+  m_stats.max = stl.stats.max;
+  m_stats.size = stl.stats.size;
+  m_stats.volume = stl.stats.volume;
+
+  auto facets_w_1_bad_edge =
+      stl.stats.connected_facets_2_edge - stl.stats.connected_facets_3_edge;
+  auto facets_w_2_bad_edge =
+      stl.stats.connected_facets_1_edge - stl.stats.connected_facets_2_edge;
+  auto facets_w_3_bad_edge =
+      stl.stats.number_of_facets - stl.stats.connected_facets_1_edge;
+  m_stats.open_edges = stl.stats.backwards_edges + facets_w_1_bad_edge +
+                       facets_w_2_bad_edge * 2 + facets_w_3_bad_edge * 3;
+
+  m_stats.repaired_errors = {stl.stats.edges_fixed, stl.stats.degenerate_facets,
+                             stl.stats.facets_removed,
+                             stl.stats.facets_reversed,
+                             stl.stats.backwards_edges};
+
+  m_stats.number_of_parts = stl.stats.number_of_parts;
+
+  stl_generate_shared_vertices(&stl, this->its);
+  return true;
 }
 
 bool TriangleMesh::write_ascii(const char* output_file)
@@ -871,11 +906,38 @@ void its_collect_mesh_projection_points_above(const indexed_triangle_set &its, c
 }
 
 template<typename TransformVertex>
-Polygon its_convex_hull_2d_above(const indexed_triangle_set &its, const TransformVertex &transform_fn, const float z)
+Polygon its_convex_hull_2d_above(const indexed_triangle_set& its, const TransformVertex& transform_fn, const float z)
 {
-    Points all_pts;
-    its_collect_mesh_projection_points_above(its, transform_fn, z, all_pts);
-    return Geometry::convex_hull(std::move(all_pts));
+    auto collect_mesh_projection_points_above = [&](const tbb::blocked_range<size_t>& range) {
+        Points pts;
+        pts.reserve(range.size() * 4); // there can be up to 4 vertices per triangle
+        for (size_t i = range.begin(); i < range.end(); ++i) {
+            const stl_triangle_vertex_indices& tri = its.indices[i];
+            const Vec3f tri_pts[3] = { transform_fn(its.vertices[tri(0)]), transform_fn(its.vertices[tri(1)]), transform_fn(its.vertices[tri(2)]) };
+            int iprev = 2;
+            for (int iedge = 0; iedge < 3; ++iedge) {
+                const Vec3f& p1 = tri_pts[iprev];
+                const Vec3f& p2 = tri_pts[iedge];
+                if ((p1.z() < z && p2.z() > z) || (p2.z() < z && p1.z() > z)) {
+                    // Edge crosses the z plane. Calculate intersection point with the plane.
+                    const float t = (z - p1.z()) / (p2.z() - p1.z());
+                    pts.emplace_back(scaled<coord_t>(p1.x() + (p2.x() - p1.x()) * t), scaled<coord_t>(p1.y() + (p2.y() - p1.y()) * t));
+                }
+                if (p2.z() >= z)
+                    pts.emplace_back(scaled<coord_t>(p2.x()), scaled<coord_t>(p2.y()));
+                iprev = iedge;
+            }
+        }
+        return Geometry::convex_hull(std::move(pts));
+    };
+
+    tbb::concurrent_vector<Polygon> chs;
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, its.indices.size()), [&](const tbb::blocked_range<size_t>& range) {
+        chs.push_back(collect_mesh_projection_points_above(range));
+    });
+
+    const Polygons polygons(std::make_move_iterator(chs.begin()), std::make_move_iterator(chs.end()));
+    return Geometry::convex_hull(polygons);
 }
 
 Polygon its_convex_hull_2d_above(const indexed_triangle_set &its, const Matrix3f &m, const float z)
@@ -949,6 +1011,51 @@ indexed_triangle_set its_make_cylinder(double r, double h, double fa)
         p = Eigen::Rotation2Df(angle_step * i) * Eigen::Vector2f(0, float(r));
         vertices.emplace_back(Vec3f(p(0), p(1), 0.f));
         vertices.emplace_back(Vec3f(p(0), p(1), float(h)));
+        int id = (int)vertices.size() - 1;
+        facets.emplace_back( 0, id - 1, id - 3); // top
+        facets.emplace_back(id,      1, id - 2); // bottom
+        facets.emplace_back(id, id - 2, id - 3); // upper-right of side
+        facets.emplace_back(id, id - 3, id - 1); // bottom-left of side
+    }
+    // Connect the last set of vertices with the first.
+    int id = (int)vertices.size() - 1;
+    facets.emplace_back( 0, 2, id - 1);
+    facets.emplace_back( 3, 1,     id);
+    facets.emplace_back(id, 2,      3);
+    facets.emplace_back(id, id - 1, 2);
+
+    return mesh;
+}
+
+indexed_triangle_set its_make_frustum(double r, double h, double fa)
+{
+    indexed_triangle_set mesh;
+    size_t n_steps    = (size_t)ceil(2. * PI / fa);
+    double angle_step = 2. * PI / n_steps;
+
+    auto &vertices = mesh.vertices;
+    auto &facets   = mesh.indices;
+    vertices.reserve(2 * n_steps + 2);
+    facets.reserve(4 * n_steps);
+
+    // 2 special vertices, top and bottom center, rest are relative to this
+    vertices.emplace_back(Vec3f(0.f, 0.f, 0.f));
+    vertices.emplace_back(Vec3f(0.f, 0.f, float(h)));
+
+    // for each line along the polygon approximating the top/bottom of the
+    // circle, generate four points and four facets (2 for the wall, 2 for the
+    // top and bottom.
+    // Special case: Last line shares 2 vertices with the first line.
+    Vec2f vec_top = Eigen::Rotation2Df(0.f) * Eigen::Vector2f(0, 0.5f*r);
+    Vec2f vec_botton = Eigen::Rotation2Df(0.f) * Eigen::Vector2f(0, r);
+
+    vertices.emplace_back(Vec3f(vec_botton(0), vec_botton(1), 0.f));
+    vertices.emplace_back(Vec3f(vec_top(0), vec_top(1), float(h)));
+    for (size_t i = 1; i < n_steps; ++i) {
+        vec_top = Eigen::Rotation2Df(angle_step * i) * Eigen::Vector2f(0, 0.5f*float(r));
+        vec_botton = Eigen::Rotation2Df(angle_step * i) * Eigen::Vector2f(0, float(r));
+        vertices.emplace_back(Vec3f(vec_botton(0), vec_botton(1), 0.f));
+        vertices.emplace_back(Vec3f(vec_top(0), vec_top(1), float(h)));
         int id = (int)vertices.size() - 1;
         facets.emplace_back( 0, id - 1, id - 3); // top
         facets.emplace_back(id,      1, id - 2); // bottom
@@ -1069,7 +1176,7 @@ indexed_triangle_set its_make_sphere(double radius, double fa)
         std::vector<std::array<DividedEdge, 3>> divided_triangles(indices.size());
         std::vector<Vec3i> new_neighbors(4*indices.size());
 
-        size_t orig_indices_size = indices.size();
+        int orig_indices_size = int(indices.size());
         for (int i=0; i<orig_indices_size; ++i) { // iterate over all old triangles
 
             // We are going to split this triangle. Let's foresee what will be the indices

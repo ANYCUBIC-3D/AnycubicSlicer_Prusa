@@ -44,6 +44,12 @@ set(SLIC3R_GTK "2" CACHE STRING "GTK version to use with wxWidgets on Linux")
 
 set(IS_CROSS_COMPILE FALSE)
 
+#foreach(DIR ${CMAKE_PREFIX_PATH})
+#    INCLUDE_DIRECTORIES(${DIR}/include)
+#    LINK_DIRECTORIES(${DIR}/lib)
+#endforeach(DIR)
+
+
 if (SLIC3R_STATIC)
     # Prefer config scripts over find modules. This is helpful when building with
     # the static dependencies. Many libraries have their own export scripts
@@ -286,7 +292,7 @@ if (SLIC3R_ASAN)
 endif ()
 
 if (SLIC3R_UBSAN)
-    # Stacktrace for every report is enabled by default. It can be disabled by running Anycubic Slicer with "UBSAN_OPTIONS=print_stacktrace=0".
+    # Stacktrace for every report is enabled by default. It can be disabled by running AnycubicSlicer with "UBSAN_OPTIONS=print_stacktrace=0".
 
     # Define macro SLIC3R_UBSAN to allow detection in the source code if this sanitizer is enabled.
     add_compile_definitions(SLIC3R_UBSAN)
@@ -329,7 +335,7 @@ if(WIN32)
     if(MSVC)
         # BOOST_ALL_NO_LIB: Avoid the automatic linking of Boost libraries on Windows. Rather rely on explicit linking.
         add_definitions(-DBOOST_ALL_NO_LIB -DBOOST_USE_WINAPI_VERSION=0x601 -DBOOST_SYSTEM_USE_UTF8 )
-        # Force the source code encoding to UTF-8. See Anycubic Slicer GH pull request #5583
+        # Force the source code encoding to UTF-8. See AnycubicSlicer GH pull request #5583
         add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
         add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
     endif(MSVC)
@@ -409,6 +415,7 @@ endif()
 set(TBB_DEBUG 1)
 find_package(TBB REQUIRED)
 slic3r_remap_configs(TBB::tbb RelWithDebInfo Release)
+slic3r_remap_configs(TBB::tbbmalloc RelWithDebInfo Release)
 # include_directories(${TBB_INCLUDE_DIRS})
 # add_definitions(${TBB_DEFINITIONS})
 # if(MSVC)
@@ -417,7 +424,7 @@ slic3r_remap_configs(TBB::tbb RelWithDebInfo Release)
 # endif()
 # The Intel TBB library will use the std::exception_ptr feature of C++11.
 # add_definitions(-DTBB_USE_CAPTURED_EXCEPTION=0)
-
+if(SLIC3R_GUI)
 find_package(CURL REQUIRED)
 
 add_library(libcurl INTERFACE)
@@ -431,7 +438,7 @@ if (NOT WIN32)
 else()
     target_link_libraries(libcurl INTERFACE crypt32)
 endif()
-
+endif(SLIC3R_GUI)
 ## OPTIONAL packages
 
 # Find eigen3 or use bundled version
@@ -468,9 +475,9 @@ if (SLIC3R_STATIC AND NOT SLIC3R_STATIC_EXCLUDE_GLEW)
     set(GLEW_USE_STATIC_LIBS ON)
     set(GLEW_VERBOSE ON)
 endif()
-
+if(SLIC3R_GUI)
 find_package(GLEW REQUIRED)
-
+endif(SLIC3R_GUI)
 # Find the Cereal serialization library
 find_package(cereal REQUIRED)
 add_library(libcereal INTERFACE)
@@ -523,7 +530,7 @@ foreach(po_file ${L10N_PO_FILES})
     GET_FILENAME_COMPONENT(po_dir "${po_file}" DIRECTORY)
     GET_FILENAME_COMPONENT(po_dir_name "${po_dir}" NAME)
     SET(wx_po_file "${L10N_DIR}/wx_locale/${po_dir_name}.po")
-    #SET(po_new_file "${po_dir}/Anycubic Slicer_.po")
+    #SET(po_new_file "${po_dir}/AnycubicSlicer_.po")
     add_custom_command(
         TARGET gettext_concat_wx_po_with_po PRE_BUILD
         COMMAND msgcat --use-first -o ${po_file} ${po_file} ${wx_po_file}
@@ -550,6 +557,7 @@ foreach(po_file ${L10N_PO_FILES})
 endforeach()
 
 find_package(NLopt 1.4 REQUIRED)
+slic3r_remap_configs(NLopt::nlopt RelWithDebInfo Release)
 
 if(SLIC3R_STATIC)
     set(OPENVDB_USE_STATIC_LIBS ON)
@@ -599,7 +607,7 @@ function(prusaslicer_copy_dlls target)
 endfunction()
 
 
-# libslic3r, PrusaSlicer GUI and the Anycubic Slicer executable.
+# libslic3r, PrusaSlicer GUI and the AnycubicSlicer executable.
 add_subdirectory(src)
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT AnycubicSlicer_app_console)
 
@@ -641,10 +649,11 @@ elseif (SLIC3R_FHS)
         )
     endforeach()
     install(DIRECTORY ${SLIC3R_RESOURCES_DIR}/udev/ DESTINATION lib/udev/rules.d)
-else ()
+elseif (SLIC3R_GUI)
     install(FILES src/platform/unix/AnycubicSlicer.desktop DESTINATION ${CMAKE_INSTALL_PREFIX}/resources/applications)
     install(FILES src/platform/unix/AnycubicSlicerGcodeviewer.desktop DESTINATION ${CMAKE_INSTALL_PREFIX}/resources/applications)
     install(DIRECTORY "${SLIC3R_RESOURCES_DIR}/" DESTINATION "${CMAKE_INSTALL_PREFIX}/resources")
+else()
 endif ()
 
 configure_file(${LIBDIR}/platform/unix/fhs.hpp.in ${LIBDIR_BIN}/platform/unix/fhs.hpp)

@@ -53,12 +53,6 @@ public:
     // Factory method to create an archiver instance
     static std::unique_ptr<SLAArchiveWriter> create(
         const std::string &archtype, const SLAPrinterConfig &);
-
-    // Get the names of currently known archiver implementations
-    static const std::vector<const char *> & registered_archives();
-
-    // Get the default file extension belonging to an archive format
-    static const char *get_extension(const char *archtype);
 };
 
 } // namespace Slic3r

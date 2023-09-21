@@ -3,6 +3,7 @@
 #include "Exception.hpp"
 #include "Preset.hpp"
 #include "AppConfig.hpp"
+#include "I18N.hpp"
 
 #ifdef _MSC_VER
     #define WIN32_LEAN_AND_MEAN
@@ -10,15 +11,6 @@
     #include <Windows.h>
 #endif /* _MSC_VER */
 
-// instead of #include "slic3r/GUI/I18N.hpp" :
-#ifndef L
-// !!! If you needed to translate some string,
-// !!! please use _L(string)
-// !!! _() - is a standard wxWidgets macro to translate
-// !!! L() is used only for marking localizable string
-// !!! It will be used in "xgettext" to create a Locating Message Catalog.
-#define L(s) s
-#endif /* L */
 
 #include <algorithm>
 #include <fstream>
@@ -411,8 +403,10 @@ void Preset::set_visible_from_appconfig(const AppConfig &app_config)
         is_visible = app_config.get_variant(vendor->id, model, variant);
     } else if (type == TYPE_FILAMENT || type == TYPE_SLA_MATERIAL) {
     	const std::string &section_name = (type == TYPE_FILAMENT) ? AppConfig::SECTION_FILAMENTS : AppConfig::SECTION_MATERIALS;
-    	if (app_config.has_section(section_name)) {
-    		// Check whether this profile is marked as "installed" in Anycubic Slicer.ini,
+        if (type == TYPE_FILAMENT && app_config.get_bool("no_templates") && vendor && vendor->templates_profile)
+            is_visible = false;
+    	else if (app_config.has_section(section_name)) {
+    		// Check whether this profile is marked as "installed" in PrusaSlicer.ini,
     		// or whether a profile is marked as "installed", which this profile may have been renamed from.
 	    	const std::map<std::string, std::string> &installed = app_config.get_section(section_name);
 	    	auto has = [&installed](const std::string &name) {
@@ -433,7 +427,7 @@ static std::vector<std::string> s_Preset_print_options {
     "top_solid_layers", "top_solid_min_thickness", "bottom_solid_layers", "bottom_solid_min_thickness",
     "extra_perimeters", "extra_perimeters_on_overhangs", "avoid_crossing_curled_overhangs", "avoid_crossing_perimeters", "thin_walls", "overhangs",
     "seam_position","staggered_inner_seams", "external_perimeters_first", "fill_density", "fill_pattern", "top_fill_pattern", "bottom_fill_pattern",
-    "infill_every_layers", "infill_only_where_needed", "solid_infill_every_layers", "fill_angle", "bridge_angle",
+    "infill_every_layers", /*"infill_only_where_needed",*/ "solid_infill_every_layers", "fill_angle", "bridge_angle",
     "solid_infill_below_area", "only_retract_when_crossing_perimeters", "infill_first",
     "ironing", "ironing_type", "ironing_flowrate", "ironing_speed", "ironing_spacing",
     "max_print_speed", "max_volumetric_speed", "avoid_crossing_perimeters_max_detour",
@@ -443,7 +437,7 @@ static std::vector<std::string> s_Preset_print_options {
     "enable_dynamic_overhang_speeds", "overhang_speed_0", "overhang_speed_1", "overhang_speed_2", "overhang_speed_3",
     "top_solid_infill_speed", "support_material_speed", "support_material_xy_spacing", "support_material_interface_speed",
     "bridge_speed", "gap_fill_speed", "gap_fill_enabled", "travel_speed", "travel_speed_z", "first_layer_speed", "first_layer_speed_over_raft", "perimeter_acceleration", "infill_acceleration",
-    "external_perimeter_acceleration", "top_solid_infill_acceleration", "solid_infill_acceleration",
+    "external_perimeter_acceleration", "top_solid_infill_acceleration", "solid_infill_acceleration", "travel_acceleration",
     "bridge_acceleration", "first_layer_acceleration", "first_layer_acceleration_over_raft", "default_acceleration", "skirts", "skirt_distance", "skirt_height", "draft_shield",
     "min_skirt_length", "brim_width", "brim_separation", "brim_type", "support_material", "support_material_auto", "support_material_threshold", "support_material_enforce_layers",
     "raft_layers", "raft_first_layer_density", "raft_first_layer_expansion", "raft_contact_distance", "raft_expansion",
@@ -452,7 +446,8 @@ static std::vector<std::string> s_Preset_print_options {
     "support_material_interface_pattern", "support_material_interface_spacing", "support_material_interface_contact_loops", 
     "support_material_contact_distance", "support_material_bottom_contact_distance",
     "support_material_buildplate_only", 
-    "support_tree_angle", "support_tree_angle_slow", "support_tree_branch_diameter", "support_tree_branch_diameter_angle", "support_tree_top_rate", "support_tree_tip_diameter",
+    "support_tree_angle", "support_tree_angle_slow", "support_tree_branch_diameter", "support_tree_branch_diameter_angle", "support_tree_branch_diameter_double_wall",
+    "support_tree_top_rate", "support_tree_branch_distance", "support_tree_tip_diameter",
     "dont_support_bridges", "thick_bridges", "notes", "complete_objects", "extruder_clearance_radius",
     "extruder_clearance_height", "gcode_comments", "gcode_label_objects", "output_filename_format", "post_process", "post_process_enable", "gcode_substitutions", "perimeter_extruder",
     "infill_extruder", "solid_infill_extruder", "support_material_extruder", "support_material_interface_extruder",
@@ -460,8 +455,8 @@ static std::vector<std::string> s_Preset_print_options {
     "perimeter_extrusion_width", "external_perimeter_extrusion_width", "infill_extrusion_width", "solid_infill_extrusion_width",
     "top_infill_extrusion_width", "support_material_extrusion_width", "infill_overlap","infill_anchor", "infill_anchor_max","bridge_flow_ratio",
     "elefant_foot_compensation", "xy_size_compensation", "threads", "resolution", "gcode_resolution", "wipe_tower", "wipe_tower_x", "wipe_tower_y",
-    "wipe_tower_width", "wipe_tower_rotation_angle", "wipe_tower_brim_width", "wipe_tower_bridging", "single_extruder_multi_material_priming", "mmu_segmented_region_max_width",
-    "wipe_tower_no_sparse_layers", "compatible_printers", "compatible_printers_condition", "inherits",
+    "wipe_tower_width", "wipe_tower_cone_angle", "wipe_tower_rotation_angle", "wipe_tower_brim_width", "wipe_tower_bridging", "single_extruder_multi_material_priming", "mmu_segmented_region_max_width",
+    "wipe_tower_extruder", "wipe_tower_no_sparse_layers", "wipe_tower_extra_spacing", "compatible_printers", "compatible_printers_condition", "inherits",
     "perimeter_generator", "wall_transition_length", "wall_transition_filter_deviation", "wall_transition_angle",
     "wall_distribution_count", "min_feature_size", "min_bead_width"
 };
@@ -479,7 +474,7 @@ static std::vector<std::string> s_Preset_filament_options {
     "filament_retract_length", "filament_retract_lift", "filament_retract_lift_above", "filament_retract_lift_below", "filament_retract_speed", "filament_deretract_speed", "filament_retract_restart_extra", "filament_retract_before_travel",
     "filament_retract_layer_change", "filament_wipe", "filament_retract_before_wipe",
     // Profile compatibility
-    "filament_vendor", "compatible_prints", "compatible_prints_condition", "compatible_printers", "compatible_printers_condition", "inherits"
+    "filament_vendor", "compatible_prints", "compatible_prints_condition", "compatible_printers", "compatible_printers_condition", "inherits","enable_pressure_advance","pressure_advance"
 };
 
 static std::vector<std::string> s_Preset_machine_limits_options {
@@ -491,7 +486,7 @@ static std::vector<std::string> s_Preset_machine_limits_options {
 };
 
 static std::vector<std::string> s_Preset_printer_options {
-    "printer_technology",
+    "printer_technology", "autoemit_temperature_commands",
     "bed_shape", "bed_custom_texture", "bed_custom_model", "z_offset", "gcode_flavor", "use_relative_e_distances",
     "use_firmware_retraction", "use_volumetric_e", "variable_layer_height",
     //FIXME the print host keys are left here just for conversion from the Printer preset to Physical Printer preset.
@@ -903,8 +898,9 @@ Preset& PresetCollection::load_preset(const std::string &path, const std::string
     return preset;
 }
 
-void PresetCollection::save_current_preset(const std::string &new_name, bool detach)
+bool PresetCollection::save_current_preset(const std::string &new_name, bool detach)
 {
+    bool is_saved_as_new{ false };
     // 1) Find the preset with a new_name or create a new one,
     // initialize it with the edited config.
     auto it = this->find_preset_internal(new_name);
@@ -913,7 +909,7 @@ void PresetCollection::save_current_preset(const std::string &new_name, bool det
         Preset &preset = *it;
         if (preset.is_default || preset.is_external || preset.is_system)
             // Cannot overwrite the default preset.
-            return;
+            return false;
         // Overwriting an existing preset.
         preset.config = std::move(m_edited_preset.config);
         // The newly saved preset will be activated -> make it visible.
@@ -926,6 +922,7 @@ void PresetCollection::save_current_preset(const std::string &new_name, bool det
 			preset.renamed_from.clear();
         }
     } else {
+        is_saved_as_new = true;
         // Creating a new preset.
         Preset       &preset   = *m_presets.insert(it, m_edited_preset);
         std::string  &inherits = preset.inherits();
@@ -960,6 +957,8 @@ void PresetCollection::save_current_preset(const std::string &new_name, bool det
     this->select_preset_by_name(new_name, true);
     // 2) Store the active preset to disk.
     this->get_selected_preset().save();
+
+    return is_saved_as_new;
 }
 
 Preset& PresetCollection::get_preset_with_name(const std::string& new_name, const Preset* initial_preset)
@@ -1219,7 +1218,13 @@ size_t PresetCollection::update_compatible_internal(const PresetWithVendorProfil
         if (selected)
             preset_selected.is_compatible = preset_edited.is_compatible;
         if (preset_edited.vendor && preset_edited.vendor->templates_profile) {
-            indices_of_template_presets.push_back(idx_preset);
+            if (preset_selected.is_visible)
+                indices_of_template_presets.push_back(idx_preset);
+            else {
+                preset_selected.is_compatible = false;
+                if (selected)
+                    m_idx_selected = size_t(-1);
+            }
         }
     }
     // filter out template profiles where profile with same alias and compability exists
@@ -2099,13 +2104,143 @@ bool PhysicalPrinterCollection::is_selected(PhysicalPrinterCollection::ConstIter
             m_selected_preset   == preset_name;
 }
 
+ExtruderFilaments::ExtruderFilaments(PresetCollection* filaments_collection, size_t extruder_id, std::string selected_name/* = std::string()*/)
+: m_filaments (filaments_collection)
+, m_extruder_id(extruder_id)
+{
+    const std::deque<Preset>& presets = m_filaments->get_presets();
+    for (size_t id = 0; id < presets.size(); id ++)
+        m_extr_filaments.emplace_back(&(presets[id]));
+
+    select_filament(selected_name.empty() ? m_filaments->get_selected_preset_name() : selected_name);
+}
+
+const std::string& ExtruderFilaments::get_preset_name_by_alias(const std::string& alias) const
+{
+    const auto& aliases_map = m_filaments->map_alias_to_profile_name();
+    for (
+        // Find the 1st profile name with the alias.
+        auto it = Slic3r::lower_bound_by_predicate(aliases_map.begin(), aliases_map.end(), [&alias](auto& l) { return l.first < alias; });
+        // Continue over all profile names with the same alias.
+        it != aliases_map.end() && it->first == alias; ++it)
+        if (auto it_filament = find_filament_internal(it->second);
+            it_filament != m_extr_filaments.end() && it_filament->preset->name == it->second &&
+            it_filament->preset->is_visible && (it_filament->is_compatible || size_t(it_filament - m_extr_filaments.begin()) == m_idx_selected))
+            return it_filament->preset->name;
+    return alias;
+}
+
+bool ExtruderFilaments::select_filament(const std::string &name_w_suffix, bool force/*= false*/)
+{
+    std::string name = Preset::remove_suffix_modified(name_w_suffix);
+    // 1) Try to find the preset by its name.
+    auto it = this->find_filament_internal(name);
+    size_t idx = 0;
+    if (it != m_extr_filaments.end() && it->preset->name == name && it->preset->is_visible)
+        // Preset found by its name and it is visible.
+        idx = it - m_extr_filaments.begin();
+    else {
+        // Find the first visible preset.
+        for (size_t i = 0; i < m_extr_filaments.size(); ++i)
+            if (m_extr_filaments[i].preset->is_visible/* && m_extr_filaments[i].is_compatible*/) {
+                idx = i;
+                break;
+            }
+        // If the first visible preset was not found, return the 0th element, which is the default preset.
+    }
+    // 2) Select the new preset.
+    if (m_idx_selected != idx || force) {
+        this->select_filament(idx);
+        return true;
+    }
+
+    return false;
+}
+
+size_t ExtruderFilaments::update_compatible_internal(const PresetWithVendorProfile  &active_printer,
+                                                     const PresetWithVendorProfile  *active_print,
+                                                     PresetSelectCompatibleType      unselect_if_incompatible)
+{
+    DynamicPrintConfig config;
+    config.set_key_value("printer_preset", new ConfigOptionString(active_printer.preset.name));
+    const ConfigOption* opt = active_printer.preset.config.option("nozzle_diameter");
+    if (opt)
+        config.set_key_value("num_extruders", new ConfigOptionInt((int)static_cast<const ConfigOptionFloats*>(opt)->values.size()));
+    bool some_compatible = false;
+
+    // Adjust printer preset config to the first extruder from m_extruder_id
+    Preset printer_preset_adjusted = active_printer.preset;
+    if (m_extruder_id > 0 && !printer_preset_adjusted.config.opt_bool("single_extruder_multi_material")) {
+        DynamicPrintConfig& active_printer_config = printer_preset_adjusted.config;
+        for (const std::string& key : print_config_def.extruder_option_keys()) {
+            if (key == "default_filament_profile")
+                continue;// Ignore this field, because this parameter is not related to the extruder but to whole printer.
+            auto* opt = active_printer_config.option(key, false);
+            if (opt != nullptr && opt->is_vector())
+                static_cast<ConfigOptionVectorBase*>(opt)->set_at(opt, 0, m_extruder_id);
+        }
+    }
+    PresetWithVendorProfile active_printer_adjusted(printer_preset_adjusted, active_printer.vendor);
+
+    std::vector<size_t> indices_of_template_presets;
+    indices_of_template_presets.reserve(m_extr_filaments.size());
+
+    size_t num_default_presets = m_filaments->num_default_presets();
+    for (size_t idx_preset = num_default_presets; idx_preset < m_extr_filaments.size(); ++idx_preset) {
+        const bool    is_selected   = idx_preset == m_idx_selected;
+        const Preset* preset        = m_extr_filaments[idx_preset].preset;
+        Filament& extr_filament = m_extr_filaments[idx_preset];
+
+        const PresetWithVendorProfile this_preset_with_vendor_profile = m_filaments->get_preset_with_vendor_profile(*preset);
+        bool    was_compatible = extr_filament.is_compatible;
+        extr_filament.is_compatible = is_compatible_with_printer(this_preset_with_vendor_profile, active_printer_adjusted, &config);
+        some_compatible |= extr_filament.is_compatible;
+        if (active_print != nullptr)
+            extr_filament.is_compatible &= is_compatible_with_print(this_preset_with_vendor_profile, *active_print, active_printer_adjusted);
+        if (!extr_filament.is_compatible && is_selected &&
+            (unselect_if_incompatible == PresetSelectCompatibleType::Always || (unselect_if_incompatible == PresetSelectCompatibleType::OnlyIfWasCompatible && was_compatible)))
+            m_idx_selected = size_t(-1);
+        if (preset->vendor && preset->vendor->templates_profile) {
+            if (preset->is_visible)
+                indices_of_template_presets.push_back(idx_preset);
+            else {
+                extr_filament.is_compatible = false;
+                if (is_selected)
+                    m_idx_selected = size_t(-1);
+            }
+        }
+    }
+
+    // filter out template profiles where profile with same alias and compability exists
+    if (!indices_of_template_presets.empty()) {
+        for (size_t idx = num_default_presets; idx < m_extr_filaments.size(); ++idx) {
+            const Filament& filament    = m_extr_filaments[idx];
+            const VendorProfile*    vendor      = filament.preset->vendor;
+            if (vendor && !vendor->templates_profile && filament.is_compatible) {
+                const std::string& preset_alias = filament.preset->alias;
+                for (const auto& template_idx : indices_of_template_presets) {
+                    if (m_extr_filaments[template_idx].preset->alias == preset_alias) {
+                        m_extr_filaments[template_idx].is_compatible = false;
+                        // unselect selected template filament if there is non-template alias compatible
+                        if (template_idx == m_idx_selected && (unselect_if_incompatible != PresetSelectCompatibleType::Never))
+                            m_idx_selected = size_t(-1);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    return m_idx_selected;
+}
+
 
 namespace PresetUtils {
 	const VendorProfile::PrinterModel* system_printer_model(const Preset &preset)
 	{
 		const VendorProfile::PrinterModel *out = nullptr;
 		if (preset.vendor != nullptr) {
-			auto *printer_model = preset.config.opt<ConfigOptionString>("printer_model");
+			const auto *printer_model = preset.config.opt<ConfigOptionString>("printer_model");
 			if (printer_model != nullptr && ! printer_model->value.empty()) {
 				auto it = std::find_if(preset.vendor->models.begin(), preset.vendor->models.end(), [printer_model](const VendorProfile::PrinterModel &pm) { return pm.id == printer_model->value; });
 				if (it != preset.vendor->models.end())

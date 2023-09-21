@@ -12,12 +12,14 @@
 //#include <wx/glcanvas.h>
 #include <wx/filename.h>
 #include <wx/debug.h>
+#include <wx/glcanvas.h>
 
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/log/trivial.hpp>
 
 #include "libslic3r/Print.hpp"
+#include "libslic3r/Preset.hpp"
 #include "libslic3r/Polygon.hpp"
 #include "libslic3r/SLAPrint.hpp"
 #include "libslic3r/PresetBundle.hpp"
@@ -45,13 +47,17 @@
 #include "MsgDialog.hpp"
 #include "Notebook.hpp"
 #include "GUI_Factories.hpp"
-#include "GUI_ObjectList.hpp"
 #include "GalleryDialog.hpp"
 #include "NotificationManager.hpp"
 #include "ACPreferences.hpp"
-
 #include "wx/graphics.h"
 
+#include <wx/txtstrm.h>
+
+#include "ACWebDialog.hpp"
+#include "Cloud/ACCloudSelectMachine.hpp"
+#include "Cloud/ACCloudLogin.hpp"
+#include "Cloud/ACCloudManger.hpp"
 
 #ifdef _WIN32
 #include <dbt.h>
@@ -75,7 +81,7 @@ public:
     wxMenu *CreatePopupMenu() override {
         wxMenu *menu = new wxMenu;
         if(wxGetApp().app_config->get("single_instance") == "0") {
-            // Only allow opening a new Anycubic Slicer instance on OSX if "single_instance" is disabled, 
+            // Only allow opening a new Anycubic Slicer instance on OSX if "single_instance" is disabled,
             // as starting new instances would interfere with the locking mechanism of "single_instance" support.
             append_menu_item(menu, wxID_ANY, _L("Open new instance"), _L("Open a new AnycubicSlicer instance"),
             [](wxCommandEvent&) { start_new_slicer(); }, "", nullptr);
@@ -128,6 +134,12 @@ static wxIcon main_frame_icon(GUI_App::EAppMode app_mode)
 MainFrame::~MainFrame()
 {
     delete preferences_dialog;
+    delete checkUpdate_dialog;
+    if (m_ACSelectDialog != nullptr)
+        delete m_ACSelectDialog;
+    if (m_ACSAddDialog != nullptr)
+        delete m_ACSAddDialog;
+	wxDELETE(m_universal);
 }
 
 #ifndef __APPLE__
@@ -136,8 +148,8 @@ MainFrame::~MainFrame()
 #define BORDERLESS_FRAME_STYLE (wxMINIMIZE_BOX | wxMAXIMIZE_BOX | wxCLOSE_BOX)
 #endif
 
-MainFrame::MainFrame() :
-DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_STYLE, "mainframe"),
+MainFrame::MainFrame(const int font_point_size) :
+DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_STYLE, "mainframe", font_point_size),
     m_printhost_queue_dlg(new PrintHostQueueDialog(this))
     , m_recent_projects(9)
     , m_settings_dialog(this)
@@ -196,6 +208,7 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
 
     init_tabpanel();
 
+    m_recent_projects.SetMenuPathStyle(wxFH_PATH_SHOW_ALWAYS);
     if (wxGetApp().is_gcode_viewer())
         init_menubar_as_gcodeviewer();
     else
@@ -253,7 +266,7 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
 #ifdef __APPLE__
     sizer->Add(panel_topbar, 0, wxEXPAND);
 #else
-    sizer->Add(m_topbar, 0, wxEXPAND|wxTOP,6);
+    sizer->Add(m_topbar, 0, wxEXPAND|wxTOP,1);
 #endif // __WINDOWS__
     if (wxGetApp().is_editor())
         sizer->Add(m_toolbar, 0, wxEXPAND);
@@ -276,33 +289,62 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
     Layout();
 
     update_title();
+    Bind(wxEVT_SIZE, [this](wxSizeEvent& event) {
+#ifdef __APPLE__
+        wxRect screenSize = wxGetClientDisplayRect();
+        wxSize windowSize = event.GetSize();
+        if (windowSize.GetWidth() > screenSize.GetWidth() || windowSize.GetHeight() > screenSize.GetHeight()) {
+            int maxWidth  = wxMin(windowSize.GetWidth(), screenSize.GetWidth());
+            int maxHeight = wxMin(windowSize.GetHeight(), screenSize.GetHeight());
+            SetSize(maxWidth, maxHeight);
+            Layout();
+        }
+#endif
 
+        m_plater->canvas3D()->on_size(event);
+        
+        event.Skip();
+    });
     // declare events
     Bind(wxEVT_CLOSE_WINDOW, [this](wxCloseEvent& event) {
         if (event.CanVeto() && m_plater->canvas3D()->get_gizmos_manager().is_in_editing_mode(true)) {
             // prevents to open the save dirty project dialog
             event.Veto();
-            return;
+            if (!isRunDownFileIndex)
+                return;
         }
 
         if (m_plater != nullptr) {
-            int saved_project = m_plater->save_project_if_dirty(_L("Closing AnycubicSlicer. Current project is modified."));
-            if (saved_project == wxID_CANCEL) {
+            int saved_project;
+            if (m_online_ForceUpgrade) {
+                saved_project = m_plater->save_project_forceupgrade_if_dirty(
+                    format_wxstr(_L("Closing %1%. Current project is modified."), wxGetApp().appName()),m_online_ForceUpgrade);
+            } else {
+                saved_project = m_plater->save_project_if_dirty(
+                    format_wxstr(_L("Closing %1%. Current project is modified."), wxGetApp().appName()));
+            }
+            if (saved_project == wxID_CANCEL && !m_online_ForceUpgrade) {
                 event.Veto();
-                return;
+                if (!isRunDownFileIndex)
+                    return;
             }
             // check unsaved changes only if project wasn't saved
-            else if (plater()->is_project_dirty() && saved_project == wxID_NO && event.CanVeto() &&
-                     (plater()->is_presets_dirty() && !wxGetApp().check_and_save_current_preset_changes(_L("AnycubicSlicer is closing"), _L("Closing AnycubicSlicer while some presets are modified.")))) {
+            else if (!m_online_ForceUpgrade&&plater()->is_project_dirty() && saved_project == wxID_NO && event.CanVeto() &&
+                     (plater()->is_presets_dirty() && !wxGetApp().check_and_save_current_preset_changes(format_wxstr(_L("%1% is closing"), wxGetApp().appName()), format_wxstr(_L("Closing %1% while some presets are modified."), wxGetApp().appName())))) {
                 event.Veto();
-                return;
+                if (!isRunDownFileIndex)
+                    return;
             }
         }
 
-        if (event.CanVeto() && !wxGetApp().check_print_host_queue()) {
+        if (event.CanVeto() && !wxGetApp().check_print_host_queue() && !m_online_ForceUpgrade) {
             event.Veto();
-            return;
+            if (!isRunDownFileIndex)
+                return;
         }
+        wxGetApp().CloseWizardObj();
+        if (isRunDownFileIndex)
+            wxGetApp().runUpdateFileEvent();
         this->shutdown();
         // propagate event
         event.Skip();
@@ -313,9 +355,21 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
     Bind(wxEVT_ACTIVATE, [this](wxActivateEvent& event) {
         if (m_plater != nullptr && event.GetActive())
             m_plater->on_activate();
+        wxWindowList &children = this->GetChildren();
+        for (wxWindowList::iterator it = children.begin(); it != children.end(); ++it) {
+            wxWindow *child = *it;
+            if (child->IsKindOf(wxClassInfo::FindClass(wxT("wxDialog")))) {
+                wxDialog *dialog = wxDynamicCast(child, wxDialog);
+                if (dialog && dialog->IsShown())
+                    dialog->Raise();
+            }
+        }
         event.Skip();
     });
 
+	Bind(EVT_ACCLOUD_LOGIN_SUCCESS, &MainFrame::OnCloudLoginSuccess, this);
+	Bind(EVT_ACCLOUD_LOGOUT,        &MainFrame::OnCloudLogout,       this);
+	Bind(EVT_ACCLOUD_PRINTER_LIST,  &MainFrame::OnCloudPrinterList,  this);
 // OSX specific issue:
 // When we move application between Retina and non-Retina displays, The legend on a canvas doesn't redraw
 // So, redraw explicitly canvas, when application is moved
@@ -330,25 +384,26 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
     Bind(wxEVT_SIZE, [this](wxSizeEvent& event) {
         wxPoint curPos = this->GetPosition();
         bool titleIsOutofScreen = curPos.y < 0;
-        if (titleIsOutofScreen) 
+        if (titleIsOutofScreen)
             this->SetPosition(wxPoint(curPos.x, 20));
         event.Skip();
     });
-    
+
 #endif
 
     wxGetApp().persist_window_geometry(this, true);
-    wxGetApp().persist_window_geometry(&m_settings_dialog, false);
+    //wxGetApp().persist_window_geometry(&m_settings_dialog, false);
 
     update_ui_from_settings();    // FIXME (?)
 
     if (m_plater != nullptr) {
-        m_plater->get_collapse_toolbar().set_enabled(wxGetApp().app_config->get_bool("show_collapse_button"));
-        m_plater->show_action_buttons(true);
+        //m_plater->get_collapse_toolbar().set_enabled(wxGetApp().app_config->get_bool("show_collapse_button"));
+        //m_plater->show_action_buttons(true);
 
-        preferences_dialog = new ACPreferencesDialog(this);
     }
-
+    preferences_dialog = new ACPreferencesDialog(this);
+    //checkUpdate_dialog = new ACCheckUpdate(this);
+	checkUpdate_dialog =  new ACUpdateManger(this);
     // bind events from DiffDlg
 
     bind_diff_dialog();
@@ -358,13 +413,53 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
 #endif // _WIN32
 }
 
+void MainFrame::CheckRunNumEvent(int num) {
+    wxKeyEvent evt(wxEVT_CHAR);
+    evt.m_keyCode = WXK_NUMPAD1;
+    if (num == 0) {
+        evt.m_uniChar = '0';
+    } else if (num == 1) {
+        evt.m_uniChar = '1';
+    } else if (num == 2) {
+        evt.m_uniChar = '2';
+    } else if (num == 3) {
+        evt.m_uniChar = '3';
+    } else if (num == 4) {
+        evt.m_uniChar = '4';
+    } else if (num == 5) {
+        evt.m_uniChar = '5';
+    } else if (num == 6) {
+        evt.m_uniChar = '6';
+    }
+    auto imgui    = wxGetApp().imgui();
+    if (!imgui->update_key_data(evt)) {
+        if (num == 0) {
+            this->select_view("iso");
+        } else if (num == 1) {
+            this->select_view("top");
+        } else if (num == 2) {
+            this->select_view("bottom");
+        } else if (num == 3) {
+            this->select_view("front");
+        } else if (num == 4) {
+            this->select_view("rear");
+        } else if (num == 5) {
+            this->select_view("left");
+        } else if (num == 6) {
+            this->select_view("right");
+        }
+
+    }
+}
+
+
 #if _WIN32
 
 void MainFrame::OnShortcut(wxCommandEvent &event)
 {
-    
+
     int id = event.GetId();
-    
+
     switch (id) {
     case wxID_HIGHEST + 7:
         if (m_plater)
@@ -384,7 +479,7 @@ void MainFrame::OnShortcut(wxCommandEvent &event)
         break;
     case wxID_HIGHEST + 12: load_config_file();
         break;
-    case wxID_HIGHEST + 13: export_config(); 
+    case wxID_HIGHEST + 13: export_config();
         break;
     /*case wxID_HIGHEST + 14:
         if (m_plater)
@@ -402,80 +497,66 @@ void MainFrame::OnShortcut(wxCommandEvent &event)
         break;
     case wxID_HIGHEST + 20: m_plater->redo();
         break;
-    case wxID_HIGHEST + 21: m_plater->copy_selection_to_clipboard(); 
+    case wxID_HIGHEST + 21: {
+        if (m_plater->canvas3D()->get_gizmos_manager().get_current_type() != GLGizmosManager::EType::Undefined) {
+            wxKeyEvent evt(wxEVT_CHAR);
+            int        keyIndex = 67;
+            evt.m_keyCode       = 'C';
+            evt.m_uniChar       = '\x3';
+            auto imgui          = wxGetApp().imgui();
+            wxGetApp().imgui()->SetKeyEvent(keyIndex, true);
+            imgui->update_key_data(evt);
+            m_plater->canvas3D()->render();
+            wxGetApp().imgui()->SetKeyEvent(keyIndex, false);
+        } else {
+            m_plater->copy_selection_to_clipboard();
+        }
         break;
-    case wxID_HIGHEST + 22: m_plater->paste_from_clipboard();
+    }
+    case wxID_HIGHEST + 22: {
+        if (m_plater->canvas3D()->get_gizmos_manager().get_current_type() != GLGizmosManager::EType::Undefined) {
+            wxKeyEvent evt(wxEVT_CHAR);
+            int        keyIndex = 86;
+            evt.m_keyCode       = 'V';
+            evt.m_uniChar       = '\x16';
+            auto imgui          = wxGetApp().imgui();
+            wxGetApp().imgui()->SetKeyEvent(keyIndex, true);
+            imgui->update_key_data(evt);
+            m_plater->canvas3D()->render();
+            wxGetApp().imgui()->SetKeyEvent(keyIndex, false);
+        } else {
+            m_plater->paste_from_clipboard();
+        }
         break;
+    }
     case wxID_HIGHEST + 23:wxGetApp().open_preferences();
         break;
     case wxID_HIGHEST + 24: {
-        wxKeyEvent evt(wxEVT_CHAR);
-        evt.m_keyCode = WXK_NUMPAD0;
-        evt.m_uniChar = '0';
-        auto imgui    = wxGetApp().imgui();
-        if (!imgui->update_key_data(evt)) {
-            this->select_view("iso");
-        } 
+        CheckRunNumEvent(0);
         break;
     }
     case wxID_HIGHEST + 25: {
-        wxKeyEvent evt(wxEVT_CHAR);
-        evt.m_keyCode = WXK_NUMPAD1;
-        evt.m_uniChar = '1';
-        auto imgui    = wxGetApp().imgui();
-        if (!imgui->update_key_data(evt)) {
-            this->select_view("top");
-        } 
+        CheckRunNumEvent(1);
         break;
     }
     case wxID_HIGHEST + 26: {
-        wxKeyEvent evt(wxEVT_CHAR);
-        evt.m_keyCode = WXK_NUMPAD2;
-        evt.m_uniChar = '2';
-        auto imgui    = wxGetApp().imgui();
-        if (!imgui->update_key_data(evt)) {
-            this->select_view("bottom");
-        } 
+        CheckRunNumEvent(2);
         break;
     }
     case wxID_HIGHEST + 27: {
-        wxKeyEvent evt(wxEVT_CHAR);
-        evt.m_keyCode = WXK_NUMPAD3;
-        evt.m_uniChar = '3';
-        auto imgui    = wxGetApp().imgui();
-        if (!imgui->update_key_data(evt)) {
-            this->select_view("front");
-        } 
+        CheckRunNumEvent(3);
         break;
     }
     case wxID_HIGHEST + 28: {
-        wxKeyEvent evt(wxEVT_CHAR);
-        evt.m_keyCode = WXK_NUMPAD4;
-        evt.m_uniChar = '4';
-        auto imgui    = wxGetApp().imgui();
-        if (!imgui->update_key_data(evt)) {
-            this->select_view("rear");
-        }
+        CheckRunNumEvent(4);
         break;
     }
     case wxID_HIGHEST + 29: {
-        wxKeyEvent evt(wxEVT_CHAR);
-        evt.m_keyCode = WXK_NUMPAD5;
-        evt.m_uniChar = '5';
-        auto imgui    = wxGetApp().imgui();
-        if (!imgui->update_key_data(evt)) {
-            this->select_view("left");
-        }
+        CheckRunNumEvent(5);
         break;
     }
     case wxID_HIGHEST + 30: {
-        wxKeyEvent evt(wxEVT_CHAR);
-        evt.m_keyCode = WXK_NUMPAD6;
-        evt.m_uniChar = '6';
-        auto imgui    = wxGetApp().imgui();
-        if (!imgui->update_key_data(evt)) {
-            this->select_view("right");
-        }
+        CheckRunNumEvent(6);
         break;
     }
     case wxID_HIGHEST + 31: {
@@ -483,9 +564,17 @@ void MainFrame::OnShortcut(wxCommandEvent &event)
         m_plater->update();
         break;
     }
-    case wxID_HIGHEST + 32:
-        this->ShowFullScreen(!this->IsFullScreen(),wxFULLSCREEN_NOSTATUSBAR | wxFULLSCREEN_NOBORDER | wxFULLSCREEN_NOCAPTION); 
+    /*case wxID_HIGHEST + 32: {
+        bool opIndex = !this->IsFullScreen() && !this->IsMaximized();
+        if (!opIndex && !this->IsFullScreen()) {
+            this->Maximize(false);
+        }else {
+            this->ShowFullScreen(!this->IsFullScreen() && !this->IsMaximized(),
+                                 wxFULLSCREEN_NOSTATUSBAR | wxFULLSCREEN_NOBORDER | wxFULLSCREEN_NOCAPTION);
+        }
+        this->m_topbar->ChangeIconStyle();
         break;
+    }*/
     case wxID_EXIT: Close(false);
     default: break;
     }
@@ -510,7 +599,7 @@ void MainFrame::bind_diff_dialog()
 
     auto update_presets = [this, get_tab](Preset::Type type) {
         get_tab(type)->update_preset_choice();
-        m_plater->sidebar().update_presets(type);
+        //m_plater->sidebar().update_presets(type);
     };
 
     auto process_options = [this](std::function<void(Preset::Type)> process) {
@@ -523,12 +612,39 @@ void MainFrame::bind_diff_dialog()
             process(diff_dlg_type);
     };
 
-    diff_dialog.Bind(EVT_DIFF_DIALOG_TRANSFER,      [this, process_options, transfer](SimpleEvent&)         { process_options(transfer); });
+    diff_dialog.Bind(EVT_DIFF_DIALOG_TRANSFER,      [process_options, transfer](SimpleEvent&)         { process_options(transfer); });
 
-    diff_dialog.Bind(EVT_DIFF_DIALOG_UPDATE_PRESETS,[this, process_options, update_presets](SimpleEvent&)   { process_options(update_presets); });
+    diff_dialog.Bind(EVT_DIFF_DIALOG_UPDATE_PRESETS,[process_options, update_presets](SimpleEvent&)   { process_options(update_presets); });
 }
 
-
+void MainFrame::OnCloudLoginSuccess(wxCommandEvent& event)
+{
+	select_main_panel(1);//show cloud printer...
+}
+void MainFrame::OnCloudLogout(wxCommandEvent& event)
+{
+	if (100 == event.GetInt())//succeed
+	{
+		select_main_panel(0);
+		ACCloudLoginDialog dlg(nullptr);
+		dlg.ShowModal();
+	}
+	else//failed put some log
+	{
+		wxString log = event.GetString();
+	}
+}
+void MainFrame::OnCloudPrinterList(wxCommandEvent& event)
+{
+	if (100 == event.GetInt())
+	{
+		m_universal->UpdatePrinterList();//刷新打印机列表
+	}
+	else//failed
+	{
+		wxString log = event.GetString();
+	}
+}
 // #ifdef _MSW_DARK_MODE
 // static wxString pref() { return " [ "; }
 // static wxString suff() { return " ] "; }
@@ -576,7 +692,7 @@ void MainFrame::bind_diff_dialog()
 //         if (!menu || menu->GetMenuItemCount() > 0) {
 //             // If we are here it means that we open regular menu and not a tab used as a menu
 //             event.Skip(); // event.Skip() is verry important to next processing of the wxEVT_UPDATE_UI by this menu items.
-//                           // If wxEVT_MENU_OPEN will not be pocessed in next event queue then MenuItems of this menu will never caught wxEVT_UPDATE_UI 
+//                           // If wxEVT_MENU_OPEN will not be pocessed in next event queue then MenuItems of this menu will never caught wxEVT_UPDATE_UI
 //                           // and, as a result, "check/radio value" will not be updated
 //             return;
 //         }
@@ -641,8 +757,9 @@ void MainFrame::update_layout()
         clean_sizer(m_main_sizer);
         clean_sizer(m_settings_dialog.GetPanelSizer());
 
-        if (m_settings_dialog.IsShown())
-            m_settings_dialog.Close();
+        /*if (m_settings_dialog.IsShown())
+            m_settings_dialog.Close();*/
+        m_settings_dialog.ShowModal();
 
         m_tabpanel->Hide();
         m_plater->Hide();
@@ -650,7 +767,7 @@ void MainFrame::update_layout()
         Layout();
     };
 
-    ESettingsLayout layout = wxGetApp().is_gcode_viewer() ? ESettingsLayout::GCodeViewer : ESettingsLayout::Dlg;
+    ESettingsLayout layout = wxGetApp().is_gcode_viewer()|| wxGetApp().plater()->acgcode_mode() == ACGcodeMode::ACGcode_Show ? ESettingsLayout::GCodeViewer : ESettingsLayout::Dlg;
     //    (wxGetApp().app_config->get("old_settings_layout_mode") == "1" ? ESettingsLayout::Old :
     //        wxGetApp().app_config->get("new_settings_layout_mode") == "1" ? ( wxGetApp().tabs_as_menu() ? ESettingsLayout::Old : ESettingsLayout::New) :
     //        wxGetApp().app_config->get("dlg_settings_layout_mode") == "1" ? ESettingsLayout::Dlg : ESettingsLayout::Old);
@@ -731,23 +848,26 @@ void MainFrame::update_layout()
 //     }
     case ESettingsLayout::Dlg:
     {
+		m_main_sizer->Add(m_universal, 1, wxEXPAND);
         m_main_sizer->Add(m_plater, 1, wxEXPAND);
         m_tabpanel->Reparent(&m_settings_dialog);
 
         m_settings_dialog.GetPanelSizer()->Add(m_tabpanel, 1, wxEXPAND);
 
         m_tabpanel->Show();
+		m_universal->Hide();
         m_plater->Show();
 
         //m_settings_dialog.GetPanelSizer()->Layout();
-        m_settings_dialog.Layout();
-        m_settings_dialog.Fit();
+
+        //m_settings_dialog.Fit();
 
         int win_width  = 99 * em_unit();
         int win_height = 66 * em_unit();
         m_settings_dialog.SetSize(wxSize(win_width, win_height));
+        m_settings_dialog.Layout();
 
-        
+
 
 // #ifdef _MSW_DARK_MODE
 //         if (wxGetApp().tabs_as_menu())
@@ -759,8 +879,8 @@ void MainFrame::update_layout()
     {
         m_main_sizer->Add(m_plater, 1, wxEXPAND);
         m_plater->set_default_bed_shape();
-        m_plater->get_collapse_toolbar().set_enabled(false);
-        m_plater->collapse_sidebar(true);
+        //m_plater->get_collapse_toolbar().set_enabled(false);
+        //m_plater->collapse_sidebar(true);
         m_plater->Show();
         break;
     }
@@ -769,7 +889,7 @@ void MainFrame::update_layout()
 // #ifdef _MSW_DARK_MODE
     // Sizer with buttons for mode changing
     // m_plater->sidebar().show_mode_sizer(wxGetApp().tabs_as_menu() || m_layout != ESettingsLayout::Old);
-    m_plater->sidebar().show_mode_sizer(m_layout != ESettingsLayout::Old);
+    //m_plater->sidebar().show_mode_sizer(m_layout != ESettingsLayout::Old);
 // #endif
 
 #ifdef __WXMSW__
@@ -894,6 +1014,14 @@ GalleryDialog* MainFrame::gallery_dialog()
     return m_gallery_dialog;
 }
 
+void MainFrame::AC_ReplaceFirst(wxString &str, const wxString &searchStr, const wxString &replaceStr) 
+{
+    size_t pos = str.find(searchStr);
+    if (pos != wxString::npos) {
+        str.replace(pos, searchStr.length(), replaceStr);
+    }
+}
+
 void MainFrame::update_title()
 {
     wxString title = wxEmptyString;
@@ -910,14 +1038,21 @@ void MainFrame::update_title()
         }
     }
 
-    std::string build_id = SLIC3R_BUILD_ID;
-    if (! wxGetApp().is_editor())
-        boost::replace_first(build_id, SLIC3R_APP_NAME, GCODEVIEWER_APP_NAME);
+    //std::string build_id = wxGetApp().buildID();
+    //std::string build_id = from_u8(wxGetApp().buildID()).ToStdString();
+    wxString build_id = format_wxstr(wxGetApp().buildID());
+    if (!wxGetApp().is_editor())
+        AC_ReplaceFirst(build_id, wxGetApp().is_region_CN() ? SLIC3R_APP_NAME_CN : SLIC3R_APP_NAME, wxGetApp().appName());
+        /*boost::replace_first(
+            build_id,
+            wxString(wxGetApp().is_region_CN() ? SLIC3R_APP_NAME_CN : SLIC3R_APP_NAME).ToStdString(),
+            wxString(wxGetApp().appName()).ToStdString()
+        );*/
     size_t 		idx_plus = build_id.find('+');
     if (idx_plus != build_id.npos) {
     	// Parse what is behind the '+'. If there is a number, then it is a build number after the label, and full build ID is shown.
     	int commit_after_label;
-    	if (! boost::starts_with(build_id.data() + idx_plus + 1, "UNKNOWN") && 
+        if (/*! boost::starts_with(build_id.data() + idx_plus + 1, "UNKNOWN")*/ !build_id.Mid(idx_plus + 1).StartsWith("UNKNOWN") && 
             (build_id.at(idx_plus + 1) == '-' || sscanf(build_id.data() + idx_plus + 1, "%d-", &commit_after_label) == 0)) {
     		// It is a release build.
     		build_id.erase(build_id.begin() + idx_plus, build_id.end());    		
@@ -1001,6 +1136,10 @@ void MainFrame::init_tabpanel()
 
     wxGetApp().plater_ = m_plater;
 
+	m_universal = new Universal(this, this);
+	m_universal->Hide();
+	wxGetApp().universal_ = m_universal;
+
     if (wxGetApp().is_editor())
         create_preset_tabs();
 
@@ -1011,9 +1150,9 @@ void MainFrame::init_tabpanel()
 
         // Show a correct number of filament fields.
         // nozzle_diameter is undefined when SLA printer is selected
-        if (full_config.has("nozzle_diameter")) {
-            m_plater->on_extruders_change(full_config.option<ConfigOptionFloats>("nozzle_diameter")->values.size());
-        }
+        //if (full_config.has("nozzle_diameter")) {
+        //    m_plater->on_extruders_change(full_config.option<ConfigOptionFloats>("nozzle_diameter")->values.size());
+        //}
     }
 }
 
@@ -1084,7 +1223,7 @@ void MainFrame::create_preset_tabs()
     //                                                "ACEmpty");
 
     add_created_tab(new TabPrint(m_tabpanel),"icon-tab_setting-off", "icon-tab_setting-hover_or_sel");
-    
+
     add_created_tab(new TabFilament(m_tabpanel),"icon-tab_material-off", "icon-tab_material-hover_or_sel");
     add_created_tab(new TabPrinter(m_tabpanel),
                     wxGetApp().preset_bundle->printers.get_edited_preset().printer_technology() == ptFFF ? "icon-tab_machine-off" : "ACEmpty",
@@ -1108,6 +1247,7 @@ void MainFrame::add_created_tab(Tab *panel, const std::string &bmp_name /*= ""*/
 //         else
 // #endif
 //             m_tabpanel->AddPage(panel, panel->title());
+    m_tabpanel->Layout();
 }
 void MainFrame::add_created_tab(Tab* panel,  const std::string& bmp_name /*= ""*/)
 {
@@ -1316,7 +1456,7 @@ void MainFrame::on_dpi_changed(const wxRect& suggested_rect)
         m_topbar->Rescale();
     if (m_toolbar)
         m_toolbar->Rescale();
-//#endif
+    //#endif
 
     // update Plater
     wxGetApp().plater()->msw_rescale();
@@ -1381,7 +1521,7 @@ void MainFrame::on_sys_color_changed()
 void MainFrame::update_mode_markers()
 {
     // update mode markers on side_bar
-    wxGetApp().sidebar().update_mode_markers();
+    //wxGetApp().sidebar().update_mode_markers();
 
     // update mode markers in tabs
     for (auto tab : wxGetApp().tabs_list)
@@ -1395,7 +1535,8 @@ void MainFrame::update_mode_markers()
 static const wxString sep       = "\t";
 static const wxString sep_space = "\xA0";
 #else
-static const wxString sep = " - ";
+//static const wxString sep = " - ";
+static const wxString sep = "\t";
 static const wxString sep_space = "";
 #endif
 
@@ -1404,7 +1545,7 @@ static void run_wizard(ACConfigWizard::StartPage sp)
     wxGetApp().run_wizard(ACConfigWizard::RR_USER, sp);
 }
 
-static wxMenu* generate_help_menu()
+static wxMenu *generate_help_menu(wxWindow *parent)
 {
     wxMenu* helpMenu = new wxMenu();
     /*append_menu_item(helpMenu, wxID_ANY, _L("Prusa 3D &Drivers"), _L("Open the Prusa3D drivers download page in your browser"),
@@ -1416,7 +1557,7 @@ static wxMenu* generate_help_menu()
 //#        });
 //#        $versioncheck->Enable(wxTheApp->have_version_check);
     /*append_menu_item(helpMenu, wxID_ANY, wxString::Format(_L("%s &Website"), SLIC3R_APP_NAME),
-        wxString::Format(_L("Open the %s website in your browser"), SLIC3R_APP_NAME),
+        format_wxstr(_L("Open the %s website in your browser"), SLIC3R_APP_NAME),
         [](wxCommandEvent&) { wxGetApp().open_web_page_localized("https://www.xxxxxxx.com/slicerweb"); });*/
 //        append_menu_item(helpMenu, wxID_ANY, wxString::Format(_L("%s &Manual"), SLIC3R_APP_NAME),
 //                                             wxString::Format(_L("Open the %s manual in your browser"), SLIC3R_APP_NAME),
@@ -1431,18 +1572,21 @@ static wxMenu* generate_help_menu()
 
 
     const auto config_wizard_name = _(ACConfigWizard::name(true));
-    const auto config_wizard_tooltip = from_u8((boost::format(_utf8(L("Run %s"))) % config_wizard_name).str());
-    
+    const auto config_wizard_tooltip = from_u8((boost::format(_u8L(L("Run %s"))) % config_wizard_name).str());
+
     append_menu_item(helpMenu, wxID_ANY, config_wizard_name + dots, config_wizard_tooltip,
                      [](wxCommandEvent &) { wxGetApp().run_wizard(ACConfigWizard::RR_USER); });
+    if (!wxGetApp().is_gcode_viewer()) {
+        append_menu_item(helpMenu, wxID_ANY, _L("Check Update"), _L("Check Update"),
+                         [](wxCommandEvent &) { wxGetApp().mainframe->checkUpdate_dialog->ShowCheckVersionDialog(); });
+    }
+
+	/*append_menu_item(helpMenu, wxID_ANY, wxString::Format(_L("Check Update")), _L("Show about dialog"),
+		             [](wxCommandEvent&) { Slic3r::GUI::update(); });*/
     
-    if (wxGetApp().is_editor())
-        append_menu_item(helpMenu, wxID_ANY, wxString::Format(_L("&About %s"), SLIC3R_APP_NAME), _L("Show about dialog"),
-            [](wxCommandEvent&) { Slic3r::GUI::about(); });
-    else
-        append_menu_item(helpMenu, wxID_ANY, wxString::Format(_L("&About %s"), GCODEVIEWER_APP_NAME), _L("Show about dialog"),
-            [](wxCommandEvent&) { Slic3r::GUI::about(); });
-//    append_menu_item(helpMenu, wxID_ANY, _L("Show Tip of the Day")
+    append_menu_item(helpMenu, wxID_ANY, format_wxstr(_L("About %1%"), wxGetApp().appName()), _L("Show about dialog"),
+                     [parent](wxCommandEvent &) { Slic3r::GUI::about(parent); });
+    //    append_menu_item(helpMenu, wxID_ANY, _L("Show Tip of the Day")
 //#if 0//debug
 //        + "\tCtrl+Shift+T"
 //#endif
@@ -1459,39 +1603,52 @@ static wxMenu* generate_help_menu()
 
     return helpMenu;
 }
+bool        MainFrame::OnMenuSelection() 
+{ 
+ #ifdef __APPLE__
+    return true;
+#endif // __APPLE__
 
-static void add_common_view_menu_items(wxMenu* view_menu, MainFrame* mainFrame, std::function<bool(void)> can_change_view)
+    return !plater()->canvas3D()->get_gizmos_manager().is_running() && IsActive(); 
+}
+static void add_common_view_menu_items(wxMenu *view_menu, MainFrame *mainFrame, std::function<bool(void)> onMenuSelection)
 {
+
+#ifdef _MSC_VER
+    static const wxString sepInfo       = "\t&";
+#else
+    static const wxString sepInfo = "\t";
+#endif
     // The camera control accelerators are captured by GLCanvas3D::on_char().
-    append_menu_item(
-        view_menu, wxID_HIGHEST+24, _L("Iso") + sep + "&0", _L("Iso View"), [mainFrame](wxCommandEvent &) { mainFrame->select_view("iso"); },
-        "", nullptr, [can_change_view]() { return can_change_view(); }, mainFrame);
+    wxMenuItem *menuItem_Iso = append_menu_item(
+        view_menu, wxID_HIGHEST+24, _L("Iso") + sepInfo + "0", _L("Iso View"), [mainFrame](wxCommandEvent &) { mainFrame->CheckRunNumEvent(0); },
+        "", nullptr, [onMenuSelection]() { return onMenuSelection(); }, mainFrame);
     view_menu->AppendSeparator();
     //TRN To be shown in the main menu View->Top 
     append_menu_item(
-        view_menu, wxID_HIGHEST+25, _L("Top") + sep + "&1", _L("Top View"), [mainFrame](wxCommandEvent &) { mainFrame->select_view("top"); },
-        "", nullptr, [can_change_view]() { return can_change_view(); }, mainFrame);
+        view_menu, wxID_HIGHEST+25, _L("Top") + sepInfo + "1", _L("Top View"), [mainFrame](wxCommandEvent &) { mainFrame->CheckRunNumEvent(1); },
+        "", nullptr, [onMenuSelection]() { return onMenuSelection(); }, mainFrame);
     //TRN To be shown in the main menu View->Bottom 
     append_menu_item(
-        view_menu, wxID_HIGHEST +26, _L("Bottom") + sep + "&2", _L("Bottom View"),
-        [mainFrame](wxCommandEvent &) { mainFrame->select_view("bottom"); },
-        "", nullptr, [can_change_view]() { return can_change_view(); }, mainFrame);
+        view_menu, wxID_HIGHEST +26, _L("Bottom") + sepInfo + "2", _L("Bottom View"),
+        [mainFrame](wxCommandEvent &) { mainFrame->CheckRunNumEvent(2); },
+        "", nullptr, [onMenuSelection]() { return onMenuSelection(); }, mainFrame);
     append_menu_item(
-        view_menu, wxID_HIGHEST +27, _L("Front") + sep + "&3", _L("Front View"),
-        [mainFrame](wxCommandEvent &) { mainFrame->select_view("front"); },
-        "", nullptr, [can_change_view]() { return can_change_view(); }, mainFrame);
+        view_menu, wxID_HIGHEST +27, _L("Front") + sepInfo + "3", _L("Front View"),
+        [mainFrame](wxCommandEvent &) { mainFrame->CheckRunNumEvent(3); },
+        "", nullptr, [onMenuSelection]() { return onMenuSelection(); }, mainFrame);
     append_menu_item(
-        view_menu, wxID_HIGHEST +28, _L("Rear") + sep + "&4", _L("Rear View"),
-        [mainFrame](wxCommandEvent &) { mainFrame->select_view("rear"); },
-        "", nullptr, [can_change_view]() { return can_change_view(); }, mainFrame);
+        view_menu, wxID_HIGHEST + 28, _L("Rear") + sepInfo + "4", _L("Rear View"),
+        [mainFrame](wxCommandEvent &) { mainFrame->CheckRunNumEvent(4); },
+        "", nullptr, [onMenuSelection]() { return onMenuSelection(); }, mainFrame);
     append_menu_item(
-        view_menu, wxID_HIGHEST +29, _L("Left") + sep + "&5", _L("Left View"),
-        [mainFrame](wxCommandEvent &) { mainFrame->select_view("left"); },
-        "", nullptr, [can_change_view]() { return can_change_view(); }, mainFrame);
+        view_menu, wxID_HIGHEST + 29, _L("Left") + sepInfo + "5", _L("Left View"),
+        [mainFrame](wxCommandEvent &) { mainFrame->CheckRunNumEvent(5); },
+        "", nullptr, [onMenuSelection]() { return onMenuSelection(); }, mainFrame);
     append_menu_item(
-        view_menu, wxID_HIGHEST +30, _L("Right") + sep + "&6", _L("Right View"),
-        [mainFrame](wxCommandEvent &) { mainFrame->select_view("right"); },
-        "", nullptr, [can_change_view]() { return can_change_view(); }, mainFrame);
+        view_menu, wxID_HIGHEST + 30, _L("Right") + sepInfo + "6", _L("Right View"),
+        [mainFrame](wxCommandEvent &) { mainFrame->CheckRunNumEvent(6); },
+        "", nullptr, [onMenuSelection]() { return onMenuSelection(); }, mainFrame);
 }
 
 void MainFrame::init_menubar_as_editor()
@@ -1508,14 +1665,14 @@ void MainFrame::init_menubar_as_editor()
             fileMenu,wxID_HIGHEST + 7, _L("&New Project") + "\tCtrl+N", _L("Start a new project "),
             [this](wxCommandEvent&) { if (m_plater) m_plater->new_project(); }, "", nullptr,
             [this](){return m_plater != nullptr && can_start_new_project(); }, this);
-        
+
         append_menu_item(
             fileMenu, wxID_HIGHEST + 8, _L("&Open Project") + "\tCtrl+O", _L("Open a project file "),
             [this](wxCommandEvent&) { if (m_plater) m_plater->load_project(); }, "", nullptr,
-            [this](){return m_plater != nullptr; }, this);
+            [this](){return m_plater != nullptr && !wxGetApp().notification_manager()->is_in_preview(); }, this);
 
         wxMenu* recent_projects_menu = new wxMenu();
-        wxMenuItem* recent_projects_submenu = append_submenu(fileMenu, recent_projects_menu, wxID_ANY, _L("Recent projects"), "");
+        wxMenuItem *recent_projects_submenu = append_submenu(fileMenu, recent_projects_menu, wxID_ANY, _L("Recent projects"), "");
         m_recent_projects.UseMenu(recent_projects_menu);
         Bind(wxEVT_MENU, [this](wxCommandEvent& evt) {
             size_t file_id = evt.GetId() - wxID_FILE1;
@@ -1549,7 +1706,7 @@ void MainFrame::init_menubar_as_editor()
             m_recent_projects.AddFileToHistory(from_u8(project));
         }
 
-        Bind(wxEVT_UPDATE_UI, [this](wxUpdateUIEvent& evt) { evt.Enable(m_recent_projects.GetCount() > 0); }, recent_projects_submenu->GetId());
+        Bind(wxEVT_UPDATE_UI, [this](wxUpdateUIEvent& evt) { evt.Enable(m_recent_projects.GetCount() > 0 && m_plater != nullptr && !wxGetApp().notification_manager()->is_in_preview()); }, recent_projects_submenu->GetId());
 
         append_menu_item(
             fileMenu, wxID_HIGHEST+9, _L("&Save Project") + "\tCtrl+S", _L("Save current project file"),
@@ -1681,14 +1838,16 @@ void MainFrame::init_menubar_as_editor()
         append_menu_item(fileMenu, wxID_ANY, _L("&Repair STL file") + dots, _L("Automatically repair an STL file"),
             [this](wxCommandEvent&) { repair_stl(); }, "", nullptr,
             []() { return true; }, this);
-        fileMenu->AppendSeparator();
-        append_menu_item(fileMenu, wxID_ANY, _L("&G-code Preview") + dots, _L("Open G-code viewer"),
-            [this](wxCommandEvent&) { start_new_gcodeviewer_open_file(this); }, "", nullptr);
         fileMenu->AppendSeparator();*/
+        //append_menu_item(fileMenu, wxID_ANY, _L("Preview &G-code File") + dots, _L("Open G-code viewer"),
+        //    [this](wxCommandEvent &) {
+        //        if (m_plater != nullptr)m_plater->load_gcode() /*start_new_gcodeviewer_open_file(this)*/; },"", nullptr, 
+        //    [this]() { return m_plater != nullptr && m_plater->acgcode_mode() == ACGcodeMode::ACGcode_None; }, this);
+        //fileMenu->AppendSeparator();
         #ifdef _WIN32
-            append_menu_item(fileMenu, wxID_EXIT, _L("E&xit"), wxString::Format(_L("Exit %s"), SLIC3R_APP_NAME),
+            append_menu_item(fileMenu, wxID_EXIT, _L("E&xit"), format_wxstr(_L("Exit %1%"), wxGetApp().appName()),
         #else
-            append_menu_item(fileMenu, wxID_EXIT, _L("&Quit"), wxString::Format(_L("Quit %s"), SLIC3R_APP_NAME),
+            append_menu_item(fileMenu, wxID_EXIT, _L("&Quit"), format_wxstr(_L("Quit %1%"), wxGetApp().appName()),
         #endif
             [this](wxCommandEvent&) { Close(false); }, "");
     }
@@ -1698,12 +1857,13 @@ void MainFrame::init_menubar_as_editor()
     if (m_plater != nullptr)
     {
         editMenu = new wxMenu();
-    #ifdef __APPLE__
-        // Backspace sign
-        wxString hotkey_delete = "\u232b";
-    #else
         wxString hotkey_delete = "Del";
-    #endif
+    //#ifdef __APPLE__
+    //    // Backspace sign
+    //    wxString hotkey_delete = "\u232b";
+    //#else
+    //    wxString hotkey_delete = "Del";
+    //#endif
         append_menu_item(
             editMenu, wxID_HIGHEST+15, _L("&Select All") + sep + GUI::shortkey_ctrl_prefix() + sep_space + "A",
             _L("Selects all objects"), [this](wxCommandEvent&) { m_plater->select_all(); },
@@ -1810,7 +1970,7 @@ void MainFrame::init_menubar_as_editor()
     //         [](wxCommandEvent&) { start_new_slicer(); }, "", nullptr, [this]() {return m_plater != nullptr && !wxGetApp().app_config->get_bool("single_instance"); }, this);
 
     //     windowMenu->AppendSeparator();
-    //     append_menu_item(windowMenu, wxID_ANY, _L("Compare Presets")/* + "\tCtrl+F"*/, _L("Compare presets"), 
+    //     append_menu_item(windowMenu, wxID_ANY, _L("Compare Presets")/* + "\tCtrl+F"*/, _L("Compare presets"),
     //         [this](wxCommandEvent&) { diff_dialog.show();}, "", nullptr, []() {return true; }, this);
     // }
 
@@ -1818,7 +1978,7 @@ void MainFrame::init_menubar_as_editor()
     wxMenu* viewMenu = nullptr;
     if (m_plater) {
         viewMenu = new wxMenu();
-        add_common_view_menu_items(viewMenu, this, std::bind(&MainFrame::can_change_view, this));
+        add_common_view_menu_items(viewMenu, this, std::bind(&MainFrame::OnMenuSelection, this));
         viewMenu->AppendSeparator();
         append_menu_check_item(
             viewMenu, wxID_HIGHEST +31, _L("Show &Labels") + sep + "E", _L("Show object/instance labels in 3D scene"),
@@ -1830,24 +1990,35 @@ void MainFrame::init_menubar_as_editor()
         append_menu_check_item(viewMenu, wxID_ANY, _L("&Collapse Sidebar") + sep + "Shift+" + sep_space + "Tab", _L("Collapse sidebar"),
             [this](wxCommandEvent&) { m_plater->collapse_sidebar(!m_plater->is_sidebar_collapsed()); }, this,
             []() { return true; }, [this]() { return m_plater->is_sidebar_collapsed(); }, this);*/
-#ifndef __APPLE__
-        // OSX adds its own menu item to toggle fullscreen.
-        append_menu_check_item(
-            viewMenu, wxID_HIGHEST +32, _L("&Fullscreen") + sep + "F11", _L("Fullscreen"),
-            [this](wxCommandEvent&) { this->ShowFullScreen(!this->IsFullScreen(), 
-                // wxFULLSCREEN_ALL: wxFULLSCREEN_NOMENUBAR | wxFULLSCREEN_NOTOOLBAR | wxFULLSCREEN_NOSTATUSBAR | wxFULLSCREEN_NOBORDER | wxFULLSCREEN_NOCAPTION
-                wxFULLSCREEN_NOSTATUSBAR | wxFULLSCREEN_NOBORDER | wxFULLSCREEN_NOCAPTION); }, 
-            this, []() { return true; }, [this]() { return this->IsFullScreen(); }, this);
-#endif // __APPLE__
+//#ifndef __APPLE__
+//        // OSX adds its own menu item to toggle fullscreen.
+//        append_menu_check_item(
+//            viewMenu, wxID_HIGHEST +32, _L("&Fullscreen") + sep + "F11", _L("Fullscreen"),
+//            [this](wxCommandEvent &) {
+//                bool opIndex = !this->IsFullScreen() && !this->IsMaximized();
+//                if (!opIndex && !this->IsFullScreen()) {
+//                    this->Maximize(false);
+//                } else {
+//                    this->ShowFullScreen(!this->IsFullScreen() && !this->IsMaximized(),
+//                                         // wxFULLSCREEN_ALL: wxFULLSCREEN_NOMENUBAR | wxFULLSCREEN_NOTOOLBAR | wxFULLSCREEN_NOSTATUSBAR |
+//                                         // wxFULLSCREEN_NOBORDER | wxFULLSCREEN_NOCAPTION
+//                                         wxFULLSCREEN_NOSTATUSBAR | wxFULLSCREEN_NOBORDER | wxFULLSCREEN_NOCAPTION);
+//                }
+//                this->m_topbar->ChangeIconStyle();
+//            },
+//            this, []() { return true; }, [this]() { return this->IsFullScreen()||this->IsMaximized(); }, this);
+//#endif // __APPLE__
     }
 
     // Help menu
-    auto helpMenu = generate_help_menu();
+    auto helpMenu = generate_help_menu(this);
 
 #ifdef __APPLE__
     // menubar
     // assign menubar to frame after appending items, otherwise special items
     // will not be handled correctly
+   // m_menubar = new wxMenuBar(); -- todo:新代码里出现的
+    m_menubar->SetFont(this->normal_font());
     m_menubar->Append(fileMenu, _L("&File"));
     if (editMenu) m_menubar->Append(editMenu, _L("&Edit"));
     // m_menubar->Append(windowMenu, _L("&Window"));
@@ -1858,7 +2029,7 @@ void MainFrame::init_menubar_as_editor()
 
 // #ifdef _MSW_DARK_MODE
 //     if (wxGetApp().tabs_as_menu()) {
-//         // Add separator 
+//         // Add separator
 //         m_menubar->Append(new wxMenu(), "          ");
 //         add_tabs_as_menu(m_menubar, this, this);
 //     }
@@ -1945,7 +2116,7 @@ void MainFrame::init_menubar_as_gcodeviewer()
             [](wxCommandEvent&) { start_new_slicer(); }, "", nullptr,
             []() {return true; }, this);
         fileMenu->AppendSeparator();
-        append_menu_item(fileMenu, wxID_EXIT, _L("&Quit"), wxString::Format(_L("Quit %s"), SLIC3R_APP_NAME),
+        append_menu_item(fileMenu, wxID_EXIT, _L("&Quit"), format_wxstr(_L("Quit %s"), wxGetApp().appName()),
             [this](wxCommandEvent&) { Close(false); });
     }
 
@@ -1953,15 +2124,15 @@ void MainFrame::init_menubar_as_gcodeviewer()
     wxMenu* viewMenu = nullptr;
     if (m_plater != nullptr) {
         viewMenu = new wxMenu();
-        add_common_view_menu_items(viewMenu, this, std::bind(&MainFrame::can_change_view, this));
+        add_common_view_menu_items(viewMenu, this, std::bind(&MainFrame::OnMenuSelection, this));
         viewMenu->AppendSeparator();
-        append_menu_check_item(viewMenu, wxID_ANY, _L("Show legen&d") + sep + "L", _L("Show legend"),
+        append_menu_check_item(viewMenu, wxID_ANY, _L("Show Legen&d") + sep + "L", _L("Show legend"),
             [this](wxCommandEvent&) { m_plater->show_legend(!m_plater->is_legend_shown()); }, this,
             [this]() { return m_plater->is_preview_shown(); }, [this]() { return m_plater->is_legend_shown(); }, this);
     }
 
     // helpmenu
-    auto helpMenu = generate_help_menu();
+    auto helpMenu = generate_help_menu(this);
     wxMenu* configMenu = wxGetApp().add_config_menu();
 
 #ifdef __APPLE__
@@ -1970,13 +2141,13 @@ void MainFrame::init_menubar_as_gcodeviewer()
     if (viewMenu != nullptr) m_menubar->Append(viewMenu, _L("&View"));
     // Add additional menus from C++
     m_menubar->Append( wxGetApp().add_config_menu(), _L("&Configuration"));
-    m_menubar->Append(helpMenu, _L("&Help"));
+    //m_menubar->Append(helpMenu, _L("&Help"));
     SetMenuBar(m_menubar);
 #else
     m_topbar->SetFileMenu(fileMenu);
     //m_topbar->SetEditMenu(editMenu);
     m_topbar->SetViewMenu(viewMenu);
-    m_topbar->SetHelpMenu(helpMenu);
+    //m_topbar->SetHelpMenu(helpMenu);
     m_topbar->SetSetsMenu(configMenu);
 
     m_topbar->SetEditHide();
@@ -2090,7 +2261,7 @@ void MainFrame::quick_slice(const int qs)
     } 
     else if (qs & qsSaveAs) {
         // The following line may die if the output_filename_format template substitution fails.
-        wxFileDialog dlg(this, from_u8((boost::format(_utf8(L("Save %s file as:"))) % ((qs & qsExportSVG) ? _L("SVG") : _L("G-code"))).str()),
+        wxFileDialog dlg(this, format_wxstr(_L("Save %s file as:"), ((qs & qsExportSVG) ? _L("SVG") : _L("G-code"))),
             wxGetApp().app_config->get_last_output_dir(get_dir_name(output_file)), get_base_name(input_file), 
             qs & qsExportSVG ? file_wildcards(FT_SVG) : file_wildcards(FT_GCODE),
             wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
@@ -2102,7 +2273,7 @@ void MainFrame::quick_slice(const int qs)
         wxGetApp().app_config->update_last_output_dir(get_dir_name(output_file));
     } 
     else if (qs & qsExportPNG) {
-        wxFileDialog dlg(this, _L("Save zip file as:"),
+        wxFileDialog dlg(this, _L("Save ZIP file as:"),
             wxGetApp().app_config->get_last_output_dir(get_dir_name(output_file)),
             get_base_name(output_file), "*.sl1", wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
         if (dlg.ShowModal() != wxID_OK)
@@ -2112,8 +2283,8 @@ void MainFrame::quick_slice(const int qs)
 
     // show processbar dialog
     m_progress_dialog = new wxProgressDialog(_L("Slicing") + dots,
-        // TRN "Processing input_file_basename"
-        from_u8((boost::format(_utf8(L("Processing %s"))) % (input_file_basename + dots)).str()),
+        // TRN ProgressDialog on reslicing: "input file basename"
+        format_wxstr(_L("Processing %s"), (input_file_basename + dots)),
         100, nullptr, wxPD_AUTO_HIDE);
     m_progress_dialog->Pulse();
     {
@@ -2179,6 +2350,110 @@ void MainFrame::repair_stl()
     Slic3r::GUI::show_info(this, L("Your file was repaired."), L("Repair"));
 }
 
+bool MainFrame::showWebDialog() { 
+    bool isRun = wxGetApp().checkURLNetWorkStatic();
+    if (!isRun) {
+        WarningDialog dialog(wxGetApp().mainframe, _L("Please check the network and try again."), _L("Warning"),wxYES);
+        dialog.ShowModal();
+        return false;
+    }
+        
+    ACWebDialog *m_web_dialog = new ACWebDialog(wxGetApp().m_acCaptchaURL);
+    m_web_dialog->Bind(wxEVT_CLOSE_WINDOW, [&m_web_dialog](wxCloseEvent &event) { m_web_dialog->EndModal(wxID_NO); });
+
+    if (m_web_dialog->ShowModal() == wxID_YES) {
+        delete m_web_dialog;
+        return true;
+    }
+    delete m_web_dialog;
+    return false;
+}
+wxString MainFrame::showAddPrinterDialog()
+{
+	wxString rv;
+	if (wxGetApp().is_cloud_login())
+	{
+		m_ACSAddDialog = new ACCloudAddMachine(this);
+
+		m_ACSAddDialog->Bind(wxEVT_CLOSE_WINDOW, [&](wxCloseEvent& event) { m_ACSAddDialog->EndModal(wxID_NO); });
+
+		if (m_ACSAddDialog->ShowModal() == wxID_YES)
+			rv = m_ACSAddDialog->GetCNInfo();
+
+		delete m_ACSAddDialog;
+		m_ACSAddDialog = nullptr;
+	}
+	return rv;
+}
+
+
+bool MainFrame::showSelectPrinterDialog()
+{
+    bool isLoginStatus = true;
+    if (isLoginStatus) {
+        m_ACSelectDialog = new ACCloudSelectMachine(this);
+
+        m_ACSelectDialog->Bind(wxEVT_CLOSE_WINDOW, [&](wxCloseEvent &event) { m_ACSelectDialog->EndModal(wxID_NO); });
+
+        if (m_ACSelectDialog->ShowModal() == wxID_YES) {
+            PrinterData              printerInfo   = m_ACSelectDialog->GetPrinterInfo();
+            PrinterPresetCollection &printerPreset = wxGetApp().preset_bundle->printers;
+            bool                     isInclude     = false;
+            for (Preset info : printerPreset.get_presets()) {
+                if (info.name == printerInfo.name) {
+                    isInclude = true;
+                    break;
+                }
+            }
+            // include name
+            if (!isInclude) {
+                wxString info = _L("The printer type used in G-code is not detected，make sure the g-code is suitable for your printer "
+                                   "before you printing it .");
+                RichMessageDialog dialog(NULL, info, _L("Remote Printing"), wxYES_NO);
+                dialog.Bind(wxEVT_CLOSE_WINDOW, [&dialog](wxCloseEvent &event) { dialog.EndModal(wxID_NO); });
+#ifdef _WIN32
+                dialog.SetYesBtnLabel(_L("Yes, start print"));
+                dialog.SetNoBtnLabel(_L("Cancel"));
+#else
+                dialog.SetYesNoLabels(_L("Yes, start print"), _L("Cancel"));
+#endif
+                if (dialog.ShowModal() == wxID_NO) {
+                    m_ACSelectDialog = nullptr;
+                    delete m_ACSelectDialog;
+                    return false;
+                }
+
+            } else {
+                Preset prest = printerPreset.get_selected_preset();
+                if (printerInfo.name != prest.name) {
+                    wxString info = format_wxstr(_L("The Printer you select (%1%) is not consistent with the printer used in G-code "
+                                                    "(%2%). Do you want to continue?"),
+                                                 printerInfo.name, prest.name);
+                    RichMessageDialog dialog(NULL, info, _L("Remote Printing"), wxYES_NO);
+                    dialog.Bind(wxEVT_CLOSE_WINDOW, [&dialog](wxCloseEvent &event) { dialog.EndModal(wxID_NO); });
+#ifdef _WIN32
+                    dialog.SetYesBtnLabel(_L("Continue"));
+                    dialog.SetNoBtnLabel(_L("Cancel"));
+#else
+                    dialog.SetYesNoLabels(_L("Continue"), _L("Cancel"));
+#endif
+                    if (dialog.ShowModal() == wxID_NO) {
+                        m_ACSelectDialog = nullptr;
+                        delete m_ACSelectDialog;
+                        return false;
+                    }
+                }
+            }
+            m_ACSelectDialog = nullptr;
+            delete m_ACSelectDialog;
+            return true;
+        }
+        m_ACSelectDialog = nullptr;
+        delete m_ACSelectDialog;
+    }
+    return false;
+}
+
 void MainFrame::export_config()
 {
     // Generate a cummulative configuration for the selected print, filaments and printer.
@@ -2215,6 +2490,13 @@ void MainFrame::load_config_file()
 	wxString file;
     if (dlg.ShowModal() == wxID_OK)
         file = dlg.GetPath();
+	if (!check_file_from_acslicer(file))
+	{
+		//导入的配置文件非ACSlicer生成的，继续导入可能存在兼容性问题，是否要继续？
+		MessageDialog dlg = MessageDialog(nullptr, format_wxstr( _L("The imported configuration file is not generated by %s, \nthere may be compatibility issues if you continue to import, \ndo you want to continue?"), wxGetApp().appName()), _L("Warning!"), wxYES | wxCANCEL);
+		if (dlg.ShowModal() != wxID_YES)
+			return;
+	}
     if (! file.IsEmpty() && this->load_config_file(file.ToUTF8().data())) {
         wxGetApp().app_config->update_config_dir(get_dir_name(file));
         m_last_config = file;
@@ -2224,8 +2506,20 @@ void MainFrame::load_config_file()
 // Load a config file containing a Print, Filament & Printer preset from command line.
 bool MainFrame::load_config_file(const std::string &path)
 {
+    std::vector<std::string> errInfoList = {
+        _u8L("The Config Bundle cannot be loaded: %1%\n\tReason: %2%"),
+        _u8L("Failed loading the Config Bundle \"%1%\": %2% at line %3%"),
+        _u8L("Failed loading the preset file: %1%\n\tReason: %2%"),
+        _u8L("Unknown configuration file type: %1%"),
+        _u8L("Invalid configuration file: %1%. This is an application config file."),
+        _u8L("Invalid configuration file %1%: %2%"),
+        _u8L("Not a Slic3r base generated g-code."),
+        _u8L("Configuration block closing tag \"; AnycubicSlicer_config = end\" not found when reading %1%"),
+        _u8L("Configuration block opening tag \"; AnycubicSlicer_config = begin\" not found when reading %1%"),
+        _u8L("Suspiciously low number of configuration values extracted from %1%: %2%"),
+    };
     try {
-        ConfigSubstitutions config_substitutions = wxGetApp().preset_bundle->load_config_file(path, ForwardCompatibilitySubstitutionRule::Enable);
+        ConfigSubstitutions config_substitutions = wxGetApp().preset_bundle->load_config_file(path, ForwardCompatibilitySubstitutionRule::Enable,errInfoList);
         if (!config_substitutions.empty())
             show_substitutions_info(config_substitutions, path);
     } catch (const std::exception &ex) {
@@ -2236,6 +2530,31 @@ bool MainFrame::load_config_file(const std::string &path)
     m_plater->check_selected_presets_visibility(ptFFF);
     wxGetApp().load_current_presets();
     return true;
+}
+
+// Check a config file is Anycubic ACSlicer config file.
+bool MainFrame::check_file_from_acslicer(const wxString& path)
+{
+	if (path.IsEmpty())
+		return true;
+	wxFileName file(path);
+
+	if (!file.FileExists())
+		return true;
+
+	wxFileInputStream fileStream(path);
+	if (!fileStream.IsOk())
+		return true;
+
+	std::string searchStr = "generated by AnycubicSlicer";
+	wxTextInputStream textStream(fileStream);
+    // par provisional 30 ----
+    for (int i = 0; i < 30; i++) {
+        wxString lineInfo = textStream.ReadLine();
+        if (!lineInfo.empty() && lineInfo.ToStdString().find(searchStr) != std::string::npos)
+            return true;
+    }
+    return false;
 }
 
 void MainFrame::export_configbundle(bool export_physical_printers /*= false*/)
@@ -2355,10 +2674,35 @@ void MainFrame::select_tab(Tab* tab)
     select_tab(size_t(page_idx));
 }
 
+void MainFrame::ShowPressureAdvanceDialog()
+{
+    ACPressureAdvanceDialog pressureAdvance_dialog(this);
+
+    if (pressureAdvance_dialog.ShowModal() == wxID_OK) {
+        if (wxGetApp().plater()->new_project() == false)
+            return;
+
+        wxString paStlPath = from_u8(Slic3r::resources_dir() + "/calib/PressureAdvance/pressure_advance_test.stl");
+        wxGetApp().plater()->add_model(false, paStlPath, false);
+
+        Calib_Params params;
+        params.start         = pressureAdvance_dialog.get_start_value();
+        params.end           = pressureAdvance_dialog.get_end_value()  ;
+        params.step          = pressureAdvance_dialog.get_step_value() ;
+        params.mode          = CalibMode::Calib_PA_Line;
+        params.print_numbers = true;
+        // set model
+        m_plater->fff_print().set_calib_params(params);
+
+        // start slicer
+        m_plater->doSlicer();
+    }
+}
+
 void MainFrame::select_tab(size_t tab/* = size_t(-1)*/)
 {
     bool tabpanel_was_hidden = false;
-
+    /*m_settings_dialog.setDialogObj(setMarkWindow(this, &m_settings_dialog,false));*/
     // Controls on page are created on active page of active tab now.
     // We should select/activate tab before its showing to avoid an UI-flickering
     auto select = [this, tab](bool was_hidden) {
@@ -2389,8 +2733,8 @@ void MainFrame::select_tab(size_t tab/* = size_t(-1)*/)
             if (m_settings_dialog.IsShown())
                 this->SetFocus();
             // plater should be focused for correct navigation inside search window
-            if (m_plater->canvas3D()->is_search_pressed())
-                m_plater->SetFocus();
+            //if (m_plater->canvas3D()->is_search_pressed())
+            //    m_plater->SetFocus();
             return;
         }
         // Show/Activate Settings Dialog
@@ -2399,10 +2743,23 @@ void MainFrame::select_tab(size_t tab/* = size_t(-1)*/)
             m_settings_dialog.Hide();
         else
             tabpanel_was_hidden = true;
-            
+        auto nowSelection = m_tabpanel->GetSelection();
         select(tabpanel_was_hidden);
         m_tabpanel->Show();
-        m_settings_dialog.Show();
+        //m_settings_dialog.Show();
+        if (nowSelection == 2) {
+            Tab *cur_tab = dynamic_cast<Tab *>(m_tabpanel->GetPage(2));
+            if (cur_tab->GetModeButtonObj() != nullptr) {
+                ConfigOptionMode nowMode = wxGetApp().get_mode();
+                if (nowMode == comExpert) {
+                    cur_tab->GetModeButtonObj()->SetSwitchState((ACSwitchButton::SwitchState) comSimple, true);
+                } else {
+                    cur_tab->GetModeButtonObj()->SetSwitchState((ACSwitchButton::SwitchState) comExpert, true);
+                }
+                cur_tab->GetModeButtonObj()->SetSwitchState((ACSwitchButton::SwitchState) nowMode, true);
+            }
+        }
+        m_settings_dialog.ShowModal();
 #else
         if (m_settings_dialog.IsShown()) {
             select(false);
@@ -2412,7 +2769,7 @@ void MainFrame::select_tab(size_t tab/* = size_t(-1)*/)
             tabpanel_was_hidden = true;
             select(tabpanel_was_hidden);
             m_tabpanel->Show();
-            m_settings_dialog.Show();
+            m_settings_dialog.ShowModal();
         }
 #endif
         if (m_settings_dialog.IsIconized())
@@ -2460,6 +2817,25 @@ void MainFrame::select_view(const std::string& direction)
          m_plater->select_view(direction);
 }
 
+// Select Plater or Universal show
+void MainFrame::select_main_panel(int index)
+{
+	if (0 == index)// m_plater
+	{
+		m_toolbar->Show();
+		m_plater->Show();
+		m_universal->Hide();
+	}
+	else
+	{
+		m_toolbar->Hide();
+		m_plater->Hide();
+		m_universal->Show();
+	}
+	Layout();
+	Refresh();
+}
+
 // #ys_FIXME_to_delete
 void MainFrame::on_presets_changed(SimpleEvent &event)
 {
@@ -2481,7 +2857,7 @@ void MainFrame::on_presets_changed(SimpleEvent &event)
         }
 
         m_plater->on_config_change(*tab->get_config());
-        m_plater->sidebar().update_presets(preset_type);
+        //m_plater->sidebar().update_presets(preset_type);
     }
 }
 
@@ -2496,10 +2872,10 @@ void MainFrame::on_value_changed(wxCommandEvent& event)
     auto opt_key = event.GetString();
     if (m_plater) {
         m_plater->on_config_change(*tab->get_config()); // propagate config change events to the plater
-        if (opt_key == "extruders_count") {
-            auto value = event.GetInt();
-            m_plater->on_extruders_change(value);
-        }
+        //if (opt_key == "extruders_count") {
+        //    auto value = event.GetInt();
+        //    m_plater->on_extruders_change(value);
+        //}
     }
 }
 
@@ -2572,18 +2948,19 @@ std::string MainFrame::get_dir_name(const wxString &full_name) const
 // ----------------------------------------------------------------------------
 
 SettingsDialog::SettingsDialog(MainFrame* mainframe)
-    : DPIDialog(NULL,
+    : DPIDialog(mainframe,
                wxID_ANY,
-               wxString(SLIC3R_APP_NAME) + " - " + _L("Settings"),
+                format_wxstr(wxGetApp().appName()) + " - " + _L("Settings"),
                wxDefaultPosition,
                wxDefaultSize,
                wxFRAME_SHAPED | wxNO_BORDER ,
-               "settings_dialog")
+               "settings_dialog", mainframe->normal_font().GetPointSize())
     ,
-    //: DPIDialog(mainframe, wxID_ANY, wxString(SLIC3R_APP_NAME) + " - " + _L("Settings"), wxDefaultPosition, wxDefaultSize,
+//: DPIDialog(mainframe, wxID_ANY, wxString(SLIC3R_APP_NAME) + " - " + _L("Settings"), wxDefaultPosition, wxDefaultSize,
 //        wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER | wxMINIMIZE_BOX | wxMAXIMIZE_BOX, "settings_dialog"),
     m_main_frame(mainframe)
 {
+    AddWindowDrakEdg(this);
     if (wxGetApp().is_gcode_viewer())
         return;
 
@@ -2607,8 +2984,8 @@ SettingsDialog::SettingsDialog(MainFrame* mainframe)
 #else
     SetIcon(wxIcon(var("logo_128px.png"), wxBITMAP_TYPE_PNG));
 #endif // _WIN32
-
-    this->Bind(wxEVT_SHOW, [this](wxShowEvent& evt) {
+    float m_em = em_unit();
+    this->Bind(wxEVT_SHOW, [this, mainframe, m_em](wxShowEvent &evt) {
 
         auto key_up_handker = [this](wxKeyEvent& evt) {
             if ((evt.GetModifiers() & wxMOD_CONTROL) != 0) {
@@ -2637,23 +3014,27 @@ SettingsDialog::SettingsDialog(MainFrame* mainframe)
             if (m_tabpanel != nullptr)
                 m_tabpanel->Unbind(wxEVT_KEY_UP, key_up_handker);
         }
+        //this->SetWindowStyleFlag(wxSTAY_ON_TOP);
         });
-
     //just hide the Frame on closing
-    this->Bind(wxEVT_CLOSE_WINDOW, [this](wxCloseEvent& evt) { this->Hide(); m_isVisible = false; });
+    /*this->Bind(wxEVT_CLOSE_WINDOW, [this, mainframe](wxCloseEvent &evt) {
+        this->Hide();
+        m_isVisible = false;
+        });*/
 
-// #ifdef _MSW_DARK_MODE
-//     //if (wxGetApp().tabs_as_menu()) {
-//     //    // menubar
-//     //    m_menubar = new wxMenuBar();
-//     //    add_tabs_as_menu(m_menubar, mainframe, this);
-//     //    this->SetMenuBar(m_menubar);
-//     //}
-// #endif
+
+#ifdef _MSW_DARK_MODE
+    //if (wxGetApp().tabs_as_menu()) {
+    //    // menubar
+    //    m_menubar = new wxMenuBar();
+    //    add_tabs_as_menu(m_menubar, mainframe, this);
+    //    this->SetMenuBar(m_menubar);
+    //}
+#endif
 
     //this->SetBackgroundColour(wxColour(255,0,0));
 
-    const wxSize min_size = wxSize(99 * em_unit(), 66 * em_unit());
+    const wxSize min_size = wxSize(99 * m_em, 66 * m_em);
 
     m_dialogTopbar = new ACDialogTopbar(this, _L("Configuration Manage"),99);
 
@@ -2661,11 +3042,17 @@ SettingsDialog::SettingsDialog(MainFrame* mainframe)
     // initialize layout
     auto sizer = new wxBoxSizer(wxVERTICAL);
     sizer->SetSizeHints(this);
-    sizer->Add(m_dialogTopbar, 0, wxEXPAND );
-    sizer->Add(m_panelSizer, 1, wxEXPAND);
+    sizer->Add(m_dialogTopbar, 0, wxEXPAND|wxTOP|wxLEFT|wxRIGHT,1);
+    sizer->Add(m_panelSizer, 1, wxEXPAND | wxBOTTOM | wxLEFT | wxRIGHT, 1);
+    Bind(wxEVT_CLOSE_WINDOW, [this](wxCloseEvent &event) {
+        this->EndModal(wxID_NO);
+        event.Skip();
+    });
     SetSizer(sizer);
-    Fit();
-
+    //Fit();
+    int screenwidth  = wxSystemSettings::GetMetric(wxSYS_SCREEN_X, NULL);
+    int screenheight = wxSystemSettings::GetMetric(wxSYS_SCREEN_Y, NULL);
+    SetPosition(wxPoint((screenwidth - 99 * m_em) / 2, (screenheight - 66 * m_em) / 2));
     //wxGraphicsPath path = wxGraphicsRenderer::GetDefaultRenderer()->CreatePath();
     //path.AddRoundedRectangle(0, 0, min_size.x, min_size.y, 2 * em_unit());
     //SetShape(path);

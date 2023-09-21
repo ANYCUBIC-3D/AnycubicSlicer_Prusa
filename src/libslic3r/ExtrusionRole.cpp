@@ -1,10 +1,10 @@
 #include "ExtrusionRole.hpp"
+#include "I18N.hpp"
 
 #include <string>
 #include <string_view>
 #include <cassert>
 
-#define L(s) (s)
 
 namespace Slic3r {
 

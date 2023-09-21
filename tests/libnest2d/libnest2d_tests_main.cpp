@@ -1024,9 +1024,15 @@ TEST_CASE("pointOnPolygonContour", "[Geometry]") {
     REQUIRE(getX(first) == getX(ecache.coords(0)));
     REQUIRE(getY(first) == getY(ecache.coords(0)));
 
-    auto last = *std::prev(input.end());
-    REQUIRE(getX(last) == getX(ecache.coords(1.0)));
-    REQUIRE(getY(last) == getY(ecache.coords(1.0)));
+    if constexpr (ClosureTypeV<PolygonImpl> == Closure::CLOSED) {
+        auto last = *std::prev(input.end());
+        REQUIRE(getX(last) == getX(ecache.coords(1.0)));
+        REQUIRE(getY(last) == getY(ecache.coords(1.0)));
+    } else {
+        auto last = *input.begin();
+        REQUIRE(getX(last) == getX(ecache.coords(1.0)));
+        REQUIRE(getY(last) == getY(ecache.coords(1.0)));
+    }
 
     for(int i = 0; i <= 100; i++) {
         auto v = ecache.coords(i*(0.01));

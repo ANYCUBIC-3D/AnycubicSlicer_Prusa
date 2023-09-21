@@ -22,6 +22,8 @@ class WipeTower
 {
 public:
     static const std::string never_skip_tag() { return "_GCODE_WIPE_TOWER_NEVER_SKIP_TAG"; }
+	static std::pair<double, double> get_wipe_tower_cone_base(double width, double height, double depth, double angle_deg);
+	static std::vector<std::vector<float>> extract_wipe_volumes(const PrintConfig& config);
 
     struct Extrusion
     {
@@ -141,7 +143,9 @@ public:
 	void generate(std::vector<std::vector<ToolChangeResult>> &result);
 
     float get_depth() const { return m_wipe_tower_depth; }
+	std::vector<std::pair<float, float>> get_z_and_depth_pairs() const;
     float get_brim_width() const { return m_wipe_tower_brim_width_real; }
+	float get_wipe_tower_height() const { return m_wipe_tower_height; }
 
 
 
@@ -253,6 +257,8 @@ private:
     Vec2f  m_wipe_tower_pos; 			// Left front corner of the wipe tower in mm.
 	float  m_wipe_tower_width; 			// Width of the wipe tower.
 	float  m_wipe_tower_depth 	= 0.f; 	// Depth of the wipe tower
+	float  m_wipe_tower_height  = 0.f;
+	float  m_wipe_tower_cone_angle = 0.f;
     float  m_wipe_tower_brim_width      = 0.f; 	// Width of brim (mm) from config
     float  m_wipe_tower_brim_width_real = 0.f; 	// Width of brim (mm) after generation
 	float  m_wipe_tower_rotation_angle = 0.f; // Wipe tower rotation angle in degrees (with respect to x axis)
@@ -358,6 +364,10 @@ private:
 
 	std::vector<WipeTowerInfo> m_plan; 	// Stores information about all layers and toolchanges for the future wipe tower (filled by plan_toolchange(...))
 	std::vector<WipeTowerInfo>::iterator m_layer_info = m_plan.end();
+
+	// This sums height of all extruded layers, not counting the layers which
+	// will be later removed when the "no_sparse_layers" is used.
+	float m_current_height = 0.f;
 
     // Stores information about used filament length per extruder:
     std::vector<float> m_used_filament_length;

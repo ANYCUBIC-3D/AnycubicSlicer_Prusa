@@ -35,7 +35,8 @@ OG_CustomCtrl::OG_CustomCtrl(   wxWindow*            parent,
                                 const wxValidator&   val /* = wxDefaultValidator*/,
                                 const wxString&      name/* = wxEmptyString*/) :
     wxPanel(parent, wxID_ANY, pos, size, /*wxWANTS_CHARS |*/ wxBORDER_NONE | wxTAB_TRAVERSAL),
-    opt_group(og)
+    opt_group(og),
+    m_parent(parent)
 {
     if (!wxOSX)
         SetDoubleBuffered(true);// SetDoubleBuffered exists on Win and Linux/GTK, but is missing on OSX
@@ -44,12 +45,22 @@ OG_CustomCtrl::OG_CustomCtrl(   wxWindow*            parent,
     m_em_unit   = em_unit(m_parent);
     m_v_gap     = lround(1.8 * m_em_unit);
     m_h_gap     = lround(0.2 * m_em_unit);
-
+    specialTitleList = {
+        L("Speed for print moves"),
+        L("Speed for non-print moves"),
+        L("Modifiers"),
+        L("Acceleration control (advanced)"),
+        L("Autospeed (advanced)")};
     m_bmp_mode_sz       = get_bitmap_size(get_bmp_bundle("ACEmpty", wxOSX ? 10 : 12), this);
-    //m_bmp_blinking_sz   = get_bitmap_size(get_bmp_bundle("ACEmpty"), this);
-    m_bmp_blinking_sz = wxSize(24, 24);
+    //m_bmp_blinking_sz   = get_bitmap_size(get_bmp_bundle("search_blink"), this);
+    m_bmp_blinking_sz = wxSize(2.4 * m_em_unit, 2.4 * m_em_unit);
 
     init_ctrl_lines();// from og.lines()
+
+    auto  _found      = std::find(specialTitleList.begin(), specialTitleList.end(), this->opt_group->title);
+    if (_found != specialTitleList.end()) {
+        _specialGap = 1.4f;
+    }
 
     this->Bind(wxEVT_PAINT,     &OG_CustomCtrl::OnPaint, this);
     this->Bind(wxEVT_MOTION,    &OG_CustomCtrl::OnMotion, this);
@@ -84,12 +95,19 @@ void OG_CustomCtrl::init_ctrl_lines()
             line.get_extra_widgets().size() == 0)
         {
             height = m_bmp_blinking_sz.GetHeight() + m_v_gap;
+            if (opt_group->getTittleCircleRest()) {
+                float m_gap = 0.0f;
+#ifdef __APPLE__
+                m_gap = m_v_gap;
+#endif
+                height = 1.0f + m_gap;
+            }
             ctrl_lines.emplace_back(CtrlLine(height, this, line, true));
         }
         else if (opt_group->label_width != 0 && (!line.label.IsEmpty() || option_set.front().opt.gui_type == ConfigOptionDef::GUIType::legend) )
         {
             wxSize label_sz = GetTextExtent(line.label);
-            height = label_sz.y * (label_sz.GetWidth() > int(opt_group->label_width * m_em_unit) ? 2 : 1) + m_v_gap;
+            height          = label_sz.y * (label_sz.GetWidth() > int(opt_group->label_width * m_em_unit * _specialGap) ? 2 : 1) + m_v_gap;
             ctrl_lines.emplace_back(CtrlLine(height, this, line, false, opt_group->staticbox));
         }
         else
@@ -142,7 +160,7 @@ wxPoint OG_CustomCtrl::get_pos(const Line& line, Field* field_in/* = nullptr*/)
 
             wxString label = line.label;
             if (opt_group->label_width != 0)
-                h_pos += opt_group->label_width * m_em_unit + m_h_gap;
+                h_pos += opt_group->label_width * m_em_unit * _specialGap + m_h_gap;
 
             int blinking_button_width = m_bmp_blinking_sz.GetWidth() + m_h_gap;
             //int blinking_button_width = m_h_gap;
@@ -177,8 +195,8 @@ wxPoint OG_CustomCtrl::get_pos(const Line& line, Field* field_in/* = nullptr*/)
                 ConfigOptionDef option = opt.opt;
                 // add label if any
                 if (is_multioption_line && !option.label.empty()) {
-                    //!            To correct translation by context have to use wxGETTEXT_IN_CONTEXT macro from wxWidget 3.1.1
-                    label = (option.label == L_CONTEXT("Top", "Layers") || option.label == L_CONTEXT("Bottom", "Layers")) ?
+                    // those two parameter names require localization with context
+                    label = (option.label == "Top" || option.label == "Bottom") ?
                         _CTX(option.label, "Layers") : _(option.label);
                     label += ":";
 
@@ -233,12 +251,12 @@ void OG_CustomCtrl::OnPaint(wxPaintEvent&)
 
     wxPaintDC dc(this);
     dc.SetFont(m_font);
-
     wxCoord v_pos = 0;
     for (CtrlLine& line : ctrl_lines) {
         if (!line.is_visible)
             continue;
-        line.render(dc, v_pos);
+        //line.render(dc, v_pos);
+        line.render(dc, v_pos, _specialGap);
         v_pos += line.height;
     }
 }
@@ -429,7 +447,7 @@ void OG_CustomCtrl::msw_rescale()
 
     wxCoord    v_pos = 0;
     for (CtrlLine& line : ctrl_lines) {
-        line.msw_rescale();
+        line.msw_rescale(_specialGap);
         if (line.is_visible)
             v_pos += (wxCoord)line.height;
     }
@@ -512,7 +530,20 @@ void OG_CustomCtrl::CtrlLine::msw_rescale()
 
     correct_items_positions();
 }
+void OG_CustomCtrl::CtrlLine::msw_rescale(float _specialGap)
+{
+    // if we have a single option with no label, no sidetext
+    if (draw_just_act_buttons)
+        height = get_bitmap_size(get_bmp_bundle("empty"), ctrl).GetHeight();
 
+    if (ctrl->opt_group->label_width != 0 && !og_line.label.IsEmpty()) {
+        wxSize label_sz = ctrl->GetTextExtent(og_line.label);
+        height          = label_sz.y * (label_sz.GetWidth() > int(ctrl->opt_group->label_width * ctrl->m_em_unit * _specialGap) ? 2 : 1) +
+                 ctrl->m_v_gap;
+    }
+
+    correct_items_positions();
+}
 void OG_CustomCtrl::CtrlLine::update_visibility(ConfigOptionMode mode)
 {
     if (og_line.is_separator())
@@ -628,9 +659,9 @@ void OG_CustomCtrl::CtrlLine::render(wxDC& dc, wxCoord v_pos)
         ConfigOptionDef option = opt.opt;
         // add label if any
         if (is_multioption_line && !option.label.empty()) {
-            //!            To correct translation by context have to use wxGETTEXT_IN_CONTEXT macro from wxWidget 3.1.1
-            label = (option.label == L_CONTEXT("Top", "Layers") || option.label == L_CONTEXT("Bottom", "Layers")) ?
-                    _CTX(option.label, "Layers") : _(option.label);
+            // those two parameter names require localization with context
+            label = (option.label == "Top" || option.label == "Bottom") ?
+                _CTX(option.label, "Layers") : _(option.label);
             label += ":";
 
             if (is_url_string)
@@ -639,7 +670,8 @@ void OG_CustomCtrl::CtrlLine::render(wxDC& dc, wxCoord v_pos)
                 is_url_string = !suppress_hyperlinks && !og_line.label_path.empty();
             //h_pos = draw_text(dc, wxPoint(h_pos, v_pos), label, field ? field->label_color() : nullptr, ctrl->opt_group->sublabel_width * ctrl->m_em_unit, is_url_string);
             //h_pos = draw_text(dc, wxPoint(h_pos, v_pos), label, nullptr,ctrl->opt_group->sublabel_width * ctrl->m_em_unit, is_url_string);
-            h_pos = draw_text(dc, wxPoint(h_pos, v_pos), label, nullptr, ctrl->opt_group->sublabel_width * ctrl->m_em_unit, false);
+            const wxColour _labelTextColor = AC_COLOR_BLACK_YERROW;
+            h_pos = draw_text(dc, wxPoint(h_pos, v_pos), label, &_labelTextColor, ctrl->opt_group->sublabel_width * ctrl->m_em_unit, false);
         }
 
         if (field && field->has_undo_ui()) {
@@ -662,9 +694,131 @@ void OG_CustomCtrl::CtrlLine::render(wxDC& dc, wxCoord v_pos)
         // add sidetext if any
         h_pos += 24;
         const wxColour _sideTextColor = AC_COLOR_BLACK_GRAY;
-        if (!option.sidetext.empty() || ctrl->opt_group->sidetext_width > 0)
-            h_pos = draw_text(dc, wxPoint(h_pos, v_pos), _(option.sidetext), &_sideTextColor,
-                              ctrl->opt_group->sidetext_width * ctrl->m_em_unit);
+        if (!option.sidetext.empty() || ctrl->opt_group->sidetext_width > 0) {
+            if (option_set.size() == 1) {
+                h_pos = draw_text(dc, wxPoint(h_pos, v_pos), _(option.sidetext), &_sideTextColor,
+                                  ctrl->opt_group->sidetext_width * ctrl->m_em_unit * 4);
+            } else {
+                h_pos = draw_text(dc, wxPoint(h_pos, v_pos), _(option.sidetext), &_sideTextColor,
+                                  ctrl->opt_group->sidetext_width * ctrl->m_em_unit);
+            }
+        }
+
+        if (opt.opt_id != option_set.back().opt_id) //! istead of (opt != option_set.back())
+            h_pos += lround(0.6 * ctrl->m_em_unit);
+    }
+}
+void OG_CustomCtrl::CtrlLine::render(wxDC &dc, wxCoord v_pos,float specialGap)
+{
+    if (is_separator()) {
+        render_separator(dc, v_pos);
+        return;
+    }
+
+    Field *field = ctrl->opt_group->get_field(og_line.get_options().front().opt_id);
+
+    const bool suppress_hyperlinks = get_app_config()->get_bool("suppress_hyperlinks");
+    if (draw_just_act_buttons) {
+        if (field)
+            draw_act_bmps(dc, wxPoint(0, v_pos), field->undo_to_sys_bitmap(), field->undo_bitmap(), field->blink());
+        return;
+    }
+
+    wxCoord h_pos = draw_mode_bmp(dc, v_pos);
+
+    if (og_line.near_label_widget_win)
+        h_pos += og_line.near_label_widget_win->GetSize().x + ctrl->m_h_gap;
+
+    const std::vector<Option> &option_set = og_line.get_options();
+
+    wxString label         = og_line.label;
+    bool     is_url_string = false;
+    if (ctrl->opt_group->label_width != 0 && !label.IsEmpty()) {
+        // const wxColour* text_clr = (option_set.size() == 1 && field ? field->label_color() : og_line.label_color());
+        is_url_string = !suppress_hyperlinks && !og_line.label_path.empty();
+        // h_pos = draw_text(dc, wxPoint(h_pos, v_pos), label + ":", nullptr, ctrl->opt_group->label_width * ctrl->m_em_unit, is_url_string);
+        const wxColour _satrtLableColor = AC_COLOR_BLACK;
+        h_pos = draw_text(dc, wxPoint(h_pos, v_pos), label + ":", &_satrtLableColor, ctrl->opt_group->label_width * ctrl->m_em_unit * specialGap,false);
+    }
+
+    // If there's a widget, build it and set result to the correct position.
+    if (og_line.widget != nullptr) {
+        if (og_line.has_undo_ui())
+            draw_act_bmps(dc, wxPoint(h_pos, v_pos), og_line.undo_to_sys_bitmap(), og_line.undo_bitmap(), og_line.blink());
+        else
+            draw_blinking_bmp(dc, wxPoint(h_pos, v_pos), og_line.blink());
+        return;
+    }
+
+    // If we're here, we have more than one option or a single option with sidetext
+    // so we need a horizontal sizer to arrange these things
+
+    // If we have a single option with no sidetext just add it directly to the grid sizer
+    if (option_set.size() == 1 && option_set.front().opt.sidetext.size() == 0 && option_set.front().side_widget == nullptr &&
+        og_line.get_extra_widgets().size() == 0) {
+        if (field && field->has_undo_ui())
+            h_pos = draw_act_bmps(dc, wxPoint(h_pos, v_pos), field->undo_to_sys_bitmap(), field->undo_bitmap(), field->blink()) +
+                    ctrl->m_h_gap;
+        else if (field && !field->has_undo_ui() && field->blink())
+            draw_blinking_bmp(dc, wxPoint(h_pos, v_pos), field->blink());
+        // update width for full_width fields
+        auto _ctrlSize_x = ctrl->GetSize().x;
+        if (option_set.front().opt.full_width && field->getWindow())
+            field->getWindow()->SetSize(_ctrlSize_x - h_pos, -1);
+        return;
+    }
+
+    size_t bmp_rect_id         = 0;
+    bool   is_multioption_line = option_set.size() > 1;
+    for (const Option &opt : option_set) {
+        field                  = ctrl->opt_group->get_field(opt.opt_id);
+        ConfigOptionDef option = opt.opt;
+        // add label if any
+        if (is_multioption_line && !option.label.empty()) {
+            //!            To correct translation by context have to use wxGETTEXT_IN_CONTEXT macro from wxWidget 3.1.1
+            label = (option.label == L_CONTEXT("Top", "Layers") || option.label == L_CONTEXT("Bottom", "Layers")) ?
+                        _CTX(option.label, "Layers") :
+                        _(option.label);
+            label += ":";
+
+            if (is_url_string)
+                is_url_string = false;
+            else if (opt == option_set.front())
+                is_url_string = !suppress_hyperlinks && !og_line.label_path.empty();
+            // h_pos = draw_text(dc, wxPoint(h_pos, v_pos), label, field ? field->label_color() : nullptr, ctrl->opt_group->sublabel_width *
+            // ctrl->m_em_unit, is_url_string); h_pos = draw_text(dc, wxPoint(h_pos, v_pos), label, nullptr,ctrl->opt_group->sublabel_width *
+            // ctrl->m_em_unit, is_url_string);
+            const wxColour _labelTextColor = AC_COLOR_BLACK_YERROW;
+            h_pos = draw_text(dc, wxPoint(h_pos, v_pos), label, &_labelTextColor, ctrl->opt_group->sublabel_width * ctrl->m_em_unit, false);
+        }
+
+        if (field && field->has_undo_ui()) {
+            // h_pos += draw_act_bmps(dc, wxPoint(h_pos, v_pos), field->undo_to_sys_bitmap(), field->undo_bitmap(), field->blink(), bmp_rect_id++);
+            draw_act_bmps(dc, wxPoint(h_pos, v_pos), field->undo_to_sys_bitmap(), field->undo_bitmap(), field->blink(), bmp_rect_id++);
+            if (field->getSizer()) {
+                auto children = field->getSizer()->GetChildren();
+                for (auto child : children)
+                    if (child->IsWindow())
+                        h_pos += child->GetWindow()->GetSize().x + ctrl->m_h_gap;
+            } else if (field->getWindow())
+                h_pos += field->getWindow()->GetSize().x + ctrl->m_h_gap;
+        }
+
+        // add field
+        if (option_set.size() == 1 && option_set.front().opt.full_width)
+            break;
+        // add sidetext if any
+        h_pos += 2.6 * ctrl->m_em_unit;
+        const wxColour _sideTextColor = AC_COLOR_BLACK_GRAY;
+        if (!option.sidetext.empty() || ctrl->opt_group->sidetext_width > 0) {
+            if (option_set.size() == 1) {
+                h_pos = draw_text(dc, wxPoint(h_pos, v_pos), _(option.sidetext), &_sideTextColor,
+                                  ctrl->opt_group->sidetext_width * ctrl->m_em_unit * 4);
+            } else {
+                h_pos = draw_text(dc, wxPoint(h_pos, v_pos), _(option.sidetext), &_sideTextColor,
+                                  ctrl->opt_group->sidetext_width * ctrl->m_em_unit);
+            }
+        }
 
         if (opt.opt_id != option_set.back().opt_id) //! istead of (opt != option_set.back())
             h_pos += lround(0.6 * ctrl->m_em_unit);
@@ -763,7 +917,21 @@ wxCoord OG_CustomCtrl::CtrlLine::draw_act_bmps(wxDC& dc, wxPoint pos, const wxBi
     //pos = draw_blinking_bmp(dc, pos, is_blinking);
     wxCoord h_pos = pos.x;
     //wxCoord v_pos = pos.y;
-    wxCoord v_pos = pos.y + lround((height - get_bitmap_size(&bmp_undo, ctrl).GetHeight()) / 2);
+    wxSize  icoMapSize = get_bitmap_size(&bmp_undo, ctrl);
+    if (ctrl->opt_group->getTittleCircleRest()) {
+        /*if (icoMapSize.GetWidth() == 0 || icoMapSize.GetHeight() == 0) {
+            if (ctrl->opt_group->getCircleBackButton()->IsShown()) {
+                ctrl->opt_group->getCircleBackButton()->Hide();
+            }
+        } else {
+            if (!ctrl->opt_group->getCircleBackButton()->IsShown()) {
+                ctrl->opt_group->getCircleBackButton()->Show();
+            }
+        }*/
+        return h_pos + ctrl->m_h_gap;
+    }
+
+    wxCoord v_pos = pos.y + lround((height - icoMapSize.GetHeight()) / 2);
     /*dc.DrawBitmap(bmp_undo_to_sys.GetBitmapFor(ctrl), h_pos, v_pos);
 
     int bmp_dim = get_bitmap_size(&bmp_undo_to_sys, ctrl).GetWidth();

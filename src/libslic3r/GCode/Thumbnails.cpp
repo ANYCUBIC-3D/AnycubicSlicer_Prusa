@@ -14,7 +14,10 @@ struct CompressedPNG : CompressedImageBuffer
     ~CompressedPNG() override { if (data) mz_free(data); }
     std::string_view tag() const override { return "thumbnail"sv; }
 };
-
+struct PrecodingPNG : CompressedImageBuffer {
+    ~PrecodingPNG() override {}
+    std::string_view tag() const override { return "thumbnail"sv; }
+};
 struct CompressedJPG : CompressedImageBuffer
 {
     ~CompressedJPG() override { free(data); }
@@ -102,7 +105,14 @@ std::unique_ptr<CompressedImageBuffer> compress_thumbnail_qoi(const ThumbnailDat
     out->size = size;
     return out;
 }
-
+std::unique_ptr<CompressedImageBuffer>
+precoding_thumbnail_png(const ThumbnailData &data) {
+  auto out = std::make_unique<PrecodingPNG>();
+  out->data =
+      static_cast<void *>(const_cast<unsigned char *>(data.pixels.data()));
+  out->size = data.pixels.size();
+  return out;
+}
 std::unique_ptr<CompressedImageBuffer> compress_thumbnail(const ThumbnailData &data, GCodeThumbnailsFormat format)
 {
     switch (format) {
@@ -112,7 +122,9 @@ std::unique_ptr<CompressedImageBuffer> compress_thumbnail(const ThumbnailData &d
         case GCodeThumbnailsFormat::JPG:
             return compress_thumbnail_jpg(data);
         case GCodeThumbnailsFormat::QOI:
-            return compress_thumbnail_qoi(data);
+            return compress_thumbnail_qoi(data);  
+        case GCodeThumbnailsFormat::PREPNG:
+            return precoding_thumbnail_png(data);
     }
 }
 
